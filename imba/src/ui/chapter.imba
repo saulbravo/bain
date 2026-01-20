@@ -132,24 +132,25 @@ tag chapter < section
 						let bookmark = me.getBookmark(verse.pk, 'bookmarks')
 						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
 
-						if settings.verse_number
-							unless settings.verse_break
-								<span> ' '
-							<span.verse dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
-								if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
-								verse.verse
-								"\u2007"
-						else
-							unless settings.verse_break
-								<span> ' '
-						<span innerHTML=verse.text
-								id="{versePrefix}{verse.verse}"
-								@click.wait(200ms)=me.selectVerse(verse.pk, verse.verse)
-								# make it focus-able to get keydown working on it
-								tabIndex=0
-								@keydown.enter=me.saveBookmark
-								[background-image: {me.getHighlight(verse.pk)} scroll-margin-top: 1.4rem]
-							>
+						<span .selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) [background-image: {me.getHighlight(verse.pk)}]>
+							if settings.verse_number
+								unless settings.verse_break
+									<span> ' '
+								<span.verse dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
+									if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
+									verse.verse
+									"\u2007"
+							else
+								unless settings.verse_break
+									<span> ' '
+							<span innerHTML=verse.text
+									id="{versePrefix}{verse.verse}"
+									@click.wait(200ms)=me.selectVerse(verse.pk, verse.verse)
+									# make it focus-able to get keydown working on it
+									tabIndex=0
+									@keydown.enter=me.saveBookmark
+									[scroll-margin-top: 1.4rem]
+								>
 						if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (bookmark.collection || bookmark.note)
 							<note-tooltip style=superStyle bookmark=bookmark>
 								<svg src=Bookmark>
@@ -241,7 +242,7 @@ tag chapter < section
 			transition-property: fill, color, background, transform, border-radius
 
 		span
-			background-size: 100% calc(0.2em + .25rem)
+			background-size: 100% 100%
 			padding-bottom: .25rem
 
 		.verse
@@ -274,6 +275,9 @@ tag chapter < section
 			cursor: pointer
 			text-decoration: solid underline
 			y@hover:-2px
+
+		.selected-verse
+			c: $bgc @important
 
 		.in-offline
 			padding: 2rem

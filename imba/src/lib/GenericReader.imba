@@ -103,8 +103,7 @@ class GenericReader
 
 	def getHighlight pk\number
 		if activities.selectedVersesPKs.length && activities.selectedVersesPKs.includes(pk)
-			let width = Math.ceil(0.5 * theme.fontSize)	# size of dots
-			return "repeating-linear-gradient(90deg, {activities.highlight_color}, {activities.highlight_color} {width}px, rgba(0,0,0,0) {width}px, rgba(0,0,0,0) {width * 2}px)"
+			return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
 		else
 			let highlight = bookmarks.find(do |element| return element.verse == pk)
 			if highlight
@@ -156,7 +155,8 @@ class GenericReader
 			return
 
 		activities.selectedParallel = me
-		activities.highlight_color = activities.randomColor
+		unless activities.highlight_color
+			activities.highlight_color = activities.randomColor
 
 		if activities.selectedVersesPKs.length == 0 && me == 'main'
 			window.history.pushState(
