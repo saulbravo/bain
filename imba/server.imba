@@ -8,6 +8,7 @@ import { translationNames } from './src/dataindex'
 const app = express!
 const port = process.env.PORT or 3000
 
+app.use(express.static('public', maxAge:'1m'))
 app.use(express.static('dist/public', maxAge:'1m'))
 
 # actually handled on nginx level, shouldn't get here
@@ -18,6 +19,8 @@ def serviceWorker req, res
 app.get '/service.worker.js', serviceWorker
 app.get '/service-worker.js', serviceWorker
 app.get '/sw.js', serviceWorker
+app.get '/site.webmanifest', do(req, res)
+	res.sendFile `{__dirname}/public/site.webmanifest`
 
 def clean_up_html raw_html\string
 	// first remove all strong tags

@@ -98,7 +98,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nginx-router.tls=true"
-      - "traefik.http.routers.nginx-router.rule=Host(`bolls.local`)"
+      - "traefik.http.routers.nginx-router.rule=Host(`bolls.local`) || Host(`localhost`)"
       # - "traefik.http.routers.nginx-router.service=whoami1_service"
       - "traefik.http.services.nginx-router.loadbalancer.server.port=80"
       # - "traefik.http.routers.nginx-router.tls.certresolver=myresolver"
@@ -137,8 +137,8 @@ services:
       - web
       - internal
     ports:
-      - 80:80
-      - 443:443
+      - 8080:80
+      - 8443:443
     # required for SELinux
     security_opt:
       - label:disable
