@@ -31,6 +31,7 @@ class Activities
 	show_bookmarks = no
 	show_add_bookmark = no
 	show_color_picker = no
+	copySelectMode = no
 
 	blockInScroll = null
 	scrollLockTimeout = null
@@ -42,6 +43,12 @@ class Activities
 
 	@observable selectedVerses\number[] = []
 	@observable selectedVersesPKs\number[] = []
+	@observable copySelectedVersesPKs\number[] = []
+	@observable copySelectStartPK\number = 0
+	@observable copySelectEndPK\number = 0
+	@observable copySelectDragging = no
+	@observable copySelectDragHandle = '' # 'top' or 'bottom'
+	copySelectReader = null
 	selectedParallel = undefined
 	selectedCategories = []
 
@@ -92,6 +99,12 @@ class Activities
 		selectedVersesPKs = []
 		selectedParallel = undefined
 		selectedCategories = []
+		copySelectedVersesPKs = []
+		copySelectStartPK = 0
+		copySelectEndPK = 0
+		copySelectDragging = no
+		copySelectDragHandle = ''
+		copySelectReader = null
 
 		reader.show_verse_picker = no
 		parallelReader.show_verse_picker = no

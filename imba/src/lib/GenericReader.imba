@@ -111,6 +111,110 @@ class GenericReader
 			else
 				return ''
 	
+	def getCopySelectInfo pk\number
+		if !activities.copySelectMode or activities.copySelectStartPK == 0
+			return { inRange: no, isStart: no, isEnd: no }
+		
+		let startIdx = verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
+		let endIdx = verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
+		let currentIdx = verses.findIndex(do |v| return v.pk == pk)
+		
+		if startIdx == -1 or endIdx == -1 or currentIdx == -1
+			return { inRange: no, isStart: no, isEnd: no }
+			
+		let minIdx = Math.min(startIdx, endIdx)
+		let maxIdx = Math.max(startIdx, endIdx)
+		
+		return {
+			inRange: currentIdx >= minIdx and currentIdx <= maxIdx
+			isStart: currentIdx == minIdx
+			isEnd: currentIdx == maxIdx
+		}
+
+	def updateCopySelectRange
+		if !activities.copySelectMode or activities.copySelectStartPK == 0
+			# Hide selection box
+			let box = document.querySelector('.verse-selection-box')
+			if box
+				box.style.display = 'none'
+			return
+		
+		let startIdx = verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
+		let endIdx = verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
+		if startIdx == -1 or endIdx == -1
+			let box = document.querySelector('.verse-selection-box')
+			if box
+				box.style.display = 'none'
+			return
+		
+		let minIdx = Math.min(startIdx, endIdx)
+		let maxIdx = Math.max(startIdx, endIdx)
+		activities.copySelectedVersesPKs = []
+		for i in [minIdx .. maxIdx]
+			if verses[i]
+				activities.copySelectedVersesPKs.push(verses[i].pk)
+		
+		# Position the overlay box over selected verses (matches Obsidian plugin)
+		window.requestAnimationFrame(do
+			window.requestAnimationFrame(do
+				let box = document.querySelector('.verse-selection-box')
+				if !box
+					return
+				
+				# Get the article container
+				let articleEl = document.querySelector('article')
+				if !articleEl
+					box.style.display = 'none'
+					return
+				
+				# Find verse elements by traversing the article's children
+				# Verse elements contain a span with id="{versePrefix}{verse.verse}"
+				let firstVerseEl = null
+				let lastVerseEl = null
+				
+				# Get all verse text elements (they have IDs matching verse numbers)
+				for i in [minIdx .. maxIdx]
+					if verses[i]
+						let verseNum = verses[i].verse
+						# Try to find by verse number (with or without prefix)
+						let verseEl = document.getElementById(String(verseNum))
+						# If not found, try with 'p' prefix (for parallel readers)
+						if !verseEl
+							verseEl = document.getElementById("p{verseNum}")
+						# If still not found, search within article
+						if !verseEl and articleEl
+							let allSpans = articleEl.querySelectorAll('span[id]')
+							for span in allSpans
+								if span.id == String(verseNum) or span.id == "p{verseNum}" or span.id.endsWith(String(verseNum))
+									verseEl = span
+									break
+						
+						if verseEl
+							if !firstVerseEl
+								firstVerseEl = verseEl
+							lastVerseEl = verseEl
+				
+				if !firstVerseEl or !lastVerseEl
+					box.style.display = 'none'
+					return
+				
+				# Calculate position relative to article
+				# Use offsetTop relative to article
+				let articleRect = articleEl.getBoundingClientRect()
+				let firstRect = firstVerseEl.getBoundingClientRect()
+				let lastRect = lastVerseEl.getBoundingClientRect()
+				
+				# Calculate top and height relative to article
+				let top = firstVerseEl.offsetTop - 4
+				let bottom = lastVerseEl.offsetTop + lastVerseEl.offsetHeight + 4
+				
+				# Position the box
+				box.style.display = 'block'
+				box.style.top = "{top}px"
+				box.style.height = "{bottom - top}px"
+			)
+		)
+	
 	def getBookmarks
 		if !user.username
 			return
@@ -149,6 +253,15 @@ class GenericReader
 
 	def selectVerse pk\number, id\number
 		if !document.getSelection().isCollapsed or activities.activeModal
+			return
+
+		if activities.copySelectMode
+			# Single selection - clicking a new verse replaces the previous selection
+			activities.copySelectStartPK = pk
+			activities.copySelectEndPK = pk
+			activities.copySelectedVersesPKs = [pk]
+			self.updateCopySelectRange!
+			imba.commit!
 			return
 
 		if activities.selectedParallel != undefined and activities.selectedParallel != me

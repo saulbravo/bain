@@ -17,6 +17,7 @@ import Candy from 'lucide-static/icons/candy.svg'
 import CandyOff from 'lucide-static/icons/candy-off.svg'
 import VenetianMask from 'lucide-static/icons/venetian-mask.svg'
 import Pipette from 'lucide-static/icons/pipette.svg'
+import Copy from 'lucide-static/icons/clipboard-copy.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -77,6 +78,9 @@ tag settings-drawer < aside
 		<button.settings-btn @click=pageSearch.run>
 			<svg src=TextSearch aria-hidden=true>
 			t.find_in_chapter
+		<button.settings-btn.copy-select-active=(activities.copySelectMode) @click=(do activities.copySelectMode = !activities.copySelectMode; unless activities.copySelectMode then activities.copySelectedVersesPKs = []; imba.commit!)>
+			<svg src=Copy aria-hidden=true>
+			"Verse Copy Select"
 		<button.settings-btn @click=activities.showHistory>
 			<svg src=Croissant aria-hidden=true>
 			t.history
@@ -325,6 +329,11 @@ tag settings-drawer < aside
 			mr: 0.75rem
 			s: 2rem
 			min-width: 2rem
+
+		.copy-select-active
+			c: #a855f7
+			svg
+				c: #a855f7
 
 		.font-icon
 			ff:serif fs:1.6875rem

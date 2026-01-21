@@ -3,6 +3,7 @@ import GenericReader from '../lib/GenericReader'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
+import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 import { hasTouchEvents } from '../constants'
@@ -127,12 +128,35 @@ tag chapter < section
 							getChevron(yes)
 
 				<p[padding-inline:.5rem o:0 lh:1 ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:min({theme.fontSize * 2}px, 8vw) us:none word-break:break-word]> me.nameOfCurrentBook, ' ', me.chapter # since header height is changing, this takes constant space for header to avoid layout shifts
-				<article[text-indent: {settings.verse_number ? 0 : 2.5}em]>
+				<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
+					data-verse-break="{settings.verse_break}"
+					[pl: 30px]
+					[position: relative]>
+					
+					# Verse selection overlay box (matches Obsidian plugin style)
+					if activities.copySelectMode and activities.copySelectStartPK > 0
+						<div.verse-selection-box>
+							<button.verse-selection-insert-btn 
+								@click.stop.prevent=(do console.log("Add to Obsidian"))>
+								<svg src=ChevronLeft>
+							<button.verse-selection-close-btn 
+								@click.stop.prevent=(do activities.copySelectStartPK = 0; activities.copySelectEndPK = 0; activities.copySelectedVersesPKs = []; imba.commit!; me.updateCopySelectRange!)>
+								<svg src=X>
+							<span.verse-selection-handle.verse-selection-handle-top 
+								@mousedown.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'top'; activities.copySelectReader = me)
+								@touchstart.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'top'; activities.copySelectReader = me)>
+							<span.verse-selection-handle.verse-selection-handle-bottom 
+								@mousedown.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'bottom'; activities.copySelectReader = me)
+								@touchstart.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'bottom'; activities.copySelectReader = me)>
+					
 					for verse, verse_index in me.verses
 						let bookmark = me.getBookmark(verse.pk, 'bookmarks')
 						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
 
-						<span .selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) [background-image: {me.getHighlight(verse.pk)}]>
+						<span 
+							.selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) 
+							[background-image: {me.getHighlight(verse.pk)}]>
+							
 							if settings.verse_number
 								unless settings.verse_break
 									<span> ' '
@@ -277,7 +301,101 @@ tag chapter < section
 			y@hover:-2px
 
 		.selected-verse
-			c: $bgc @important
+			c: $bgc
+
+		# Verse selection overlay box (matches Obsidian plugin style)
+		.verse-selection-box
+			position: absolute
+			left: 0
+			right: 0
+			border-radius: 8px
+			background: color-mix(in srgb, #a855f7 15%, transparent)
+			border: 2px solid #a855f7
+			z-index: 5
+			pointer-events: none
+			transition: top 150ms ease, height 150ms ease
+			display: none
+			padding-left: 20px
+			padding-right: 20px
+
+		.verse-selection-box[style*="display: block"]
+			display: block
+
+		# Insert button inside selection box
+		.verse-selection-insert-btn
+			position: absolute
+			left: 0
+			top: 0
+			bottom: 0
+			width: 20px
+			background: #a855f7
+			border: none
+			border-radius: 6px 0 0 6px
+			display: flex
+			align-items: center
+			justify-content: center
+			cursor: pointer
+			pointer-events: auto
+			transition: all 0.15s ease
+			background@hover: #9333ea
+			opacity@hover: 0.8
+			background@active: #9333ea
+			opacity@active: 0.7
+
+		.verse-selection-insert-btn svg
+			width: 14px
+			height: 14px
+			color: white
+
+		# Close button inside selection box (on the right)
+		.verse-selection-close-btn
+			position: absolute
+			right: 0
+			top: 0
+			bottom: 0
+			width: 20px
+			background: #a855f7
+			border: none
+			border-radius: 0 6px 6px 0
+			display: flex
+			align-items: center
+			justify-content: center
+			cursor: pointer
+			pointer-events: auto
+			transition: all 0.15s ease
+			background@hover: #9333ea
+			opacity@hover: 0.8
+			background@active: #9333ea
+			opacity@active: 0.7
+
+		.verse-selection-close-btn svg
+			width: 14px
+			height: 14px
+			color: white
+
+		# Drag handles
+		.verse-selection-handle
+			position: absolute
+			left: 50%
+			transform: translateX(-50%)
+			width: 64px
+			height: 6px
+			border-radius: 999px
+			background: #a855f7
+			cursor: ns-resize
+			pointer-events: auto
+			z-index: 6
+			# ensure it stays visually centered on the box border
+			margin-left: 0
+
+		.verse-selection-handle-top
+			top: -4px
+
+		.verse-selection-handle-bottom
+			bottom: -4px
+
+		html[data-copy-select-dragging="true"] .verse-selection-box
+			transition: none
 
 		.in-offline
 			padding: 2rem

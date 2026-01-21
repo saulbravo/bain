@@ -32,6 +32,68 @@ tag reader
 				self.dictionary.tooltip = null
 				imba.commit!
 
+	handleCopySelectDragRAF = null
+	lastDragVersePK = 0
+	
+	def handleCopySelectDrag e\MouseEvent|TouchEvent
+		if !activities.copySelectDragging or !activities.copySelectReader
+			return
+		
+		e.preventDefault()
+		e.stopPropagation()
+		
+		document.documentElement.setAttribute('data-copy-select-dragging', 'true')
+		
+		# Use window.requestAnimationFrame for smooth, real-time updates
+		if handleCopySelectDragRAF
+			window.cancelAnimationFrame(handleCopySelectDragRAF)
+		
+		handleCopySelectDragRAF = window.requestAnimationFrame(do
+			let clientX = e.type.startsWith('touch') ? (e.touches.length > 0 ? e.touches[0].clientX : e.changedTouches[0].clientX) : e.clientX
+			let clientY = e.type.startsWith('touch') ? (e.touches.length > 0 ? e.touches[0].clientY : e.changedTouches[0].clientY) : e.clientY
+			let element = document.elementFromPoint(clientX, clientY)
+			if !element
+				return
+			
+			# Find the verse element by traversing up the DOM - look for elements with id that match verse pattern
+			let verseElement = element
+			let maxDepth = 15
+			let depth = 0
+			while verseElement and depth < maxDepth
+				if verseElement.id and (verseElement.id.match(/^\d+$/) or verseElement.id.match(/^p\d+$/))
+					break
+				verseElement = verseElement.parentElement
+				depth++
+			
+			if !verseElement or !verseElement.id
+				return
+			
+			let verseId = verseElement.id.replace(/^p/, '')
+			let verse = activities.copySelectReader.verses.find(do |v| return String(v.verse) == verseId)
+			if !verse or verse.pk == lastDragVersePK
+				return
+			
+			lastDragVersePK = verse.pk
+			if activities.copySelectDragHandle == 'top'
+				activities.copySelectStartPK = verse.pk
+			elif activities.copySelectDragHandle == 'bottom'
+				activities.copySelectEndPK = verse.pk
+			activities.copySelectReader.updateCopySelectRange!
+			imba.commit!
+			handleCopySelectDragRAF = null
+		)
+	
+	def handleCopySelectDragEnd
+		document.documentElement.removeAttribute('data-copy-select-dragging')
+		if handleCopySelectDragRAF
+			window.cancelAnimationFrame(handleCopySelectDragRAF)
+			handleCopySelectDragRAF = null
+		lastDragVersePK = 0
+		activities.copySelectDragging = no
+		activities.copySelectDragHandle = ''
+		activities.copySelectReader = null
+		imba.commit!
+
 	def mount
 		document.addEventListener('selectionchange', onSelectionChange.bind(self))
 		window.addEventListener('popstate', onPopState.bind(self))
@@ -40,6 +102,10 @@ tag reader
 		document.onmouseleave = hidePanels.bind(self)
 		window.onmouseout = hidePanels.bind(self)
 		window.onresize = imba.commit
+		document.addEventListener('mousemove', handleCopySelectDrag.bind(self), true)
+		document.addEventListener('mouseup', handleCopySelectDragEnd.bind(self), true)
+		document.addEventListener('touchmove', handleCopySelectDrag.bind(self), true)
+		document.addEventListener('touchend', handleCopySelectDragEnd.bind(self), true)
 
 		window.strongDefinition = do(topic)
 			self.dictionary.query = topic
@@ -59,6 +125,10 @@ tag reader
 	def unmount
 		document.removeEventListener('selectionchange', onSelectionChange.bind(self))
 		window.removeEventListener('popstate', onPopState.bind(self))
+		document.removeEventListener('mousemove', handleCopySelectDrag.bind(self), true)
+		document.removeEventListener('mouseup', handleCopySelectDragEnd.bind(self), true)
+		document.removeEventListener('touchmove', handleCopySelectDrag.bind(self), true)
+		document.removeEventListener('touchend', handleCopySelectDragEnd.bind(self), true)
 
 	@action def routed params
 		const link_segments = window.location.pathname.split('/').filter(Boolean)
@@ -373,6 +443,7 @@ tag reader
 								bgc:transparent
 								c:$acc @lt-lg:$c @hover:$acc-hover
 								d@lt-lg:hcc
+							
 							svg
 								o@lt-lg:0.75 @hover:1
 
