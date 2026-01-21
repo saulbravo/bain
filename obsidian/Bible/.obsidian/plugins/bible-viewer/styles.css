@@ -1,0 +1,15 @@
+.bible-viewer-container {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.bible-viewer-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+

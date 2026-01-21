@@ -138,7 +138,57 @@ tag chapter < section
 					if activities.copySelectMode and activities.copySelectStartPK > 0
 						<div.verse-selection-box>
 							<button.verse-selection-insert-btn 
-								@click.stop.prevent=(do console.log("Add to Obsidian"))>
+								@click.stop.prevent=(do
+									console.log('Add to Obsidian button clicked')
+									# Get selected verses
+									let selectedVerses = []
+									let startIdx = me.verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
+									let endIdx = me.verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
+									console.log('StartIdx:', startIdx, 'EndIdx:', endIdx, 'CopySelectStartPK:', activities.copySelectStartPK, 'CopySelectEndPK:', activities.copySelectEndPK)
+									if startIdx != -1 and endIdx != -1
+										let minIdx = Math.min(startIdx, endIdx)
+										let maxIdx = Math.max(startIdx, endIdx)
+										for i in [minIdx .. maxIdx]
+											if me.verses[i]
+												let verse = me.verses[i]
+												let reference = "{me.nameOfCurrentBook} {me.chapter}:{verse.verse}"
+												selectedVerses.push({
+													reference: reference,
+													text: verse.text,
+													verse: verse.verse
+												})
+									
+									console.log('Selected verses:', selectedVerses.length, selectedVerses)
+									console.log('Is in iframe?', window.parent != window.self, 'window.parent:', window.parent, 'window.self:', window.self)
+									console.log('window.parent type:', typeof window.parent, 'window.self type:', typeof window.self)
+									
+									# Send message to parent window (Obsidian) if in iframe
+									# Always try to send if we have verses - let the parent decide if it wants to handle it
+									if selectedVerses.length > 0
+										if window.parent != window.self
+											try
+												console.log('Sending verse selection to parent:', selectedVerses)
+												window.parent.postMessage({
+													type: 'bible-verse-selection',
+													verses: selectedVerses
+												}, '*')
+												console.log('Message sent successfully to:', window.parent.location?.href || 'parent window')
+											catch error
+												console.error('Could not send message to parent window:', error)
+										else
+											console.log('Not in iframe (window.parent == window.self), but trying anyway...')
+											# Try sending anyway - sometimes the check fails
+											try
+												window.parent.postMessage({
+													type: 'bible-verse-selection',
+													verses: selectedVerses
+												}, '*')
+												console.log('Message sent (fallback)')
+											catch error
+												console.error('Could not send message (fallback):', error)
+									else
+										console.log('No verses selected')
+								)>
 								<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
 								@click.stop.prevent=(do activities.copySelectStartPK = 0; activities.copySelectEndPK = 0; activities.copySelectedVersesPKs = []; imba.commit!; me.updateCopySelectRange!)>
@@ -337,6 +387,8 @@ tag chapter < section
 			top: 0
 			bottom: 0
 			width: 20px
+			min-width: 20px
+			max-width: 20px
 			background: #a855f7
 			border: none
 			border-radius: 6px 0 0 6px
@@ -350,11 +402,17 @@ tag chapter < section
 			opacity@hover: 0.8
 			background@active: #9333ea
 			opacity@active: 0.7
+			box-sizing: border-box
+			padding: 0
+			margin: 0
+			overflow: hidden
 
 		.verse-selection-insert-btn svg
 			width: 14px
 			height: 14px
 			color: white
+			display: block
+			flex-shrink: 0
 
 		# Close button inside selection box (on the right)
 		.verse-selection-close-btn
@@ -363,6 +421,8 @@ tag chapter < section
 			top: 0
 			bottom: 0
 			width: 20px
+			min-width: 20px
+			max-width: 20px
 			background: #a855f7
 			border: none
 			border-radius: 0 6px 6px 0
@@ -376,11 +436,17 @@ tag chapter < section
 			opacity@hover: 0.8
 			background@active: #9333ea
 			opacity@active: 0.7
+			box-sizing: border-box
+			padding: 0
+			margin: 0
+			overflow: hidden
 
 		.verse-selection-close-btn svg
 			width: 14px
 			height: 14px
 			color: white
+			display: block
+			flex-shrink: 0
 
 		# Drag handles
 		.verse-selection-handle

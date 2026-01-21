@@ -105,7 +105,6 @@ class GenericReader
 		# Don't return background for selected verses - they use text color instead
 		# if activities.selectedVersesPKs.length && activities.selectedVersesPKs.includes(pk)
 		# 	return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
-		# else
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
 		if highlight
 			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
@@ -270,7 +269,7 @@ class GenericReader
 
 		activities.selectedParallel = me
 		unless activities.highlight_color
-			activities.highlight_color = activities.randomColor
+		activities.highlight_color = activities.randomColor
 
 		if activities.selectedVersesPKs.length == 0 && me == 'main'
 			window.history.pushState(
