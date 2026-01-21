@@ -131,6 +131,7 @@ tag chapter < section
 				<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
 					[pl: 30px]
+					[pr: 30px]
 					[position: relative]>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
@@ -301,7 +302,15 @@ tag chapter < section
 			y@hover:-2px
 
 		.selected-verse
-			c: $bgc
+			c: $acc
+			background: none
+			background-image: none
+			background-color: transparent
+		
+		span.selected-verse::selection,
+		span.selected-verse::-moz-selection
+			background-color: transparent
+			color: $acc
 
 		# Verse selection overlay box (matches Obsidian plugin style)
 		.verse-selection-box

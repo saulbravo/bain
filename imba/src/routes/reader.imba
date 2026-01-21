@@ -94,6 +94,43 @@ tag reader
 		activities.copySelectReader = null
 		imba.commit!
 
+	def handleClickOutside e\MouseEvent|TouchEvent
+		# Deselect verses when clicking outside the article (text content area)
+		if activities.selectedVersesPKs.length > 0 or activities.copySelectedVersesPKs.length > 0
+			if !e.target
+				return
+			
+			const clickTarget = e.target
+			
+			# Find the article element that contains the verses (inside main-reader)
+			const mainReader = document.getElementById('main-reader')
+			if !mainReader
+				return
+			
+			const article = mainReader.querySelector('article')
+			if !article
+				return
+			
+			# Check if click is inside the article (text content area)
+			const isInsideArticle = article.contains(clickTarget)
+			
+			# Don't deselect if clicking on modals, drawers, or UI elements
+			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
+			
+			# Deselect if clicking outside the article (padding/margins) and not on UI elements
+			if !isInsideArticle and !isUIElement
+				activities.selectedVerses = []
+				activities.selectedVersesPKs = []
+				activities.copySelectedVersesPKs = []
+				activities.copySelectStartPK = 0
+				activities.copySelectEndPK = 0
+				activities.selectedParallel = undefined
+				activities.activeVerseAction = undefined
+				# Clear browser selections too
+				if window.getSelection
+					window.getSelection().removeAllRanges()
+				imba.commit!
+
 	def mount
 		document.addEventListener('selectionchange', onSelectionChange.bind(self))
 		window.addEventListener('popstate', onPopState.bind(self))
@@ -106,6 +143,7 @@ tag reader
 		document.addEventListener('mouseup', handleCopySelectDragEnd.bind(self), true)
 		document.addEventListener('touchmove', handleCopySelectDrag.bind(self), true)
 		document.addEventListener('touchend', handleCopySelectDragEnd.bind(self), true)
+		document.addEventListener('click', handleClickOutside.bind(self), true)
 
 		window.strongDefinition = do(topic)
 			self.dictionary.query = topic
@@ -129,6 +167,7 @@ tag reader
 		document.removeEventListener('mouseup', handleCopySelectDragEnd.bind(self), true)
 		document.removeEventListener('touchmove', handleCopySelectDrag.bind(self), true)
 		document.removeEventListener('touchend', handleCopySelectDragEnd.bind(self), true)
+		document.removeEventListener('click', handleClickOutside.bind(self), true)
 
 	@action def routed params
 		const link_segments = window.location.pathname.split('/').filter(Boolean)

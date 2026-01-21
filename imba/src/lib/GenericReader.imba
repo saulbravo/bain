@@ -102,14 +102,15 @@ class GenericReader
 			return bookmarks.find(do |element| return element.verse == verseNumber)
 
 	def getHighlight pk\number
-		if activities.selectedVersesPKs.length && activities.selectedVersesPKs.includes(pk)
-			return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
+		# Don't return background for selected verses - they use text color instead
+		# if activities.selectedVersesPKs.length && activities.selectedVersesPKs.includes(pk)
+		# 	return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
+		# else
+		let highlight = bookmarks.find(do |element| return element.verse == pk)
+		if highlight
+			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
 		else
-			let highlight = bookmarks.find(do |element| return element.verse == pk)
-			if highlight
-				return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
-			else
-				return ''
+			return ''
 	
 	def getCopySelectInfo pk\number
 		if !activities.copySelectMode or activities.copySelectStartPK == 0

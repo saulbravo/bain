@@ -137,9 +137,12 @@ global css
 
 
 	*::selection
-		text-decoration-color: $bgc
-		color: $bgc
-		background-color: $acc-hover
+		color: $acc
+		background-color: transparent
+	
+	*::-moz-selection
+		color: $acc
+		background-color: transparent
 
 	::-webkit-scrollbar-track
 		background: transparent
