@@ -6,7 +6,7 @@ import Bookmark from 'lucide-static/icons/bookmark.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
-import { hasTouchEvents } from '../constants'
+import { hasTouchEvents, translationNames } from '../constants'
 
 tag chapter < section
 	prop me\(GenericReader)
@@ -165,27 +165,61 @@ tag chapter < section
 									# Send message to parent window (Obsidian) if in iframe
 									# Always try to send if we have verses - let the parent decide if it wants to handle it
 									if selectedVerses.length > 0
-										if window.parent != window.self
+										# Include translation, book, and chapter info for building the URL
+										# Make sure all fields are explicitly set
+										let translationCode = me.translation || ''
+										let bookName = me.nameOfCurrentBook || ''
+										let chapterNum = me.chapter || 1
+										let bookIdNum = me.book || 1
+										
+										console.log('Preparing message - Translation:', translationCode, 'Book:', bookIdNum, 'Chapter:', chapterNum, 'BookName:', bookName)
+										console.log('me.translation value:', me.translation, 'type:', typeof me.translation)
+										console.log('me.book value:', me.book, 'type:', typeof me.book)
+										console.log('me.chapter value:', me.chapter, 'type:', typeof me.chapter)
+										
+										# Create message data object with explicit values - ensure all are set
+										# Use object literal to ensure proper serialization
+										let messageData = {
+											type: 'bible-verse-selection',
+											verses: selectedVerses,
+											translation: translationCode,
+											book: bookName,
+											chapter: chapterNum,
+											bookId: bookIdNum
+										}
+										
+										# Verify all properties are set
+										console.log('Sending verse selection to parent - full messageData:', JSON.stringify(messageData, null, 2))
+										console.log('MessageData keys:', Object.keys(messageData))
+										console.log('MessageData.translation:', messageData.translation)
+										console.log('MessageData.bookId:', messageData.bookId)
+										console.log('MessageData.chapter:', messageData.chapter)
+										
+										# Always try to send - let the parent decide if it wants to handle it
+										# Use structuredClone or JSON serialization to ensure all properties are included
+										try
+											# Create a plain object that will serialize correctly
+											let messageToSend = {
+												type: String(messageData.type),
+												verses: Array.from(messageData.verses),
+												translation: String(messageData.translation),
+												book: String(messageData.book),
+												chapter: Number(messageData.chapter),
+												bookId: Number(messageData.bookId)
+											}
+											console.log('About to send messageToSend:', JSON.stringify(messageToSend, null, 2))
+											console.log('messageToSend.translation:', messageToSend.translation)
+											window.parent.postMessage(messageToSend, '*')
+											console.log('Message sent successfully with translation:', messageToSend.translation)
+										catch error
+											console.error('Could not send message to parent window:', error)
+											# Try sending with JSON serialization as fallback
 											try
-												console.log('Sending verse selection to parent:', selectedVerses)
-												window.parent.postMessage({
-													type: 'bible-verse-selection',
-													verses: selectedVerses
-												}, '*')
-												console.log('Message sent successfully to:', window.parent.location?.href || 'parent window')
-											catch error
-												console.error('Could not send message to parent window:', error)
-										else
-											console.log('Not in iframe (window.parent == window.self), but trying anyway...')
-											# Try sending anyway - sometimes the check fails
-											try
-												window.parent.postMessage({
-													type: 'bible-verse-selection',
-													verses: selectedVerses
-												}, '*')
-												console.log('Message sent (fallback)')
-											catch error
-												console.error('Could not send message (fallback):', error)
+												let jsonMessage = JSON.parse(JSON.stringify(messageData))
+												window.parent.postMessage(jsonMessage, '*')
+												console.log('Message sent (JSON fallback)')
+											catch fallbackError
+												console.error('Could not send message (fallback):', fallbackError)
 									else
 										console.log('No verses selected')
 								)>

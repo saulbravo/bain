@@ -64,3 +64,11 @@ This will create the `main.js` file that Obsidian needs.
 2. When verse copy select mode is enabled and verses are selected, the Bible app sends a `postMessage` to the parent window
 3. The plugin listens for these messages and copies the formatted verses to the current note
 
+## Troubleshooting
+
+### Translation Code Not Showing
+
+If verses are being inserted with "BBE" instead of the actual translation code (YLT, KJV, etc.), see `FIX_TRANSLATION_CODE_ISSUE.md` for details on the fix and why it was needed.
+
+The issue was related to how `postMessage` serializes objects - reactive/observable properties from Imba weren't being properly serialized. The fix ensures all properties are converted to plain JavaScript primitives before sending.
+

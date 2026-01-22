@@ -237,6 +237,8 @@ class BibleView extends ItemView {
 		console.log("Bible Viewer: Received message", {
 			origin: event.origin,
 			data: event.data,
+			dataType: typeof event.data,
+			dataKeys: event.data ? Object.keys(event.data) : [],
 			source: event.source
 		});
 		
@@ -253,19 +255,30 @@ class BibleView extends ItemView {
 		}
 
 		if (event.data && event.data.type === "bible-verse-selection") {
-			console.log("Bible Viewer: Processing verse selection", event.data.verses);
-			this.copyVersesToNote(event.data.verses);
+			console.log("Bible Viewer: Processing verse selection", event.data);
+			console.log("Bible Viewer: Translation in data:", event.data.translation);
+			this.copyVersesToNote(event.data);
 		} else {
 			console.log("Bible Viewer: Message type mismatch or no data", event.data);
 		}
 	}
 
-	copyVersesToNote(verses: Array<{
-		reference: string;
-		text: string;
-		verse: number;
-	}>) {
-		console.log("Bible Viewer: copyVersesToNote called with", verses);
+	copyVersesToNote(data: {
+		verses: Array<{
+			reference: string;
+			text: string;
+			verse: number;
+		}>;
+		translation?: string;
+		translationFullName?: string;
+		book?: string;
+		chapter?: number;
+		bookId?: number | string;
+	}) {
+		const verses = data.verses;
+		console.log("Bible Viewer: copyVersesToNote called with", data);
+		console.log("Bible Viewer: Data keys:", Object.keys(data));
+		console.log("Bible Viewer: Translation field:", data.translation);
 		
 		const activeView =
 			this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -278,29 +291,56 @@ class BibleView extends ItemView {
 		
 		console.log("Bible Viewer: Active view found", activeView);
 
-		// Format verses for markdown
-		let formattedText = "";
+		// Build reference string
+		const firstVerse = verses[0];
+		const lastVerse = verses[verses.length - 1];
+		let referenceText: string;
 		
 		if (verses.length === 1) {
-			// Single verse: "John 3:16 For God so loved the world..."
-			formattedText = `**${verses[0].reference}** ${verses[0].text}`;
+			referenceText = firstVerse.reference;
 		} else {
-			// Multiple verses: "John 3:16-17 For God so loved the world... that whoever believes..."
-			const firstVerse = verses[0];
-			const lastVerse = verses[verses.length - 1];
-			const reference =
-				firstVerse.verse === lastVerse.verse
-					? firstVerse.reference
-					: `${firstVerse.reference}-${lastVerse.verse}`;
-			
-			const verseTexts = verses.map((v) => v.text).join(" ");
-			formattedText = `**${reference}** ${verseTexts}`;
+			// Multiple verses: "Genesis 1:2-3" or "Genesis 1:2"
+			if (firstVerse.verse === lastVerse.verse) {
+				referenceText = firstVerse.reference;
+			} else {
+				referenceText = `${firstVerse.reference}-${lastVerse.verse}`;
+			}
 		}
+
+		// Get translation code (abbreviation like YLT, KJV, etc.)
+		console.log("Bible Viewer: Full data object received:", JSON.stringify(data, null, 2));
+		console.log("Bible Viewer: data.translation value:", data.translation);
+		console.log("Bible Viewer: All data keys:", Object.keys(data || {}));
+		
+		const translationCode = data?.translation || "BBE";
+		console.log("Bible Viewer: Using translation code:", translationCode);
+		
+		// Build localhost URL
+		// Format: http://localhost:8080/{translation}/{bookId}/{chapter}/{verseRange}
+		const bookId = data.bookId || 1; // Default to 1 if not provided
+		const chapter = data.chapter || 1;
+		
+		// Build verse range: single verse is just the number, multiple verses use range format
+		let verseRange: string;
+		if (verses.length === 1) {
+			verseRange = `${firstVerse.verse}`;
+		} else {
+			verseRange = `${firstVerse.verse}-${lastVerse.verse}`;
+		}
+		
+		const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verseRange}`;
+		
+		// Format as callout (matching Bible Reference plugin format)
+		// > [!bible] [Reference - Translation Code](url)
+		// > verse text
+		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
+		const verseTexts = verses.map((v) => `> ${v.verse}. ${v.text}`).join("\n");
+		const formattedText = `${calloutHeader}\n${verseTexts}\n\n`;
 
 		// Insert at cursor position
 		const editor = activeView.editor;
 		const cursor = editor.getCursor();
-		editor.replaceRange(formattedText + "\n\n", cursor);
+		editor.replaceRange(formattedText, cursor);
 
 		new Notice(`Copied ${verses.length} verse${verses.length > 1 ? "s" : ""} to note`);
 	}
