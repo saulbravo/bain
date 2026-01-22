@@ -119,19 +119,52 @@ class BibleView extends ItemView {
 		container.empty();
 		container.addClass("bible-viewer-container");
 
-		// Create iframe with cache-busting parameter
-		const cacheBuster = `?v=${Date.now()}`;
+		// Create iframe with aggressive cache-busting parameter
+		// Use multiple parameters to bypass all caching layers
+		const timestamp = Date.now();
+		const random = Math.random().toString(36).substring(7);
+		const cacheBuster = `?v=${timestamp}&_nocache=1&_refresh=${random}&_t=${timestamp}&_r=${random}&sw=bypass&_cb=${timestamp}${random}`;
+		
+		// Create iframe element first
 		this.iframe = container.createEl("iframe", {
 			cls: "bible-viewer-iframe",
 			attr: {
-				src: this.plugin.settings.bibleAppUrl + cacheBuster,
 				sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
 			},
 		});
 
+		// Set src after a tiny delay to ensure iframe is ready
+		setTimeout(() => {
+			if (this.iframe) {
+				this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+				console.log("Bible Viewer: Iframe src set with cache-buster:", cacheBuster);
+				
+				// When iframe loads, try to clear its cache
+				this.iframe.onload = () => {
+					// Wait a bit for iframe to fully initialize
+					setTimeout(() => {
+						try {
+							const iframeWindow = this.iframe?.contentWindow;
+							if (iframeWindow) {
+								// Send message to iframe to clear service worker cache
+								iframeWindow.postMessage({ type: 'clear-cache', force: true }, '*');
+								console.log("Bible Viewer: Sent clear-cache message to iframe");
+								
+								// Also try to unregister service worker via postMessage
+								iframeWindow.postMessage({ type: 'unregister-sw', force: true }, '*');
+							}
+						} catch (e) {
+							// Cross-origin restrictions might prevent this
+							console.log("Bible Viewer: Could not access iframe window (expected if cross-origin)");
+						}
+					}, 500);
+				};
+			}
+		}, 10);
+
 		// Listen for messages from the iframe
 		window.addEventListener("message", this.messageHandler);
-		console.log("Bible Viewer: Message listener added");
+		console.log("Bible Viewer: Message listener added, iframe loaded with cache-buster:", cacheBuster);
 	}
 
 	async onload() {
@@ -149,22 +182,53 @@ class BibleView extends ItemView {
 	}
 
 	refreshIframe() {
-		// Force reload iframe with new cache-busting parameter and no-cache headers
+		// Force reload iframe with aggressive cache-busting parameter
 		if (this.iframe) {
-			const cacheBuster = `?v=${Date.now()}&_nocache=1`;
+			const timestamp = Date.now();
+			const random = Math.random().toString(36).substring(7);
+			const cacheBuster = `?v=${timestamp}&_nocache=1&_refresh=${random}&_t=${timestamp}&_r=${random}&sw=bypass&_force=1&_cb=${timestamp}${random}`;
+			
 			// Remove iframe and recreate to force fresh load
 			const oldIframe = this.iframe;
 			const container = oldIframe.parentElement;
 			oldIframe.remove();
 			
+			// Create new iframe
 			this.iframe = container.createEl("iframe", {
 				cls: "bible-viewer-iframe",
 				attr: {
-					src: this.plugin.settings.bibleAppUrl + cacheBuster,
 					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
 				},
 			});
-			console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
+			
+			// Set src after a tiny delay to ensure iframe is ready
+			setTimeout(() => {
+				if (this.iframe) {
+					this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+					console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
+					
+					// When iframe loads, try to clear its cache
+					this.iframe.onload = () => {
+						// Wait a bit for iframe to fully initialize
+						setTimeout(() => {
+							try {
+								const iframeWindow = this.iframe?.contentWindow;
+								if (iframeWindow) {
+									// Send message to iframe to clear service worker cache
+									iframeWindow.postMessage({ type: 'clear-cache', force: true }, '*');
+									console.log("Bible Viewer: Sent clear-cache message to iframe after refresh");
+									
+									// Also try to unregister service worker via postMessage
+									iframeWindow.postMessage({ type: 'unregister-sw', force: true }, '*');
+								}
+							} catch (e) {
+								// Cross-origin restrictions might prevent this
+								console.log("Bible Viewer: Could not access iframe window (expected if cross-origin)");
+							}
+						}, 500);
+					};
+				}
+			}, 10);
 		}
 	}
 
@@ -267,9 +331,10 @@ class BibleViewerSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.bibleAppUrl = value;
 						await this.plugin.saveSettings();
-						// Reload iframe if view is open
+						// Reload iframe if view is open with cache-busting
 						if (this.plugin.bibleView) {
-							this.plugin.bibleView.iframe.src = value;
+							const cacheBuster = `?v=${Date.now()}&_nocache=1&_refresh=${Math.random()}`;
+							this.plugin.bibleView.refreshIframe();
 						}
 					})
 			);

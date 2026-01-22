@@ -3,6 +3,9 @@
   height: 100%;
   border: none;
   display: block;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .bible-viewer-iframe {
@@ -10,6 +13,8 @@
   height: 100%;
   border: none;
   display: block;
+  padding: 0;
+  margin: 0;
 }
 
 
