@@ -72,7 +72,7 @@ tag settings-drawer < aside
 			<a.settings-btn  @click.stop.prevent=(window.location.pathname = "/signup/") href="/signup/">
 				<svg src=Candy aria-hidden=true>
 				t.signin
-		<button.settings-btn @click=activities.showSearch>
+		<button.settings-btn[d@lg:none] @click=activities.showSearch>
 			<svg src=Search aria-hidden=true>
 			t.bible_search
 		<button.settings-btn @click=pageSearch.run>

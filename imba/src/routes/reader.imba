@@ -10,6 +10,7 @@ import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
 import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
+import Copy from 'lucide-static/icons/clipboard-copy.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -323,6 +324,12 @@ tag reader
 			search.query = selectedText
 		activities.cleanUp { onPopState: yes }
 
+	def toggleCopySelectMode
+		activities.copySelectMode = !activities.copySelectMode
+		unless activities.copySelectMode
+			activities.copySelectedVersesPKs = []
+		imba.commit!
+
 	def openProfile
 		if user.username
 			router.go('/profile')
@@ -488,14 +495,21 @@ tag reader
 
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({bibleIconTransform}px)] @click=activities.toggleBooksMenu title=t.change_book>
 							<svg src=BookOpenText aria-hidden=yes>
-						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] @click=activities.showSearch title=t.search>
-							<svg src=Search aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Verse Copy Select">
+							<svg src=Copy aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SlidersHorizontal aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Verse Copy Select">
+							<svg src=Copy aria-hidden=yes>
 
 
 
 	css
+		.copy-select-active
+			c: #a855f7
+			svg
+				c: #a855f7
+		
 		nav, aside
 			h: 100vh
 			position: fixed
