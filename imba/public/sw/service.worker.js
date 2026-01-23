@@ -4,7 +4,7 @@ importScripts("/sw/jszip.min.js");
 importScripts("/sw/dexie.min.js");
 importScripts("/sw/scripts.js");
 
-const CACHE_NAME = "v3.1.35";
+const CACHE_NAME = "v3.1.36";
 const STATICS_CACHE = "statics-v1.0.19";
 const TEXTS_CACHE = "texts-v1.0.10";
 const DEV_MODE = true; // Set to false for production
@@ -17,16 +17,21 @@ const urlsToCache = [
 ];
 
 self.addEventListener("install", (event) => {
-  if (DEV_MODE) {
-    // In dev mode, skip waiting to activate immediately
-    self.skipWaiting();
-  }
+  // Always skip waiting to activate immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("👷 Opened cache ", CACHE_NAME);
       return cache.addAll(urlsToCache);
     })
   );
+});
+
+// Listen for skip waiting message
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

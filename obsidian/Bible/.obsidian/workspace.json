@@ -166,7 +166,7 @@
             }
           },
           {
-            "id": "b65aeb905336f2f0",
+            "id": "7b340656f4fa6326",
             "type": "leaf",
             "state": {
               "type": "bible-viewer",
@@ -180,7 +180,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 928.5
+    "width": 816.5
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -195,7 +195,7 @@
       "bible-viewer:Open Bible Viewer": false
     }
   },
-  "active": "7208569ae1dc8a28",
+  "active": "257a185339a993d9",
   "lastOpenFiles": [
     "Welcome.md"
   ]

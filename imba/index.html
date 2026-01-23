@@ -35,6 +35,7 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
+          // Don't use cache-busting on service worker URL - let it update naturally
           navigator.serviceWorker.register("/sw.js").then(
             function (registration) {
               if (!registration) return;
@@ -42,7 +43,10 @@
                 "ServiceWorker registration successful with scope: ",
                 registration.scope
               );
-              registration.update();
+              // Check for updates periodically, but don't force reload
+              setInterval(function() {
+                registration.update();
+              }, 60000); // Check for updates every minute
             },
             function (err) {
               console.warn("ServiceWorker registration failed: ", err);

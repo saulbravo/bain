@@ -35,6 +35,8 @@ else:
 CSRF_TRUSTED_ORIGINS = ["https://bolls.life", "https://dev.bolls.life"]
 if DEBUG:
     CSRF_TRUSTED_ORIGINS.append("https://bolls.local")
+    CSRF_TRUSTED_ORIGINS.append("http://localhost:8080")
+    CSRF_TRUSTED_ORIGINS.append("http://127.0.0.1:8080")
 
 # Application definition
 INSTALLED_APPS = [

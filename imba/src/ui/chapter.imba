@@ -223,7 +223,7 @@ tag chapter < section
 									else
 										console.log('No verses selected')
 								)>
-								<svg src=ChevronLeft>
+									<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
 								@click.stop.prevent=(do activities.copySelectStartPK = 0; activities.copySelectEndPK = 0; activities.copySelectedVersesPKs = []; imba.commit!; me.updateCopySelectRange!)>
 								<svg src=X>
@@ -447,6 +447,8 @@ tag chapter < section
 			color: white
 			display: block
 			flex-shrink: 0
+			margin: 0 auto
+			position: relative
 
 		# Close button inside selection box (on the right)
 		.verse-selection-close-btn

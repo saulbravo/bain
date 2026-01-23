@@ -139,19 +139,26 @@ class BibleView extends ItemView {
 				this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
 				console.log("Bible Viewer: Iframe src set with cache-buster:", cacheBuster);
 				
-				// When iframe loads, try to clear its cache
+				// When iframe loads, try to clear its cache (only once, not on every load)
+				let cacheCleared = false;
 				this.iframe.onload = () => {
+					// Only send cache clear message once per iframe instance
+					if (cacheCleared) {
+						return;
+					}
+					cacheCleared = true;
+					
 					// Wait a bit for iframe to fully initialize
 					setTimeout(() => {
 						try {
 							const iframeWindow = this.iframe?.contentWindow;
 							if (iframeWindow) {
-								// Send message to iframe to clear service worker cache
-								iframeWindow.postMessage({ type: 'clear-cache', force: true }, '*');
+								// Send message to iframe to clear service worker cache (only once)
+								iframeWindow.postMessage({ type: 'clear-cache', force: true, timestamp: Date.now() }, '*');
 								console.log("Bible Viewer: Sent clear-cache message to iframe");
 								
 								// Also try to unregister service worker via postMessage
-								iframeWindow.postMessage({ type: 'unregister-sw', force: true }, '*');
+								iframeWindow.postMessage({ type: 'unregister-sw', force: true, timestamp: Date.now() }, '*');
 							}
 						} catch (e) {
 							// Cross-origin restrictions might prevent this
@@ -207,19 +214,26 @@ class BibleView extends ItemView {
 					this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
 			console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
 					
-					// When iframe loads, try to clear its cache
+					// When iframe loads, try to clear its cache (only once per refresh)
+					let cacheCleared = false;
 					this.iframe.onload = () => {
+						// Only send cache clear message once per iframe instance
+						if (cacheCleared) {
+							return;
+						}
+						cacheCleared = true;
+						
 						// Wait a bit for iframe to fully initialize
 						setTimeout(() => {
 							try {
 								const iframeWindow = this.iframe?.contentWindow;
 								if (iframeWindow) {
-									// Send message to iframe to clear service worker cache
-									iframeWindow.postMessage({ type: 'clear-cache', force: true }, '*');
+									// Send message to iframe to clear service worker cache (only once)
+									iframeWindow.postMessage({ type: 'clear-cache', force: true, timestamp: Date.now() }, '*');
 									console.log("Bible Viewer: Sent clear-cache message to iframe after refresh");
 									
 									// Also try to unregister service worker via postMessage
-									iframeWindow.postMessage({ type: 'unregister-sw', force: true }, '*');
+									iframeWindow.postMessage({ type: 'unregister-sw', force: true, timestamp: Date.now() }, '*');
 								}
 							} catch (e) {
 								// Cross-origin restrictions might prevent this
