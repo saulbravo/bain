@@ -180,7 +180,7 @@ tag chapter < section
 										# Create message data object with explicit values - ensure all are set
 										# Use object literal to ensure proper serialization
 										let messageData = {
-											type: 'bible-verse-selection',
+													type: 'bible-verse-selection',
 											verses: selectedVerses,
 											translation: translationCode,
 											book: bookName,
@@ -213,17 +213,17 @@ tag chapter < section
 											console.log('Message sent successfully with translation:', messageToSend.translation)
 										catch error
 											console.error('Could not send message to parent window:', error)
-											# Try sending with JSON serialization as fallback
-											try
-												let jsonMessage = JSON.parse(JSON.stringify(messageData))
-												window.parent.postMessage(jsonMessage, '*')
-												console.log('Message sent (JSON fallback)')
-											catch fallbackError
-												console.error('Could not send message (fallback):', fallbackError)
+										# Try sending with JSON serialization as fallback
+										try
+											let jsonMessage = JSON.parse(JSON.stringify(messageData))
+											window.parent.postMessage(jsonMessage, '*')
+											console.log('Message sent (JSON fallback)')
+										catch fallbackError
+											console.error('Could not send message (fallback):', fallbackError)
 									else
 										console.log('No verses selected')
 								)>
-									<svg src=ChevronLeft>
+								<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
 								@click.stop.prevent=(do activities.copySelectStartPK = 0; activities.copySelectEndPK = 0; activities.copySelectedVersesPKs = []; imba.commit!; me.updateCopySelectRange!)>
 								<svg src=X>

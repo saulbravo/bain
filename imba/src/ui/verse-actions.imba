@@ -1,4 +1,5 @@
 import Copy from 'lucide-static/icons/copy.svg'
+import Obsidian from '../icons/obsidian.svg'
 import Link from 'lucide-static/icons/link.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Dices from 'lucide-static/icons/dices.svg'
@@ -124,6 +125,18 @@ tag verse-actions < section
 						<svg src=Eraser aria-hidden=yes>
 						t.delete
 			<li>
+				<button .copy-select-active=(activities.copySelectMode) @click=(do activities.copySelectMode = !activities.copySelectMode; unless activities.copySelectMode then activities.copySelectedVersesPKs = []; imba.commit!)>
+					<svg src=Obsidian aria-hidden=yes>
+					"Obsidian"
+			<li>
+				<button @click=activities.copyWithoutLink>
+					<svg src=Copy aria-hidden=yes>
+					t.copy
+			<li>
+				<button @click=compare.load>
+					<svg src=Split aria-hidden=yes>
+					t.compare
+			<li>
 				<menu-popup bind=activities.show_sharing>
 					<button @click=(do activities.show_sharing = !activities.show_sharing)>
 						<svg src=Share aria-hidden=yes>
@@ -151,19 +164,6 @@ tag verse-actions < section
 									)>
 										<svg src=Link aria-hidden=yes>
 										t.copy_with_link
-
-			<li>
-				<button @click=activities.copyWithoutLink>
-					<svg src=Copy aria-hidden=yes>
-					t.copy
-			<li>
-				<button @click=compare.load>
-					<svg src=Split aria-hidden=yes>
-					t.compare
-			<li>
-				<button @click=activities.openModal('notes')>
-					<svg src=NotebookPen aria-hidden=yes>
-					t.note
 			<li>
 				<menu-popup bind=activities.show_bookmarks>
 					<button @click=activities.toggleBookmarks .applied=(activities.selectedCategories.length > 0)>
@@ -324,3 +324,8 @@ tag verse-actions < section
 		
 		.applied
 			c@important:$acc
+		
+		.copy-select-active
+			c: #a855f7
+			svg
+				c: #a855f7

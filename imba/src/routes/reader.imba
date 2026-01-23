@@ -11,6 +11,7 @@ import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
 import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
+import Obsidian from '../icons/obsidian.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -492,15 +493,16 @@ tag reader
 							
 							svg
 								o@lt-lg:0.75 @hover:1
+								size:1.5rem @lt-lg:1.25rem
 
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({bibleIconTransform}px)] @click=activities.toggleBooksMenu title=t.change_book>
 							<svg src=BookOpenText aria-hidden=yes>
-						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Verse Copy Select">
-							<svg src=Copy aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
+							<svg src=Obsidian aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SlidersHorizontal aria-hidden=yes>
-						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Verse Copy Select">
-							<svg src=Copy aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
+							<svg src=Obsidian aria-hidden=yes>
 
 
 

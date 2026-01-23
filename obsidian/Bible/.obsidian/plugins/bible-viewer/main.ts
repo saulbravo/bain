@@ -205,7 +205,7 @@ class BibleView extends ItemView {
 			setTimeout(() => {
 				if (this.iframe) {
 					this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
-					console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
+			console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
 					
 					// When iframe loads, try to clear its cache
 					this.iframe.onload = () => {
@@ -265,9 +265,9 @@ class BibleView extends ItemView {
 
 	copyVersesToNote(data: {
 		verses: Array<{
-			reference: string;
-			text: string;
-			verse: number;
+		reference: string;
+		text: string;
+		verse: number;
 		}>;
 		translation?: string;
 		translationFullName?: string;
