@@ -108,14 +108,22 @@ tag verse-actions < section
 		<ul>
 			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
 				<svg src=Dices width="2rem" height="2rem" role="button" aria-label=t.random
-				@click=(activities.highlight_color = activities.randomColor)>
+				@click=(do
+					let randomColor = activities.randomColor
+					activities.highlight_color = randomColor
+					if activities.selectedVersesPKs.length > 0
+						if activities.selectedParallel == 'main'
+							reader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
+						else
+							parallelReader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
+				)>
 
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.highlight_color @change=activities.setHighlightColor>
 
 			for color in colors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
-					@click=activities.changeHighlightColor(color)>
+					@click.stop.prevent=activities.changeHighlightColor(color)>
 
 
 		<menu>

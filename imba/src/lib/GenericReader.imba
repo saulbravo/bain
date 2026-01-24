@@ -107,9 +107,42 @@ class GenericReader
 		# 	return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
 		if highlight
+			console.log('[getHighlight] Found highlight for pk', pk, 'color:', highlight.color)
 			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
 		else
 			return ''
+	
+	def applyHighlightPreview pks\number[], color\string
+		# Immediately apply highlight to verses without saving to server
+		# This creates a preview that will be saved when user clicks save
+		console.log('[applyHighlightPreview] Called with pks:', pks, 'color:', color)
+		if !color or color == ''
+			console.warn('[applyHighlightPreview] No color provided, skipping')
+			return
+		
+		if !pks or pks.length == 0
+			console.warn('[applyHighlightPreview] No verses provided, skipping')
+			return
+		
+		for pk in pks
+			# Remove existing bookmark for this verse (if any)
+			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == pk)
+			if existingBookmark
+				console.log('[applyHighlightPreview] Removing existing bookmark for pk', pk)
+				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
+			
+			# Add new preview bookmark
+			console.log('[applyHighlightPreview] Adding preview bookmark for pk', pk, 'with color', color)
+			bookmarks.push({
+				verse: pk,
+				date: Date.now(),
+				color: color,
+				collection: '',
+				note: ''
+			})
+		
+		console.log('[applyHighlightPreview] Updated bookmarks array, new length:', bookmarks.length)
+		imba.commit!
 	
 	def getCopySelectInfo pk\number
 		if !activities.copySelectMode or activities.copySelectStartPK == 0
@@ -252,10 +285,17 @@ class GenericReader
 
 
 	def selectVerse pk\number, id\number
+		console.log('[selectVerse] Called with pk:', pk, 'id:', id)
+		console.log('[selectVerse] Current selectedVersesPKs:', activities.selectedVersesPKs)
+		console.log('[selectVerse] Selection collapsed:', document.getSelection().isCollapsed)
+		console.log('[selectVerse] Active modal:', activities.activeModal)
+		
 		if !document.getSelection().isCollapsed or activities.activeModal
+			console.log('[selectVerse] Early return - selection not collapsed or modal active')
 			return
 
 		if activities.copySelectMode
+			console.log('[selectVerse] Copy select mode active')
 			# Single selection - clicking a new verse replaces the previous selection
 			activities.copySelectStartPK = pk
 			activities.copySelectEndPK = pk
@@ -265,11 +305,13 @@ class GenericReader
 			return
 
 		if activities.selectedParallel != undefined and activities.selectedParallel != me
+			console.log('[selectVerse] Different parallel reader selected, returning')
 			return
 
 		activities.selectedParallel = me
 		unless activities.highlight_color
-		activities.highlight_color = activities.randomColor
+			activities.highlight_color = activities.randomColor
+			console.log('[selectVerse] Generated random color:', activities.highlight_color)
 
 		if activities.selectedVersesPKs.length == 0 && me == 'main'
 			window.history.pushState(
@@ -280,6 +322,7 @@ class GenericReader
 
 		# Check if the user chosen a verse in the same parallel scope
 		if activities.selectedVersesPKs.includes(pk)
+			console.log('[selectVerse] Deselecting verse pk:', pk)
 			activities.selectedVersesPKs.splice(activities.selectedVersesPKs.indexOf(pk), 1)
 			activities.selectedVerses.splice(activities.selectedVerses.indexOf(id), 1)
 			let collection = getCollectionOfChosen(pk)
@@ -288,9 +331,12 @@ class GenericReader
 					if piece != ''
 						activities.selectedCategories.splice(activities.selectedCategories.indexOf(piece), 1)
 		else
+			console.log('[selectVerse] Selecting verse pk:', pk)
 			activities.selectedVersesPKs.push(pk)
 			activities.selectedVerses.push(id)
 			pushCollectionIfExist(pk)
+		
+		console.log('[selectVerse] After selection, selectedVersesPKs:', activities.selectedVersesPKs)
 
 		# If the verse is in area under bottom section
 		# scroll to it, to see the full verse
@@ -307,13 +353,20 @@ class GenericReader
 		if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
 			verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
 
+		console.log('[selectVerse] Final check - selectedVersesPKs.length:', activities.selectedVersesPKs.length)
 		if activities.selectedVersesPKs.length
+			console.log('[selectVerse] Showing delete bookmark and setting activeVerseAction')
 			showDeleteBookmark()
 			mergeNotes()
 			activities.activeVerseAction ||= 'options'
+			console.log('[selectVerse] activeVerseAction set to:', activities.activeVerseAction)
 		else
+			console.log('[selectVerse] No verses selected, clearing activeVerseAction')
 			activities.activeVerseAction = undefined
 			activities.selectedParallel = undefined
+		
+		console.log('[selectVerse] Final state - selectedVersesPKs:', activities.selectedVersesPKs, 'activeVerseAction:', activities.activeVerseAction)
+		imba.commit!
 
 
 	def mergeNotes
@@ -413,9 +466,20 @@ class GenericReader
 				saveOffline!
 		else saveOffline!
 
+		console.log('[saveBookmark] Saving bookmarks for verses:', activities.selectedVersesPKs)
+		console.log('[saveBookmark] Color:', activities.highlight_color)
+		console.log('[saveBookmark] Collections:', collections)
+		console.log('[saveBookmark] Note:', activities.note)
+		
 		for verse in activities.selectedVersesPKs
-			if bookmarks.find(do |bookmark| return bookmark.verse == verse)
-				bookmarks.splice(bookmarks.indexOf(bookmarks.find(do |bookmark| return bookmark.verse == verse)), 1)
+			# Remove existing bookmark (including preview ones)
+			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)
+			if existingBookmark
+				console.log('[saveBookmark] Removing existing bookmark for verse', verse)
+				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
+			
+			# Add saved bookmark (will be persisted to server/storage)
+			console.log('[saveBookmark] Adding saved bookmark for verse', verse)
 			bookmarks.push({
 				verse: verse,
 				date: Date.now(),
@@ -423,6 +487,8 @@ class GenericReader
 				collection: collections
 				note: activities.note
 			})
+		
+		console.log('[saveBookmark] Final bookmarks array length:', bookmarks.length)
 		user.saveUserBookmarkToMap translation, book, chapter, activities.highlight_color
 		# add to user.categories the new collections
 		for category in activities.selectedCategories

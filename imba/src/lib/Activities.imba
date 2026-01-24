@@ -222,15 +222,76 @@ class Activities
 
 	def changeHighlightColor color\string
 		# get tag with title = color
+		console.log('[changeHighlightColor] Called with color name:', color)
+		console.log('[changeHighlightColor] Current state - selectedVersesPKs:', selectedVersesPKs)
+		console.log('[changeHighlightColor] Current state - selectedVerses:', selectedVerses)
+		console.log('[changeHighlightColor] Current state - selectedParallel:', selectedParallel)
+		console.log('[changeHighlightColor] Current state - activeVerseAction:', activeVerseAction)
+		
 		let colorBulb = document.querySelector('li.color-option[title="' + color + '"]')
+		if !colorBulb
+			console.warn('[changeHighlightColor] Color bulb not found for:', color)
+			return
+		
 		const computedStyle = window.getComputedStyle(colorBulb)
 		const backgroundColor = computedStyle.getPropertyValue('background-color');
+		console.log('[changeHighlightColor] Computed background color:', backgroundColor)
 
 		highlight_color = backgroundColor
+		console.log('[changeHighlightColor] Updated highlight_color to:', highlight_color)
+		console.log('[changeHighlightColor] Selected verses PKs after update:', selectedVersesPKs)
+		
+		# If selectedParallel is undefined but we have selectedVersesPKs, try to determine which reader
+		# This can happen if the click handler cleared selectedParallel but not selectedVersesPKs
+		if !selectedParallel and selectedVersesPKs.length > 0
+			console.log('[changeHighlightColor] selectedParallel is undefined, checking which reader has these verses')
+			# Check if any of the selected verses are in the main reader
+			let hasMainVerses = reader.verses.some(do |v| return selectedVersesPKs.includes(v.pk))
+			if hasMainVerses
+				console.log('[changeHighlightColor] Setting selectedParallel to main')
+				selectedParallel = 'main'
+			else
+				let hasParallelVerses = parallelReader.verses.some(do |v| return selectedVersesPKs.includes(v.pk))
+				if hasParallelVerses
+					console.log('[changeHighlightColor] Setting selectedParallel to parallel reader')
+					selectedParallel = parallelReader
+		
+		# Immediately apply highlight preview
+		if selectedVersesPKs.length > 0
+			console.log('[changeHighlightColor] Applying immediate highlight preview with selectedParallel:', selectedParallel)
+			if selectedParallel == 'main'
+				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+			else if selectedParallel
+				parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+			else
+				# Fallback: try both readers
+				console.warn('[changeHighlightColor] selectedParallel is still undefined, trying main reader')
+				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+		else
+			console.warn('[changeHighlightColor] No verses selected, cannot apply highlight')
+			console.warn('[changeHighlightColor] This might be a timing issue - checking if we can get verses from DOM')
+			# Try to get selected verses from the DOM as a fallback
+			let selectedElements = document.querySelectorAll('.selected-verse')
+			console.log('[changeHighlightColor] Found selected-verse elements in DOM:', selectedElements.length)
 
 	def setHighlightColor event
+		console.log('[setHighlightColor] Called with event:', event)
 		if event.detail
 			highlight_color = event.detail
+			console.log('[setHighlightColor] Updated highlight_color to:', highlight_color)
+			console.log('[setHighlightColor] Selected verses PKs:', selectedVersesPKs)
+			
+			# Immediately apply highlight preview
+			if selectedVersesPKs.length > 0
+				console.log('[setHighlightColor] Applying immediate highlight preview')
+				if selectedParallel == 'main'
+					reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+				else
+					parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+			else
+				console.warn('[setHighlightColor] No verses selected, cannot apply highlight')
+		else
+			console.warn('[setHighlightColor] No color detail in event')
 	
 	def cleanUpCopyText text\string = ''
 		let res = text.trim()

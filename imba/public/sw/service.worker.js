@@ -18,7 +18,7 @@ const urlsToCache = [
 
 self.addEventListener("install", (event) => {
   // Always skip waiting to activate immediately
-  self.skipWaiting();
+    self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("👷 Opened cache ", CACHE_NAME);

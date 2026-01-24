@@ -113,14 +113,35 @@ tag reader
 			if !article
 				return
 			
+			# FIRST: If verse-actions slider is open, don't clear selection on any click
+			# This is the most reliable check
+			if activities.activeVerseAction
+				console.log('[reader click handler] Verse actions slider is open (activeVerseAction:', activities.activeVerseAction, '), preserving selection')
+				return
+			
+			# SECOND: Check if we're clicking inside verse-actions or any UI element that should preserve selection
+			# Check multiple ways to catch all cases
+			const isVerseActions = clickTarget.closest('.verse-actions')
+			const isColorOption = clickTarget.closest('.color-option') or clickTarget.classList.contains('color-option')
+			const isButton = clickTarget.tagName == 'BUTTON' or clickTarget.closest('button')
+			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
+			
+			# If clicking on color options or inside verse-actions, preserve selection
+			if isVerseActions or isColorOption or (isButton and clickTarget.closest('section.verse-actions'))
+				console.log('[reader click handler] Clicked inside verse-actions/color-option, preserving selection. isVerseActions:', !!isVerseActions, 'isColorOption:', !!isColorOption, 'isButton:', !!isButton)
+				return
+			
+			# For other UI elements, also preserve selection
+			if isUIElement
+				console.log('[reader click handler] Clicked inside UI element, preserving selection')
+				return
+			
 			# Check if click is inside the article (text content area)
 			const isInsideArticle = article.contains(clickTarget)
 			
-			# Don't deselect if clicking on modals, drawers, or UI elements
-			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
-			
 			# Deselect if clicking outside the article (padding/margins) and not on UI elements
-			if !isInsideArticle and !isUIElement
+			if !isInsideArticle
+				console.log('[reader click handler] Clearing selection - clicked outside article')
 				activities.selectedVerses = []
 				activities.selectedVersesPKs = []
 				activities.copySelectedVersesPKs = []
