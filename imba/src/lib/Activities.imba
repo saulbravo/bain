@@ -267,6 +267,14 @@ class Activities
 				# Fallback: try both readers
 				console.warn('[changeHighlightColor] selectedParallel is still undefined, trying main reader')
 				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+			
+			# Clear selection after applying highlight so user can select another verse
+			console.log('[changeHighlightColor] Clearing selection after applying highlight')
+			selectedVerses = []
+			selectedVersesPKs = []
+			selectedParallel = undefined
+			activeVerseAction = undefined
+			imba.commit!
 		else
 			console.warn('[changeHighlightColor] No verses selected, cannot apply highlight')
 			console.warn('[changeHighlightColor] This might be a timing issue - checking if we can get verses from DOM')
@@ -280,14 +288,27 @@ class Activities
 			highlight_color = event.detail
 			console.log('[setHighlightColor] Updated highlight_color to:', highlight_color)
 			console.log('[setHighlightColor] Selected verses PKs:', selectedVersesPKs)
+			console.log('[setHighlightColor] Color picker open:', show_color_picker)
 			
-			# Immediately apply highlight preview
+			# Immediately apply highlight preview (for live preview while dragging)
 			if selectedVersesPKs.length > 0
 				console.log('[setHighlightColor] Applying immediate highlight preview')
 				if selectedParallel == 'main'
 					reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 				else
 					parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+				
+				# Only clear selection if color picker is closed (user clicked OK or Cancel)
+				# This prevents clearing while user is still interacting with the picker
+				if !show_color_picker
+					console.log('[setHighlightColor] Color picker closed, clearing selection after applying highlight')
+					selectedVerses = []
+					selectedVersesPKs = []
+					selectedParallel = undefined
+					activeVerseAction = undefined
+					imba.commit!
+				else
+					console.log('[setHighlightColor] Color picker still open, keeping selection for live preview')
 			else
 				console.warn('[setHighlightColor] No verses selected, cannot apply highlight')
 		else

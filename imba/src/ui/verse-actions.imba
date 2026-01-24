@@ -116,6 +116,12 @@ tag verse-actions < section
 							reader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
 						else
 							parallelReader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
+						# Clear selection after applying highlight
+						activities.selectedVerses = []
+						activities.selectedVersesPKs = []
+						activities.selectedParallel = undefined
+						activities.activeVerseAction = undefined
+						imba.commit!
 				)>
 
 			<li.color-option[scale:unset]>

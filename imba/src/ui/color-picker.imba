@@ -328,6 +328,10 @@ tag color-picker
 		# revert may be an event
 		if revert isa "boolean" and revert
 			emit('change', oldColor)
+		else
+			# When closing with OK, emit final change event with current color
+			# This ensures the selection is cleared after the final color is set
+			emit('change', this.RGBToStr(currentColor))
 		activities.show_color_picker = false
 
 	def updateRGB values
