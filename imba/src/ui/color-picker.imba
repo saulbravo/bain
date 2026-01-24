@@ -323,16 +323,19 @@ tag color-picker
 		$colorMarker.focus()
 
 	# Close the color picker.
-	# @param {boolean} [revert] If true, revert the color to the original value.
+	# @param {boolean} [revert] If True, revert the color to the original value.
 	def closePicker revert\any?
 		# revert may be an event
+		# Set show_color_picker to false FIRST, so setHighlightColor knows picker is closed
+		activities.show_color_picker = false
+		
 		if revert isa "boolean" and revert
+			# Cancel: revert to old color
 			emit('change', oldColor)
 		else
-			# When closing with OK, emit final change event with current color
-			# This ensures the selection is cleared after the final color is set
+			# OK: emit final change event with current color
+			# This ensures setHighlightColor sees show_color_picker = false and clears selection
 			emit('change', this.RGBToStr(currentColor))
-		activities.show_color_picker = false
 
 	def updateRGB values
 		for own key, value of values

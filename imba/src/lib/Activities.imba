@@ -268,7 +268,7 @@ class Activities
 				console.warn('[changeHighlightColor] selectedParallel is still undefined, trying main reader')
 				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 			
-			# Clear selection after applying highlight so user can select another verse
+			# Always clear selection after applying highlight (preset colors don't use picker)
 			console.log('[changeHighlightColor] Clearing selection after applying highlight')
 			selectedVerses = []
 			selectedVersesPKs = []
@@ -299,14 +299,17 @@ class Activities
 					parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 				
 				# Only clear selection if color picker is closed (user clicked OK or Cancel)
-				# This prevents clearing while user is still interacting with the picker
+				# closePicker sets show_color_picker = false BEFORE emitting change event
+				# Use a microtask to ensure the flag has been updated
 				if !show_color_picker
 					console.log('[setHighlightColor] Color picker closed, clearing selection after applying highlight')
-					selectedVerses = []
-					selectedVersesPKs = []
-					selectedParallel = undefined
-					activeVerseAction = undefined
-					imba.commit!
+					# Use Promise.resolve().then to ensure this runs after the current event loop
+					Promise.resolve().then do
+						selectedVerses = []
+						selectedVersesPKs = []
+						selectedParallel = undefined
+						activeVerseAction = undefined
+						imba.commit!
 				else
 					console.log('[setHighlightColor] Color picker still open, keeping selection for live preview')
 			else
