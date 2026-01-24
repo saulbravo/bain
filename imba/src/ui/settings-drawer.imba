@@ -21,6 +21,8 @@ import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
+import reader from '../lib/Reader'
+import parallelReader from '../lib/ParallelReader'
 
 
 tag settings-drawer < aside
@@ -79,7 +81,45 @@ tag settings-drawer < aside
 		<button.settings-btn @click=pageSearch.run>
 			<svg src=TextSearch aria-hidden=true>
 			t.find_in_chapter
-		<button.settings-btn.copy-select-active=(activities.copySelectMode) @click=(do activities.copySelectMode = !activities.copySelectMode; unless activities.copySelectMode then activities.copySelectedVersesPKs = []; imba.commit!)>
+		<button.settings-btn.copy-select-active=(activities.copySelectMode) @click=(do
+			let wasOff = !activities.copySelectMode
+			activities.copySelectMode = !activities.copySelectMode
+			
+			if !activities.copySelectMode
+				# Turning OFF - clear selection
+				activities.copySelectedVersesPKs = []
+				activities.copySelectStartPK = 0
+				activities.copySelectEndPK = 0
+			elif wasOff and activities.selectedVersesPKs.length > 0
+				# Turning ON and there are selected verses - activate purple box
+				let selectedPKs = activities.selectedVersesPKs
+				if selectedPKs.length > 0
+					# Set start and end PKs
+					activities.copySelectStartPK = selectedPKs[0]
+					activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
+					
+					# Determine which reader has these verses and update the selection box
+					let targetReader = null
+					if activities.selectedParallel == 'main'
+						targetReader = reader
+					elif activities.selectedParallel
+						targetReader = activities.selectedParallel
+					else
+						# Try to determine which reader has these verses
+						let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
+						if hasMainVerses
+							targetReader = reader
+						else
+							let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
+							if hasParallelVerses
+								targetReader = parallelReader
+					
+					# Update the selection box if we found a target reader
+					if targetReader
+						targetReader.updateCopySelectRange!
+			
+			imba.commit!
+		)>
 			<svg src=Obsidian aria-hidden=true>
 			"Obsidian"
 		<button.settings-btn @click=activities.showHistory>

@@ -13,6 +13,8 @@ import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
+import reader from '../lib/Reader'
+import parallelReader from '../lib/ParallelReader'
 
 const DEFAULT_Y = 32
 
@@ -139,7 +141,45 @@ tag verse-actions < section
 						<svg src=Eraser aria-hidden=yes>
 						t.delete
 			<li>
-				<button .copy-select-active=(activities.copySelectMode) @click=(do activities.copySelectMode = !activities.copySelectMode; unless activities.copySelectMode then activities.copySelectedVersesPKs = []; imba.commit!)>
+				<button .copy-select-active=(activities.copySelectMode) @click=(do
+					let wasOff = !activities.copySelectMode
+					activities.copySelectMode = !activities.copySelectMode
+					
+					if !activities.copySelectMode
+						# Turning OFF - clear selection
+						activities.copySelectedVersesPKs = []
+						activities.copySelectStartPK = 0
+						activities.copySelectEndPK = 0
+					elif wasOff and activities.selectedVersesPKs.length > 0
+						# Turning ON and there are selected verses - activate purple box
+						let selectedPKs = activities.selectedVersesPKs
+						if selectedPKs.length > 0
+							# Set start and end PKs
+							activities.copySelectStartPK = selectedPKs[0]
+							activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
+							
+							# Determine which reader has these verses and update the selection box
+							let targetReader = null
+							if activities.selectedParallel == 'main'
+								targetReader = reader
+							elif activities.selectedParallel
+								targetReader = activities.selectedParallel
+							else
+								# Try to determine which reader has these verses
+								let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
+								if hasMainVerses
+									targetReader = reader
+								else
+									let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
+									if hasParallelVerses
+										targetReader = parallelReader
+							
+							# Update the selection box if we found a target reader
+							if targetReader
+								targetReader.updateCopySelectRange!
+					
+					imba.commit!
+				)>
 					<svg src=Obsidian aria-hidden=yes>
 					"Obsidian"
 			<li>

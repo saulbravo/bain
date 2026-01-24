@@ -2,6 +2,8 @@ import '../ui'
 
 import { hasTouchEvents } from '../constants'
 import { getValue, deleteValue } from '../utils'
+import reader from '../lib/Reader'
+import parallelReader from '../lib/ParallelReader'
 
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
@@ -347,9 +349,42 @@ tag reader
 		activities.cleanUp { onPopState: yes }
 
 	def toggleCopySelectMode
+		let wasOff = !activities.copySelectMode
 		activities.copySelectMode = !activities.copySelectMode
-		unless activities.copySelectMode
+		
+		if !activities.copySelectMode
+			# Turning OFF - clear selection
 			activities.copySelectedVersesPKs = []
+			activities.copySelectStartPK = 0
+			activities.copySelectEndPK = 0
+		elif wasOff and activities.selectedVersesPKs.length > 0
+			# Turning ON and there are selected verses - activate purple box
+			let selectedPKs = activities.selectedVersesPKs
+			if selectedPKs.length > 0
+				# Set start and end PKs
+				activities.copySelectStartPK = selectedPKs[0]
+				activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
+				
+				# Determine which reader has these verses and update the selection box
+				let targetReader = null
+				if activities.selectedParallel == 'main'
+					targetReader = reader
+				elif activities.selectedParallel
+					targetReader = activities.selectedParallel
+				else
+					# Try to determine which reader has these verses
+					let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
+					if hasMainVerses
+						targetReader = reader
+					else
+						let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
+						if hasParallelVerses
+							targetReader = parallelReader
+				
+				# Update the selection box if we found a target reader
+				if targetReader
+					targetReader.updateCopySelectRange!
+		
 		imba.commit!
 
 	def openProfile
