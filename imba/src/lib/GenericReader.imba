@@ -374,7 +374,7 @@ class GenericReader
 			return
 
 		# Allow selection in parallel view - don't block if copy-select mode is active
-		# Only block if there's a selection in a different reader AND copy-select mode is NOT active
+		# If switching to a different reader, clear previous selection to allow switching sides
 		if !activities.copySelectMode and activities.selectedParallel != undefined
 			# Check if selectedParallel refers to a different reader
 			let isDifferentReader = false
@@ -384,8 +384,13 @@ class GenericReader
 				isDifferentReader = true
 			
 			if isDifferentReader
-				console.log('[selectVerse v5] Different parallel reader selected and copy-select not active, returning')
-				return
+				console.log('[selectVerse v6] Switching to different reader, clearing previous selection')
+				# Clear previous selection to allow switching sides
+				activities.selectedVersesPKs = []
+				activities.selectedVerses = []
+				activities.selectedCategories = []
+				activities.selectedParallel = undefined
+				activities.activeVerseAction = undefined
 
 		activities.selectedParallel = me
 		unless activities.highlight_color
