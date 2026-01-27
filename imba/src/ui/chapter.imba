@@ -147,22 +147,18 @@ tag chapter < section
 						startPK = activities.copySelectStartPKParallel
 					
 					if hasCopySelect
-						console.log('[chapter v4] Rendering selection box - copySelectMode:', activities.copySelectMode, 'startPK:', startPK, 'for reader:', readerType)
 						<div.verse-selection-box>
 							<button.verse-selection-insert-btn 
 								@click.stop.prevent=(do
-									console.log('Add to Obsidian button clicked')
 									# Get selected verses
 									let selectedVerses = []
 									# Use per-reader PKs
 									let readerType = me.me or ''
 									let startPK = readerType == 'main' ? activities.copySelectStartPKMain : activities.copySelectStartPKParallel
 									let endPK = readerType == 'main' ? activities.copySelectEndPKMain : activities.copySelectEndPKParallel
-									console.log('[chapter v4] Add to Obsidian - readerType:', readerType, 'startPK:', startPK, 'endPK:', endPK)
 									
 									let startIdx = me.verses.findIndex(do |v| return v.pk == startPK)
 									let endIdx = me.verses.findIndex(do |v| return v.pk == endPK)
-									console.log('StartIdx:', startIdx, 'EndIdx:', endIdx, 'CopySelectStartPK:', activities.copySelectStartPK, 'CopySelectEndPK:', activities.copySelectEndPK)
 									if startIdx != -1 and endIdx != -1
 										let minIdx = Math.min(startIdx, endIdx)
 										let maxIdx = Math.max(startIdx, endIdx)
@@ -176,10 +172,6 @@ tag chapter < section
 													verse: verse.verse
 												})
 									
-									console.log('Selected verses:', selectedVerses.length, selectedVerses)
-									console.log('Is in iframe?', window.parent != window.self, 'window.parent:', window.parent, 'window.self:', window.self)
-									console.log('window.parent type:', typeof window.parent, 'window.self type:', typeof window.self)
-									
 									# Send message to parent window (Obsidian) if in iframe
 									# Always try to send if we have verses - let the parent decide if it wants to handle it
 									if selectedVerses.length > 0
@@ -189,11 +181,6 @@ tag chapter < section
 										let bookName = me.nameOfCurrentBook || ''
 										let chapterNum = me.chapter || 1
 										let bookIdNum = me.book || 1
-										
-										console.log('Preparing message - Translation:', translationCode, 'Book:', bookIdNum, 'Chapter:', chapterNum, 'BookName:', bookName)
-										console.log('me.translation value:', me.translation, 'type:', typeof me.translation)
-										console.log('me.book value:', me.book, 'type:', typeof me.book)
-										console.log('me.chapter value:', me.chapter, 'type:', typeof me.chapter)
 										
 										# Create message data object with explicit values - ensure all are set
 										# Use object literal to ensure proper serialization
@@ -205,13 +192,6 @@ tag chapter < section
 											chapter: chapterNum,
 											bookId: bookIdNum
 										}
-										
-										# Verify all properties are set
-										console.log('Sending verse selection to parent - full messageData:', JSON.stringify(messageData, null, 2))
-										console.log('MessageData keys:', Object.keys(messageData))
-										console.log('MessageData.translation:', messageData.translation)
-										console.log('MessageData.bookId:', messageData.bookId)
-										console.log('MessageData.chapter:', messageData.chapter)
 										
 										# Always try to send - let the parent decide if it wants to handle it
 										# Use structuredClone or JSON serialization to ensure all properties are included
@@ -225,31 +205,23 @@ tag chapter < section
 												chapter: Number(messageData.chapter),
 												bookId: Number(messageData.bookId)
 											}
-											console.log('About to send messageToSend:', JSON.stringify(messageToSend, null, 2))
-											console.log('messageToSend.translation:', messageToSend.translation)
 											window.parent.postMessage(messageToSend, '*')
-											console.log('Message sent successfully with translation:', messageToSend.translation)
 										catch error
-											console.error('Could not send message to parent window:', error)
+											pass
 										# Try sending with JSON serialization as fallback
 										try
 											let jsonMessage = JSON.parse(JSON.stringify(messageData))
 											window.parent.postMessage(jsonMessage, '*')
-											console.log('Message sent (JSON fallback)')
 										catch fallbackError
-											console.error('Could not send message (fallback):', fallbackError)
-									else
-										console.log('No verses selected')
+											pass
 								)>
 									<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
 								@click.stop.prevent=(do
 									let readerType = me.me or ''
-									console.log('[chapter v4] Close button clicked for reader:', readerType)
 									
 									# Only clear this reader's copy-select, keep the other reader's if it exists
 									if readerType == 'main'
-										console.log('[chapter v4] Closing main reader copy-select')
 										activities.copySelectStartPKMain = 0
 										activities.copySelectEndPKMain = 0
 										# Clear global PKs only if parallel doesn't have active copy-select
@@ -258,10 +230,7 @@ tag chapter < section
 											activities.copySelectEndPK = 0
 											activities.copySelectedVersesPKs = []
 											activities.copySelectModeReader = null
-										else
-											console.log('[chapter v4] Parallel reader still has copy-select, keeping global state')
 									else
-										console.log('[chapter v4] Closing parallel reader copy-select')
 										activities.copySelectStartPKParallel = 0
 										activities.copySelectEndPKParallel = 0
 										# Clear global PKs only if main doesn't have active copy-select
@@ -270,12 +239,9 @@ tag chapter < section
 											activities.copySelectEndPK = 0
 											activities.copySelectedVersesPKs = []
 											activities.copySelectModeReader = null
-										else
-											console.log('[chapter v4] Main reader still has copy-select, keeping global state')
 									
 									imba.commit!
 									me.updateCopySelectRange!
-									console.log('[chapter v4] After close - main:', activities.copySelectStartPKMain, 'parallel:', activities.copySelectStartPKParallel)
 								)>
 									<svg src=X>
 							<span.verse-selection-handle.verse-selection-handle-top 

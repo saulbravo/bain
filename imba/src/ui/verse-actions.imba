@@ -144,7 +144,6 @@ tag verse-actions < section
 				<button .copy-select-active=(activities.copySelectMode) @click=(do
 					let wasOff = !activities.copySelectMode
 					activities.copySelectMode = !activities.copySelectMode
-					console.log('[verse-actions v5] Obsidian button clicked - wasOff:', wasOff, 'selectedVersesPKs:', activities.selectedVersesPKs.length)
 					
 					if !activities.copySelectMode
 						# Turning OFF - clear selection for both readers
@@ -176,8 +175,6 @@ tag verse-actions < section
 								let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
 								let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
 								
-								console.log('[verse-actions v6] Checking verses - hasMainVerses:', hasMainVerses, 'hasParallelVerses:', hasParallelVerses)
-								
 								if hasMainVerses and !hasParallelVerses
 									targetReader = reader
 									readerType = 'main'
@@ -197,23 +194,18 @@ tag verse-actions < section
 							
 							# Set the active reader and update the selection box
 							if targetReader
-								console.log('[verse-actions v6] Setting copy-select for reader:', readerType, 'PKs:', selectedPKs, 'targetReader:', targetReader)
 								activities.copySelectModeReader = targetReader
 								# Set per-reader PKs
 								if readerType == 'main'
 									activities.copySelectStartPKMain = selectedPKs[0]
 									activities.copySelectEndPKMain = selectedPKs[selectedPKs.length - 1]
-									console.log('[verse-actions v6] Set main reader PKs:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain)
 								else
 									activities.copySelectStartPKParallel = selectedPKs[0]
 									activities.copySelectEndPKParallel = selectedPKs[selectedPKs.length - 1]
-									console.log('[verse-actions v6] Set parallel reader PKs:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
 								# Also set global PKs for backward compatibility
 								activities.copySelectStartPK = selectedPKs[0]
 								activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
 								targetReader.updateCopySelectRange!
-							else
-								console.warn('[verse-actions v6] Could not determine target reader for PKs:', selectedPKs)
 					
 					imba.commit!
 				)>

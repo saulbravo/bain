@@ -79,7 +79,6 @@ tag reader
 			
 			lastDragVersePK = verse.pk
 			let readerType = activities.copySelectReader.me or ''
-			console.log('[handleCopySelectDrag v4] Dragging handle:', activities.copySelectDragHandle, 'readerType:', readerType, 'verse.pk:', verse.pk)
 			
 			if activities.copySelectDragHandle == 'top'
 				if readerType == 'main'
@@ -94,7 +93,6 @@ tag reader
 					activities.copySelectEndPKParallel = verse.pk
 				activities.copySelectEndPK = verse.pk
 			
-			console.log('[handleCopySelectDrag v4] After drag - main:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain, 'parallel:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
 			activities.copySelectReader.updateCopySelectRange!
 			imba.commit!
 			handleCopySelectDragRAF = null
@@ -131,7 +129,6 @@ tag reader
 			# FIRST: If verse-actions slider is open, don't clear selection on any click
 			# This is the most reliable check
 			if activities.activeVerseAction
-				console.log('[reader click handler] Verse actions slider is open (activeVerseAction:', activities.activeVerseAction, '), preserving selection')
 				return
 			
 			# SECOND: Check if we're clicking inside verse-actions or any UI element that should preserve selection
@@ -143,12 +140,10 @@ tag reader
 			
 			# If clicking on color options or inside verse-actions, preserve selection
 			if isVerseActions or isColorOption or (isButton and clickTarget.closest('section.verse-actions'))
-				console.log('[reader click handler] Clicked inside verse-actions/color-option, preserving selection. isVerseActions:', !!isVerseActions, 'isColorOption:', !!isColorOption, 'isButton:', !!isButton)
 				return
 			
 			# For other UI elements, also preserve selection
 			if isUIElement
-				console.log('[reader click handler] Clicked inside UI element, preserving selection')
 				return
 			
 			# Check if click is inside the article (text content area)
@@ -156,7 +151,6 @@ tag reader
 			
 			# Deselect if clicking outside the article (padding/margins) and not on UI elements
 			if !isInsideArticle
-				console.log('[reader click handler] Clearing selection - clicked outside article')
 				activities.selectedVerses = []
 				activities.selectedVersesPKs = []
 				activities.copySelectedVersesPKs = []
@@ -395,8 +389,6 @@ tag reader
 					let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
 					let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
 					
-					console.log('[toggleCopySelectMode v6] Checking verses - hasMainVerses:', hasMainVerses, 'hasParallelVerses:', hasParallelVerses)
-					
 					if hasMainVerses and !hasParallelVerses
 						targetReader = reader
 						readerType = 'main'
@@ -416,23 +408,18 @@ tag reader
 				
 				# Set the active reader and update the selection box
 				if targetReader
-					console.log('[toggleCopySelectMode v6] Setting copy-select for reader:', readerType, 'PKs:', selectedPKs, 'targetReader:', targetReader)
 					activities.copySelectModeReader = targetReader
 					# Set per-reader PKs
 					if readerType == 'main'
 						activities.copySelectStartPKMain = selectedPKs[0]
 						activities.copySelectEndPKMain = selectedPKs[selectedPKs.length - 1]
-						console.log('[toggleCopySelectMode v6] Set main reader PKs:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain)
 					else
 						activities.copySelectStartPKParallel = selectedPKs[0]
 						activities.copySelectEndPKParallel = selectedPKs[selectedPKs.length - 1]
-						console.log('[toggleCopySelectMode v6] Set parallel reader PKs:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
 					# Also set global PKs for backward compatibility
 					activities.copySelectStartPK = selectedPKs[0]
 					activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
 					targetReader.updateCopySelectRange!
-				else
-					console.warn('[toggleCopySelectMode v6] Could not determine target reader for PKs:', selectedPKs)
 		
 		imba.commit!
 

@@ -29,7 +29,6 @@ class GenericReader
 
 	@computed get books
 		unless ALL_BOOKS[translation]
-			console.log "Translation {translation} not found in ALL_BOOKS, defaulting to YLT"
 			return ALL_BOOKS['YLT']
 		let orderBy = settings.chronorder ? 'chronorder' : 'bookid'
 		return ALL_BOOKS[translation].sort(do(a, b) return a[orderBy] - b[orderBy])
@@ -110,7 +109,6 @@ class GenericReader
 		# 	return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
 		if highlight
-			console.log('[getHighlight] Found highlight for pk', pk, 'color:', highlight.color)
 			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
 		else
 			return ''
@@ -118,24 +116,19 @@ class GenericReader
 	def applyHighlightPreview pks\number[], color\string
 		# Immediately apply highlight to verses without saving to server
 		# This creates a preview that will be saved when user clicks save
-		console.log('[applyHighlightPreview] Called with pks:', pks, 'color:', color)
 		if !color or color == ''
-			console.warn('[applyHighlightPreview] No color provided, skipping')
 			return
 		
 		if !pks or pks.length == 0
-			console.warn('[applyHighlightPreview] No verses provided, skipping')
 			return
 		
 		for pk in pks
 			# Remove existing bookmark for this verse (if any)
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == pk)
 			if existingBookmark
-				console.log('[applyHighlightPreview] Removing existing bookmark for pk', pk)
 				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
 			
 			# Add new preview bookmark
-			console.log('[applyHighlightPreview] Adding preview bookmark for pk', pk, 'with color', color)
 			bookmarks.push({
 				verse: pk,
 				date: Date.now(),
@@ -144,7 +137,6 @@ class GenericReader
 				note: ''
 			})
 		
-		console.log('[applyHighlightPreview] Updated bookmarks array, new length:', bookmarks.length)
 		imba.commit!
 	
 	def getArticleElement
@@ -152,31 +144,22 @@ class GenericReader
 		# Use the me property to identify which reader (me.me is 'main' or 'parallel')
 		# me is the instance, and me.me is the property value
 		let readerType = self.me or ''
-		console.log('[getArticleElement v3] Called - me instance:', me, 'me.me property:', self.me, 'readerType:', readerType)
 		
 		let readerId = readerType == 'main' ? 'main-reader' : 'parallel-reader'
-		console.log('[getArticleElement v3] Looking for readerId:', readerId)
 		
 		let readerEl = document.getElementById(readerId)
 		if readerEl
 			let article = readerEl.querySelector('article')
-			console.log('[getArticleElement v2] Article found for', readerId, ':', !!article)
 			return article
-		console.warn('[getArticleElement v2] Reader element not found:', readerId, 'Available elements:', document.getElementById('main-reader'), document.getElementById('parallel-reader'))
 		return null
 	
 	def getSelectionBox
 		# Get the selection box for this specific reader's article
 		let readerType = self.me or ''
-		console.log('[getSelectionBox v3] Called for reader:', me, 'readerType:', readerType)
 		let articleEl = self.getArticleElement()
 		if !articleEl
-			console.warn('[getSelectionBox v2] Article element not found')
 			return null
 		let box = articleEl.querySelector('.verse-selection-box')
-		console.log('[getSelectionBox v2] Selection box found:', !!box, 'in article:', !!articleEl)
-		if !box
-			console.warn('[getSelectionBox v2] Box not found! Checking all boxes in document:', document.querySelectorAll('.verse-selection-box').length)
 		return box
 	
 	def getCopySelectInfo pk\number
@@ -201,19 +184,13 @@ class GenericReader
 
 	def updateCopySelectRange
 		let readerType = self.me or ''
-		console.log('[updateCopySelectRange v4] Called for reader:', me, 'readerType:', readerType)
 		
 		# Get per-reader PKs
 		let startPK = readerType == 'main' ? activities.copySelectStartPKMain : activities.copySelectStartPKParallel
 		let endPK = readerType == 'main' ? activities.copySelectEndPKMain : activities.copySelectEndPKParallel
 		
-		console.log('[updateCopySelectRange v4] copySelectMode:', activities.copySelectMode, 'startPK:', startPK, 'endPK:', endPK, 'readerType:', readerType)
-		console.log('[updateCopySelectRange v4] Main PKs:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain)
-		console.log('[updateCopySelectRange v4] Parallel PKs:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
-		
 		# Only update if this reader has copy-select active
 		if !activities.copySelectMode or startPK == 0
-			console.log('[updateCopySelectRange v4] Copy-select not active or no start PK for this reader')
 			let box = self.getSelectionBox()
 			if box
 				box.style.display = 'none'
@@ -221,10 +198,8 @@ class GenericReader
 		
 		let startIdx = verses.findIndex(do |v| return v.pk == startPK)
 		let endIdx = verses.findIndex(do |v| return v.pk == endPK)
-		console.log('[updateCopySelectRange v4] startIdx:', startIdx, 'endIdx:', endIdx, 'startPK:', startPK, 'endPK:', endPK)
 		
 		if startIdx == -1 or endIdx == -1
-			console.warn('[updateCopySelectRange] Verse indices not found')
 			let box = self.getSelectionBox()
 			if box
 				box.style.display = 'none'
@@ -242,20 +217,17 @@ class GenericReader
 			window.requestAnimationFrame(do
 				let box = self.getSelectionBox()
 				if !box
-					console.warn('[updateCopySelectRange] Selection box not found')
 					return
 				
 				# Get the article container for this reader
 				let articleEl = self.getArticleElement()
 				if !articleEl
-					console.warn('[updateCopySelectRange] Article element not found')
 					box.style.display = 'none'
 					return
 				
 				# Determine verse prefix based on reader
 				let readerType = self.me or ''
 				let versePrefix = readerType == 'main' ? '' : 'p'
-				console.log('[updateCopySelectRange v3] Using verse prefix:', versePrefix, 'readerType:', readerType)
 				
 				# Find verse elements
 				let firstVerseEl = null
@@ -265,13 +237,11 @@ class GenericReader
 					if verses[i]
 						let verseNum = verses[i].verse
 						let verseId = versePrefix ? versePrefix + String(verseNum) : String(verseNum)
-						console.log('[updateCopySelectRange] Looking for verse ID:', verseId)
 						
 						# Try getElementById first
 						let verseEl = document.getElementById(verseId)
 						# Verify it's within this article
 						if verseEl and articleEl.contains(verseEl)
-							console.log('[updateCopySelectRange] Found verse element:', verseId)
 							if !firstVerseEl
 								firstVerseEl = verseEl
 							lastVerseEl = verseEl
@@ -279,23 +249,17 @@ class GenericReader
 							# Try querySelector within article
 							verseEl = articleEl.querySelector('span[id="{verseId}"]')
 							if verseEl
-								console.log('[updateCopySelectRange] Found verse via querySelector:', verseId)
 								if !firstVerseEl
 									firstVerseEl = verseEl
 								lastVerseEl = verseEl
-							else
-								console.warn('[updateCopySelectRange] Verse element not found:', verseId)
 				
 				if !firstVerseEl or !lastVerseEl
-					console.warn('[updateCopySelectRange] Verse elements not found, hiding box')
 					box.style.display = 'none'
 					return
 				
 				# Calculate position relative to article
 				let top = firstVerseEl.offsetTop - 4
 				let bottom = lastVerseEl.offsetTop + lastVerseEl.offsetHeight + 4
-				
-				console.log('[updateCopySelectRange] Positioning box - top:', top, 'height:', (bottom - top))
 				
 				# Position the box
 				box.style.display = 'block'
@@ -314,7 +278,7 @@ class GenericReader
 			try
 				server_bookmarks = await API.getJson("/get-bookmarks/" + translation + '/' + book + '/' + chapter + '/', 'bookmarks')
 			catch error
-				console.warn error
+				pass
 
 		if vault.available
 			offline_bookmarks = await vault.getChapterBookmarks(verses.map(do |verse| return verse.pk))
@@ -341,34 +305,24 @@ class GenericReader
 
 
 	def selectVerse pk\number, id\number
-		console.log('[selectVerse] Called with pk:', pk, 'id:', id)
-		console.log('[selectVerse] Current selectedVersesPKs:', activities.selectedVersesPKs)
-		console.log('[selectVerse] Selection collapsed:', document.getSelection().isCollapsed)
-		console.log('[selectVerse] Active modal:', activities.activeModal)
-		
 		if !document.getSelection().isCollapsed or activities.activeModal
-			console.log('[selectVerse] Early return - selection not collapsed or modal active')
 			return
 
 		if activities.copySelectMode
 			let readerType = self.me or ''
-			console.log('[selectVerse v4] Copy select mode active, me:', me, 'readerType:', readerType)
 			# Switch copy-select to this reader and set the verse
 			activities.copySelectModeReader = me
 			# Set per-reader PKs for parallel view support
 			if readerType == 'main'
 				activities.copySelectStartPKMain = pk
 				activities.copySelectEndPKMain = pk
-				console.log('[selectVerse v4] Set main reader PKs - start:', pk, 'end:', pk)
 			else
 				activities.copySelectStartPKParallel = pk
 				activities.copySelectEndPKParallel = pk
-				console.log('[selectVerse v4] Set parallel reader PKs - start:', pk, 'end:', pk)
 			# Also set global PKs for backward compatibility
 			activities.copySelectStartPK = pk
 			activities.copySelectEndPK = pk
 			activities.copySelectedVersesPKs = [pk]
-			console.log('[selectVerse v4] Set copySelectModeReader to:', me, 'pk:', pk)
 			self.updateCopySelectRange!
 			imba.commit!
 			return
@@ -384,7 +338,6 @@ class GenericReader
 				isDifferentReader = true
 			
 			if isDifferentReader
-				console.log('[selectVerse v6] Switching to different reader, clearing previous selection')
 				# Clear previous selection to allow switching sides
 				activities.selectedVersesPKs = []
 				activities.selectedVerses = []
@@ -395,7 +348,6 @@ class GenericReader
 		activities.selectedParallel = me
 		unless activities.highlight_color
 			activities.highlight_color = activities.randomColor
-			console.log('[selectVerse] Generated random color:', activities.highlight_color)
 
 		if activities.selectedVersesPKs.length == 0 && me == 'main'
 			window.history.pushState(
@@ -406,7 +358,6 @@ class GenericReader
 
 		# Check if the user chosen a verse in the same parallel scope
 		if activities.selectedVersesPKs.includes(pk)
-			console.log('[selectVerse] Deselecting verse pk:', pk)
 			activities.selectedVersesPKs.splice(activities.selectedVersesPKs.indexOf(pk), 1)
 			activities.selectedVerses.splice(activities.selectedVerses.indexOf(id), 1)
 			let collection = getCollectionOfChosen(pk)
@@ -415,12 +366,9 @@ class GenericReader
 					if piece != ''
 						activities.selectedCategories.splice(activities.selectedCategories.indexOf(piece), 1)
 		else
-			console.log('[selectVerse] Selecting verse pk:', pk)
 			activities.selectedVersesPKs.push(pk)
 			activities.selectedVerses.push(id)
 			pushCollectionIfExist(pk)
-		
-		console.log('[selectVerse] After selection, selectedVersesPKs:', activities.selectedVersesPKs)
 
 		# If the verse is in area under bottom section
 		# scroll to it, to see the full verse
@@ -437,19 +385,14 @@ class GenericReader
 		if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
 			verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
 
-		console.log('[selectVerse] Final check - selectedVersesPKs.length:', activities.selectedVersesPKs.length)
 		if activities.selectedVersesPKs.length
-			console.log('[selectVerse] Showing delete bookmark and setting activeVerseAction')
 			showDeleteBookmark()
 			mergeNotes()
 			activities.activeVerseAction ||= 'options'
-			console.log('[selectVerse] activeVerseAction set to:', activities.activeVerseAction)
 		else
-			console.log('[selectVerse] No verses selected, clearing activeVerseAction')
 			activities.activeVerseAction = undefined
 			activities.selectedParallel = undefined
 		
-		console.log('[selectVerse] Final state - selectedVersesPKs:', activities.selectedVersesPKs, 'activeVerseAction:', activities.activeVerseAction)
 		imba.commit!
 
 
@@ -545,25 +488,17 @@ class GenericReader
 				await API.post("/save-bookmarks/", bookmarkToSave)
 				notifications.push('saved')
 			catch e
-				console.error(e)
 				notifications.push('error')
 				saveOffline!
 		else saveOffline!
-
-		console.log('[saveBookmark] Saving bookmarks for verses:', activities.selectedVersesPKs)
-		console.log('[saveBookmark] Color:', activities.highlight_color)
-		console.log('[saveBookmark] Collections:', collections)
-		console.log('[saveBookmark] Note:', activities.note)
 		
 		for verse in activities.selectedVersesPKs
 			# Remove existing bookmark (including preview ones)
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)
 			if existingBookmark
-				console.log('[saveBookmark] Removing existing bookmark for verse', verse)
 				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
 			
 			# Add saved bookmark (will be persisted to server/storage)
-			console.log('[saveBookmark] Adding saved bookmark for verse', verse)
 			bookmarks.push({
 				verse: verse,
 				date: Date.now(),
@@ -571,8 +506,6 @@ class GenericReader
 				collection: collections
 				note: activities.note
 			})
-		
-		console.log('[saveBookmark] Final bookmarks array length:', bookmarks.length)
 		user.saveUserBookmarkToMap translation, book, chapter, activities.highlight_color
 		# add to user.categories the new collections
 		for category in activities.selectedCategories
@@ -587,7 +520,6 @@ class GenericReader
 				await API.post("/delete-bookmarks/", { verses: pks })
 				notifications.push('deleted')
 			catch err
-				console.error err
 				deleteLater (pks)
 		else deleteLater (pks)
 
