@@ -84,21 +84,22 @@ tag settings-drawer < aside
 		<button.settings-btn.copy-select-active=(activities.copySelectMode) @click=(do
 			let wasOff = !activities.copySelectMode
 			activities.copySelectMode = !activities.copySelectMode
+			console.log('[settings-drawer v5] Obsidian button clicked - wasOff:', wasOff, 'selectedVersesPKs:', activities.selectedVersesPKs.length)
 			
 			if !activities.copySelectMode
-				# Turning OFF - clear selection
+				# Turning OFF - clear selection for both readers
 				activities.copySelectedVersesPKs = []
 				activities.copySelectStartPK = 0
 				activities.copySelectEndPK = 0
+				activities.copySelectStartPKMain = 0
+				activities.copySelectEndPKMain = 0
+				activities.copySelectStartPKParallel = 0
+				activities.copySelectEndPKParallel = 0
 				activities.copySelectModeReader = null
 			elif wasOff and activities.selectedVersesPKs.length > 0
 				# Turning ON and there are selected verses - activate purple box
 				let selectedPKs = activities.selectedVersesPKs
 				if selectedPKs.length > 0
-					# Set start and end PKs
-					activities.copySelectStartPK = selectedPKs[0]
-					activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
-					
 					# Determine which reader has these verses and update the selection box
 					let targetReader = null
 					if activities.selectedParallel == 'main'
@@ -117,7 +118,19 @@ tag settings-drawer < aside
 					
 					# Set the active reader and update the selection box
 					if targetReader
+						let readerType = targetReader.me or ''
+						console.log('[settings-drawer v5] Setting copy-select for reader:', readerType, 'PKs:', selectedPKs)
 						activities.copySelectModeReader = targetReader
+						# Set per-reader PKs
+						if readerType == 'main'
+							activities.copySelectStartPKMain = selectedPKs[0]
+							activities.copySelectEndPKMain = selectedPKs[selectedPKs.length - 1]
+						else
+							activities.copySelectStartPKParallel = selectedPKs[0]
+							activities.copySelectEndPKParallel = selectedPKs[selectedPKs.length - 1]
+						# Also set global PKs for backward compatibility
+						activities.copySelectStartPK = selectedPKs[0]
+						activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
 						targetReader.updateCopySelectRange!
 			
 			imba.commit!

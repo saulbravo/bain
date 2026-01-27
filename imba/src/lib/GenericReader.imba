@@ -373,9 +373,19 @@ class GenericReader
 			imba.commit!
 			return
 
-		if activities.selectedParallel != undefined and activities.selectedParallel != me
-			console.log('[selectVerse] Different parallel reader selected, returning')
-			return
+		# Allow selection in parallel view - don't block if copy-select mode is active
+		# Only block if there's a selection in a different reader AND copy-select mode is NOT active
+		if !activities.copySelectMode and activities.selectedParallel != undefined
+			# Check if selectedParallel refers to a different reader
+			let isDifferentReader = false
+			if activities.selectedParallel == 'main' and self.me != 'main'
+				isDifferentReader = true
+			elif activities.selectedParallel != 'main' and activities.selectedParallel != me
+				isDifferentReader = true
+			
+			if isDifferentReader
+				console.log('[selectVerse v5] Different parallel reader selected and copy-select not active, returning')
+				return
 
 		activities.selectedParallel = me
 		unless activities.highlight_color
