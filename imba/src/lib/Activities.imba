@@ -233,100 +233,60 @@ class Activities
 
 	def changeHighlightColor color\string
 		# get tag with title = color
-		console.log('[changeHighlightColor] Called with color name:', color)
-		console.log('[changeHighlightColor] Current state - selectedVersesPKs:', selectedVersesPKs)
-		console.log('[changeHighlightColor] Current state - selectedVerses:', selectedVerses)
-		console.log('[changeHighlightColor] Current state - selectedParallel:', selectedParallel)
-		console.log('[changeHighlightColor] Current state - activeVerseAction:', activeVerseAction)
-		
 		let colorBulb = document.querySelector('li.color-option[title="' + color + '"]')
 		if !colorBulb
-			console.warn('[changeHighlightColor] Color bulb not found for:', color)
 			return
 		
 		const computedStyle = window.getComputedStyle(colorBulb)
 		const backgroundColor = computedStyle.getPropertyValue('background-color');
-		console.log('[changeHighlightColor] Computed background color:', backgroundColor)
 
 		highlight_color = backgroundColor
-		console.log('[changeHighlightColor] Updated highlight_color to:', highlight_color)
-		console.log('[changeHighlightColor] Selected verses PKs after update:', selectedVersesPKs)
 		
 		# If selectedParallel is undefined but we have selectedVersesPKs, try to determine which reader
 		# This can happen if the click handler cleared selectedParallel but not selectedVersesPKs
 		if !selectedParallel and selectedVersesPKs.length > 0
-			console.log('[changeHighlightColor] selectedParallel is undefined, checking which reader has these verses')
 			# Check if any of the selected verses are in the main reader
 			let hasMainVerses = reader.verses.some(do |v| return selectedVersesPKs.includes(v.pk))
 			if hasMainVerses
-				console.log('[changeHighlightColor] Setting selectedParallel to main')
 				selectedParallel = 'main'
 			else
 				let hasParallelVerses = parallelReader.verses.some(do |v| return selectedVersesPKs.includes(v.pk))
 				if hasParallelVerses
-					console.log('[changeHighlightColor] Setting selectedParallel to parallel reader')
 					selectedParallel = parallelReader
 		
-		# Immediately apply highlight preview
+		# Immediately apply highlight preview and save
 		if selectedVersesPKs.length > 0
-			console.log('[changeHighlightColor] Applying immediate highlight preview with selectedParallel:', selectedParallel)
 			if selectedParallel == 'main'
 				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+				reader.saveBookmark!
 			else if selectedParallel
 				parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
+				parallelReader.saveBookmark!
 			else
 				# Fallback: try both readers
-				console.warn('[changeHighlightColor] selectedParallel is still undefined, trying main reader')
 				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
-			
-			# Always clear selection after applying highlight (preset colors don't use picker)
-			console.log('[changeHighlightColor] Clearing selection after applying highlight')
-			selectedVerses = []
-			selectedVersesPKs = []
-			selectedParallel = undefined
-			activeVerseAction = undefined
-			imba.commit!
-		else
-			console.warn('[changeHighlightColor] No verses selected, cannot apply highlight')
-			console.warn('[changeHighlightColor] This might be a timing issue - checking if we can get verses from DOM')
-			# Try to get selected verses from the DOM as a fallback
-			let selectedElements = document.querySelectorAll('.selected-verse')
-			console.log('[changeHighlightColor] Found selected-verse elements in DOM:', selectedElements.length)
+				reader.saveBookmark!
 
 	def setHighlightColor event
-		console.log('[setHighlightColor] Called with event:', event)
 		if event.detail
 			highlight_color = event.detail
-			console.log('[setHighlightColor] Updated highlight_color to:', highlight_color)
-			console.log('[setHighlightColor] Selected verses PKs:', selectedVersesPKs)
-			console.log('[setHighlightColor] Color picker open:', show_color_picker)
 			
 			# Immediately apply highlight preview (for live preview while dragging)
 			if selectedVersesPKs.length > 0
-				console.log('[setHighlightColor] Applying immediate highlight preview')
 				if selectedParallel == 'main'
 					reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 				else
 					parallelReader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 				
-				# Only clear selection if color picker is closed (user clicked OK or Cancel)
+				# Only save and clear selection if color picker is closed (user clicked OK or Cancel)
 				# closePicker sets show_color_picker = false BEFORE emitting change event
 				# Use a microtask to ensure the flag has been updated
 				if !show_color_picker
-					console.log('[setHighlightColor] Color picker closed, clearing selection after applying highlight')
-					# Use Promise.resolve().then to ensure this runs after the current event loop
-					Promise.resolve().then do
-						selectedVerses = []
-						selectedVersesPKs = []
-						selectedParallel = undefined
-						activeVerseAction = undefined
-						imba.commit!
-				else
-					console.log('[setHighlightColor] Color picker still open, keeping selection for live preview')
-			else
-				console.warn('[setHighlightColor] No verses selected, cannot apply highlight')
-		else
-			console.warn('[setHighlightColor] No color detail in event')
+					# Save the highlight before clearing selection
+					if selectedParallel == 'main'
+						reader.saveBookmark!
+					else
+						parallelReader.saveBookmark!
 	
 	def cleanUpCopyText text\string = ''
 		let res = text.trim()

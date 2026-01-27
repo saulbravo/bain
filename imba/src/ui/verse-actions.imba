@@ -105,7 +105,6 @@ tag verse-actions < section
 		<header>
 			<span role="button" @click=activities.copyTextToClipboard(activities.selectedVersesTitle)>
 				activities.selectedVersesTitle
-			<button @click=activities.saveBookmark> t.save
 
 		<ul>
 			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
@@ -116,8 +115,10 @@ tag verse-actions < section
 					if activities.selectedVersesPKs.length > 0
 						if activities.selectedParallel == 'main'
 							reader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
+							reader.saveBookmark!
 						else
 							parallelReader.applyHighlightPreview(activities.selectedVersesPKs, randomColor)
+							parallelReader.saveBookmark!
 						# Clear selection after applying highlight
 						activities.selectedVerses = []
 						activities.selectedVersesPKs = []
