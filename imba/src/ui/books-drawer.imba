@@ -105,7 +105,7 @@ tag books-drawer < nav
 			reader.book = bookid
 			reader.chapter = chapter
 
-	<self [left@important: 0]=settings.lock_books_menu>
+	<self [right@important: 0]=settings.lock_books_menu>
 		<header>
 			if parallelReader.enabled
 				<[d:flex mih:2.25rem]>

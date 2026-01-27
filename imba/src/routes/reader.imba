@@ -241,9 +241,9 @@ tag reader
 
 		if activities.booksDrawerOffset > -300
 			if inTouchZone
-				touch.dx < -64 ? activities.booksDrawerOffset = 0 : activities.booksDrawerOffset = -300
+				touch.dx > 64 ? activities.booksDrawerOffset = 0 : activities.booksDrawerOffset = -300
 			else
-				touch.dx > 64 ? activities.booksDrawerOffset = -300 : activities.booksDrawerOffset = 0
+				touch.dx < -64 ? activities.booksDrawerOffset = -300 : activities.booksDrawerOffset = 0
 		elif activities.settingsDrawerOffset > -300
 			if inTouchZone
 				touch.dx > 64 ? activities.settingsDrawerOffset = 0 : activities.settingsDrawerOffset = -300
@@ -270,8 +270,8 @@ tag reader
 			return
 		e.dx = e.changedTouches[0].clientX - initialTouch.clientX
 
-		if activities.booksDrawerOffset > -300 && e.dx < 0
-			activities.booksDrawerOffset = e.dx
+		if activities.booksDrawerOffset > -300 && e.dx > 0
+			activities.booksDrawerOffset = - e.dx
 		if activities.settingsDrawerOffset > -300 && e.dx > 0
 			activities.settingsDrawerOffset = - e.dx
 		inClosingTouchZone = yes
@@ -282,8 +282,8 @@ tag reader
 		if inTouchZone
 			e.dx = e.changedTouches[0].clientX - initialTouch.clientX
 
-			if activities.booksDrawerOffset < 0 && e.dx > 0
-				activities.booksDrawerOffset = e.dx - 300
+			if activities.booksDrawerOffset < 0 && e.dx < 0
+				activities.booksDrawerOffset = - e.dx - 300
 			if activities.settingsDrawerOffset < 0 && e.dx < 0
 				activities.settingsDrawerOffset = - e.dx - 300
 
@@ -293,7 +293,7 @@ tag reader
 		touch.dx = touch.changedTouches[0].clientX - initialTouch.clientX
 
 		if activities.booksDrawerOffset > -300
-			touch.dx < -64 ? activities.booksDrawerOffset = -300 : activities.booksDrawerOffset = 0
+			touch.dx > 64 ? activities.booksDrawerOffset = -300 : activities.booksDrawerOffset = 0
 		elif activities.settingsDrawerOffset > -300
 			touch.dx > 64 ? activities.settingsDrawerOffset = -300 : activities.settingsDrawerOffset = 0
 		inClosingTouchZone = no
@@ -340,7 +340,7 @@ tag reader
 
 	get bibleIconTransform
 		if (settings.fixdrawers && window.innerWidth >= 1024)
-			return 300 + activities.booksDrawerOffset
+			return -300 - activities.booksDrawerOffset
 		return 0
 
 	get settingsIconTransform
@@ -433,9 +433,8 @@ tag reader
 		<self[d:flex] @touchstart=slidestart @touchmove=openingdrawer @touchend=slideend @touchcancel=slideend>
 			<button.drawer-handle
 				[transform:translateX({bibleIconTransform}px)]
-				@pointerenter=openBooksDrawer
 				@click=activities.toggleBooksMenu>
-				<svg src=ChevronRight aria-label=t.change_book
+				<svg src=ChevronLeft aria-label=t.change_book
 					[transform:rotate({180*+!!bibleIconTransform}deg)]>
 
 			<main id="main"
@@ -448,7 +447,6 @@ tag reader
 
 			<button.drawer-handle
 				[transform:translateX({settingsIconTransform}px)]
-				@pointerenter=openSettingsDrawer
 				@click=activities.toggleSettingsMenu>
 				<svg src=ChevronLeft aria-label=t.settings
 					[transform:rotate({180*+!!settingsIconTransform}deg)]>
@@ -482,7 +480,7 @@ tag reader
 				@hotkey('alt+z').prevent.stop=openProfile
 			>
 				<books-drawer
-					[l:{activities.booksDrawerOffset}px bxs:{boxShadow(activities.booksDrawerOffset)} transition-duration:{drawerTransiton}]
+					[r:{activities.booksDrawerOffset}px bxs:{boxShadow(activities.booksDrawerOffset)} transition-duration:{drawerTransiton}]
 					@touchstart=slidestart @touchend=closedrawersend @touchcancel=closedrawersend @touchmove=closingdrawer @pointerleave=closeBooksDrawer>
 
 				<settings-drawer
@@ -614,9 +612,9 @@ tag reader
 			background-color: var(--bgc)
 
 		nav
-			border-right: 1px solid var(--acc-bgc)
-			transition-property: left
-			will-change: left
+			border-left: 1px solid var(--acc-bgc)
+			transition-property: right
+			will-change: right
 			padding-inline: 0
 			padding-block: 0.5rem 2rem
 
