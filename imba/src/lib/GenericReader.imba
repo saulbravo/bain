@@ -10,6 +10,9 @@ import user from './User'
 import vault from './Vault'
 import notifications from './Notifications'
 
+import reader from './Reader'
+import parallelReader from './ParallelReader'
+
 import type { Verse, Bookmark } from './types'
 
 class GenericReader
@@ -144,6 +147,38 @@ class GenericReader
 		console.log('[applyHighlightPreview] Updated bookmarks array, new length:', bookmarks.length)
 		imba.commit!
 	
+	def getArticleElement
+		# Get the article element for this specific reader
+		# Use the me property to identify which reader (me.me is 'main' or 'parallel')
+		# me is the instance, and me.me is the property value
+		let readerType = self.me or ''
+		console.log('[getArticleElement v3] Called - me instance:', me, 'me.me property:', self.me, 'readerType:', readerType)
+		
+		let readerId = readerType == 'main' ? 'main-reader' : 'parallel-reader'
+		console.log('[getArticleElement v3] Looking for readerId:', readerId)
+		
+		let readerEl = document.getElementById(readerId)
+		if readerEl
+			let article = readerEl.querySelector('article')
+			console.log('[getArticleElement v2] Article found for', readerId, ':', !!article)
+			return article
+		console.warn('[getArticleElement v2] Reader element not found:', readerId, 'Available elements:', document.getElementById('main-reader'), document.getElementById('parallel-reader'))
+		return null
+	
+	def getSelectionBox
+		# Get the selection box for this specific reader's article
+		let readerType = self.me or ''
+		console.log('[getSelectionBox v3] Called for reader:', me, 'readerType:', readerType)
+		let articleEl = self.getArticleElement()
+		if !articleEl
+			console.warn('[getSelectionBox v2] Article element not found')
+			return null
+		let box = articleEl.querySelector('.verse-selection-box')
+		console.log('[getSelectionBox v2] Selection box found:', !!box, 'in article:', !!articleEl)
+		if !box
+			console.warn('[getSelectionBox v2] Box not found! Checking all boxes in document:', document.querySelectorAll('.verse-selection-box').length)
+		return box
+	
 	def getCopySelectInfo pk\number
 		if !activities.copySelectMode or activities.copySelectStartPK == 0
 			return { inRange: no, isStart: no, isEnd: no }
@@ -165,17 +200,51 @@ class GenericReader
 		}
 
 	def updateCopySelectRange
+		let readerType = self.me or ''
+		console.log('[updateCopySelectRange v3] Called for reader:', me, 'readerType:', readerType)
+		console.log('[updateCopySelectRange v2] copySelectMode:', activities.copySelectMode, 'copySelectStartPK:', activities.copySelectStartPK)
+		console.log('[updateCopySelectRange v2] copySelectModeReader:', activities.copySelectModeReader)
+		
+		# Only update if this is the active reader for copy-select
 		if !activities.copySelectMode or activities.copySelectStartPK == 0
-			# Hide selection box
-			let box = document.querySelector('.verse-selection-box')
+			console.log('[updateCopySelectRange] Copy-select not active or no start PK')
+			let box = self.getSelectionBox()
+			if box
+				box.style.display = 'none'
+			return
+		
+		# Check if copy-select is active for this reader
+		# Compare using the me property value ('main' or 'parallel')
+		let currentReaderType = self.me or ''
+		let activeReaderType = null
+		
+		if !activities.copySelectModeReader
+			# No reader set yet, allow this one
+			activeReaderType = currentReaderType
+		else if typeof activities.copySelectModeReader == 'string'
+			# It's a string ('main' or 'parallel')
+			activeReaderType = activities.copySelectModeReader
+		else
+			# It's an instance, get its me property
+			activeReaderType = activities.copySelectModeReader.me or ''
+		
+		let isActiveReader = activeReaderType == currentReaderType
+		console.log('[updateCopySelectRange v3] currentReaderType:', currentReaderType, 'activeReaderType:', activeReaderType, 'isActiveReader:', isActiveReader)
+		
+		if !isActiveReader
+			console.log('[updateCopySelectRange v3] Copy-select active for different reader, hiding box. Active:', activeReaderType, 'This:', currentReaderType)
+			let box = self.getSelectionBox()
 			if box
 				box.style.display = 'none'
 			return
 		
 		let startIdx = verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
 		let endIdx = verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
+		console.log('[updateCopySelectRange] startIdx:', startIdx, 'endIdx:', endIdx)
+		
 		if startIdx == -1 or endIdx == -1
-			let box = document.querySelector('.verse-selection-box')
+			console.warn('[updateCopySelectRange] Verse indices not found')
+			let box = self.getSelectionBox()
 			if box
 				box.style.display = 'none'
 			return
@@ -190,56 +259,62 @@ class GenericReader
 		# Position the overlay box over selected verses (matches Obsidian plugin)
 		window.requestAnimationFrame(do
 			window.requestAnimationFrame(do
-				let box = document.querySelector('.verse-selection-box')
+				let box = self.getSelectionBox()
 				if !box
+					console.warn('[updateCopySelectRange] Selection box not found')
 					return
 				
-				# Get the article container
-				let articleEl = document.querySelector('article')
+				# Get the article container for this reader
+				let articleEl = self.getArticleElement()
 				if !articleEl
+					console.warn('[updateCopySelectRange] Article element not found')
 					box.style.display = 'none'
 					return
 				
-				# Find verse elements by traversing the article's children
-				# Verse elements contain a span with id="{versePrefix}{verse.verse}"
+				# Determine verse prefix based on reader
+				let readerType = self.me or ''
+				let versePrefix = readerType == 'main' ? '' : 'p'
+				console.log('[updateCopySelectRange v3] Using verse prefix:', versePrefix, 'readerType:', readerType)
+				
+				# Find verse elements
 				let firstVerseEl = null
 				let lastVerseEl = null
 				
-				# Get all verse text elements (they have IDs matching verse numbers)
 				for i in [minIdx .. maxIdx]
 					if verses[i]
 						let verseNum = verses[i].verse
-						# Try to find by verse number (with or without prefix)
-						let verseEl = document.getElementById(String(verseNum))
-						# If not found, try with 'p' prefix (for parallel readers)
-						if !verseEl
-							verseEl = document.getElementById("p{verseNum}")
-						# If still not found, search within article
-						if !verseEl and articleEl
-							let allSpans = articleEl.querySelectorAll('span[id]')
-							for span in allSpans
-								if span.id == String(verseNum) or span.id == "p{verseNum}" or span.id.endsWith(String(verseNum))
-									verseEl = span
-									break
+						let verseId = versePrefix ? versePrefix + String(verseNum) : String(verseNum)
+						console.log('[updateCopySelectRange] Looking for verse ID:', verseId)
 						
-						if verseEl
+						# Try getElementById first
+						let verseEl = document.getElementById(verseId)
+						# Verify it's within this article
+						if verseEl and articleEl.contains(verseEl)
+							console.log('[updateCopySelectRange] Found verse element:', verseId)
 							if !firstVerseEl
 								firstVerseEl = verseEl
 							lastVerseEl = verseEl
+						else
+							# Try querySelector within article
+							verseEl = articleEl.querySelector('span[id="{verseId}"]')
+							if verseEl
+								console.log('[updateCopySelectRange] Found verse via querySelector:', verseId)
+								if !firstVerseEl
+									firstVerseEl = verseEl
+								lastVerseEl = verseEl
+							else
+								console.warn('[updateCopySelectRange] Verse element not found:', verseId)
 				
 				if !firstVerseEl or !lastVerseEl
+					console.warn('[updateCopySelectRange] Verse elements not found, hiding box')
 					box.style.display = 'none'
 					return
 				
 				# Calculate position relative to article
-				# Use offsetTop relative to article
-				let articleRect = articleEl.getBoundingClientRect()
-				let firstRect = firstVerseEl.getBoundingClientRect()
-				let lastRect = lastVerseEl.getBoundingClientRect()
-				
-				# Calculate top and height relative to article
 				let top = firstVerseEl.offsetTop - 4
 				let bottom = lastVerseEl.offsetTop + lastVerseEl.offsetHeight + 4
+				
+				console.log('[updateCopySelectRange] Positioning box - top:', top, 'height:', (bottom - top))
 				
 				# Position the box
 				box.style.display = 'block'
@@ -295,11 +370,14 @@ class GenericReader
 			return
 
 		if activities.copySelectMode
-			console.log('[selectVerse] Copy select mode active')
-			# Single selection - clicking a new verse replaces the previous selection
+			let readerType = self.me or ''
+			console.log('[selectVerse v3] Copy select mode active, me:', me, 'readerType:', readerType)
+			# Switch copy-select to this reader and set the verse
+			activities.copySelectModeReader = me
 			activities.copySelectStartPK = pk
 			activities.copySelectEndPK = pk
 			activities.copySelectedVersesPKs = [pk]
+			console.log('[selectVerse] Set copySelectModeReader to:', me, 'pk:', pk)
 			self.updateCopySelectRange!
 			imba.commit!
 			return

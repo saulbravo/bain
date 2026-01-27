@@ -46,6 +46,7 @@ class Activities
 	@observable copySelectedVersesPKs\number[] = []
 	@observable copySelectStartPK\number = 0
 	@observable copySelectEndPK\number = 0
+	@observable copySelectModeReader = null # Track which reader (main or parallel) is active for copy-select
 	@observable copySelectDragging = no
 	@observable copySelectDragHandle = '' # 'top' or 'bottom'
 	copySelectReader = null
@@ -102,6 +103,7 @@ class Activities
 		copySelectedVersesPKs = []
 		copySelectStartPK = 0
 		copySelectEndPK = 0
+		copySelectModeReader = null
 		copySelectDragging = no
 		copySelectDragHandle = ''
 		copySelectReader = null

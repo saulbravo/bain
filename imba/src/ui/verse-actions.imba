@@ -150,6 +150,7 @@ tag verse-actions < section
 						activities.copySelectedVersesPKs = []
 						activities.copySelectStartPK = 0
 						activities.copySelectEndPK = 0
+						activities.copySelectModeReader = null
 					elif wasOff and activities.selectedVersesPKs.length > 0
 						# Turning ON and there are selected verses - activate purple box
 						let selectedPKs = activities.selectedVersesPKs
@@ -174,8 +175,9 @@ tag verse-actions < section
 									if hasParallelVerses
 										targetReader = parallelReader
 							
-							# Update the selection box if we found a target reader
+							# Set the active reader and update the selection box
 							if targetReader
+								activities.copySelectModeReader = targetReader
 								targetReader.updateCopySelectRange!
 					
 					imba.commit!

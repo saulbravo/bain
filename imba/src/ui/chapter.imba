@@ -135,7 +135,9 @@ tag chapter < section
 					[position: relative]>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
+					# Always render when copy-select mode is active - updateCopySelectRange will show/hide it
 					if activities.copySelectMode and activities.copySelectStartPK > 0
+						console.log('[chapter v2] Rendering selection box - copySelectMode:', activities.copySelectMode, 'copySelectStartPK:', activities.copySelectStartPK, 'for reader:', me)
 						<div.verse-selection-box>
 							<button.verse-selection-insert-btn 
 								@click.stop.prevent=(do
