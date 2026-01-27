@@ -135,17 +135,33 @@ tag chapter < section
 					[position: relative]>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
-					# Always render when copy-select mode is active - updateCopySelectRange will show/hide it
-					if activities.copySelectMode and activities.copySelectStartPK > 0
-						console.log('[chapter v2] Rendering selection box - copySelectMode:', activities.copySelectMode, 'copySelectStartPK:', activities.copySelectStartPK, 'for reader:', me)
+					# Render if this reader has copy-select active (check per-reader PKs)
+					let readerType = me.me or ''
+					let hasCopySelect = false
+					let startPK = 0
+					if readerType == 'main'
+						hasCopySelect = activities.copySelectMode and activities.copySelectStartPKMain > 0
+						startPK = activities.copySelectStartPKMain
+					else
+						hasCopySelect = activities.copySelectMode and activities.copySelectStartPKParallel > 0
+						startPK = activities.copySelectStartPKParallel
+					
+					if hasCopySelect
+						console.log('[chapter v4] Rendering selection box - copySelectMode:', activities.copySelectMode, 'startPK:', startPK, 'for reader:', readerType)
 						<div.verse-selection-box>
 							<button.verse-selection-insert-btn 
 								@click.stop.prevent=(do
 									console.log('Add to Obsidian button clicked')
 									# Get selected verses
 									let selectedVerses = []
-									let startIdx = me.verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
-									let endIdx = me.verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
+									# Use per-reader PKs
+									let readerType = me.me or ''
+									let startPK = readerType == 'main' ? activities.copySelectStartPKMain : activities.copySelectStartPKParallel
+									let endPK = readerType == 'main' ? activities.copySelectEndPKMain : activities.copySelectEndPKParallel
+									console.log('[chapter v4] Add to Obsidian - readerType:', readerType, 'startPK:', startPK, 'endPK:', endPK)
+									
+									let startIdx = me.verses.findIndex(do |v| return v.pk == startPK)
+									let endIdx = me.verses.findIndex(do |v| return v.pk == endPK)
 									console.log('StartIdx:', startIdx, 'EndIdx:', endIdx, 'CopySelectStartPK:', activities.copySelectStartPK, 'CopySelectEndPK:', activities.copySelectEndPK)
 									if startIdx != -1 and endIdx != -1
 										let minIdx = Math.min(startIdx, endIdx)
@@ -227,8 +243,41 @@ tag chapter < section
 								)>
 									<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
-								@click.stop.prevent=(do activities.copySelectStartPK = 0; activities.copySelectEndPK = 0; activities.copySelectedVersesPKs = []; imba.commit!; me.updateCopySelectRange!)>
-								<svg src=X>
+								@click.stop.prevent=(do
+									let readerType = me.me or ''
+									console.log('[chapter v4] Close button clicked for reader:', readerType)
+									
+									# Only clear this reader's copy-select, keep the other reader's if it exists
+									if readerType == 'main'
+										console.log('[chapter v4] Closing main reader copy-select')
+										activities.copySelectStartPKMain = 0
+										activities.copySelectEndPKMain = 0
+										# Clear global PKs only if parallel doesn't have active copy-select
+										if activities.copySelectStartPKParallel == 0
+											activities.copySelectStartPK = 0
+											activities.copySelectEndPK = 0
+											activities.copySelectedVersesPKs = []
+											activities.copySelectModeReader = null
+										else
+											console.log('[chapter v4] Parallel reader still has copy-select, keeping global state')
+									else
+										console.log('[chapter v4] Closing parallel reader copy-select')
+										activities.copySelectStartPKParallel = 0
+										activities.copySelectEndPKParallel = 0
+										# Clear global PKs only if main doesn't have active copy-select
+										if activities.copySelectStartPKMain == 0
+											activities.copySelectStartPK = 0
+											activities.copySelectEndPK = 0
+											activities.copySelectedVersesPKs = []
+											activities.copySelectModeReader = null
+										else
+											console.log('[chapter v4] Main reader still has copy-select, keeping global state')
+									
+									imba.commit!
+									me.updateCopySelectRange!
+									console.log('[chapter v4] After close - main:', activities.copySelectStartPKMain, 'parallel:', activities.copySelectStartPKParallel)
+								)>
+									<svg src=X>
 							<span.verse-selection-handle.verse-selection-handle-top 
 								@mousedown.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'top'; activities.copySelectReader = me)
 								@touchstart.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'top'; activities.copySelectReader = me)>
@@ -485,6 +534,9 @@ tag chapter < section
 			color: white
 			display: block
 			flex-shrink: 0
+			margin: 0
+			padding: 0
+			position: relative
 
 		# Drag handles
 		.verse-selection-handle

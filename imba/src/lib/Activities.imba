@@ -47,6 +47,11 @@ class Activities
 	@observable copySelectStartPK\number = 0
 	@observable copySelectEndPK\number = 0
 	@observable copySelectModeReader = null # Track which reader (main or parallel) is active for copy-select
+	# Per-reader copy-select tracking for parallel view
+	@observable copySelectStartPKMain\number = 0
+	@observable copySelectEndPKMain\number = 0
+	@observable copySelectStartPKParallel\number = 0
+	@observable copySelectEndPKParallel\number = 0
 	@observable copySelectDragging = no
 	@observable copySelectDragHandle = '' # 'top' or 'bottom'
 	copySelectReader = null
@@ -104,6 +109,10 @@ class Activities
 		copySelectStartPK = 0
 		copySelectEndPK = 0
 		copySelectModeReader = null
+		copySelectStartPKMain = 0
+		copySelectEndPKMain = 0
+		copySelectStartPKParallel = 0
+		copySelectEndPKParallel = 0
 		copySelectDragging = no
 		copySelectDragHandle = ''
 		copySelectReader = null

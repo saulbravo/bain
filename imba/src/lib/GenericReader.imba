@@ -201,46 +201,27 @@ class GenericReader
 
 	def updateCopySelectRange
 		let readerType = self.me or ''
-		console.log('[updateCopySelectRange v3] Called for reader:', me, 'readerType:', readerType)
-		console.log('[updateCopySelectRange v2] copySelectMode:', activities.copySelectMode, 'copySelectStartPK:', activities.copySelectStartPK)
-		console.log('[updateCopySelectRange v2] copySelectModeReader:', activities.copySelectModeReader)
+		console.log('[updateCopySelectRange v4] Called for reader:', me, 'readerType:', readerType)
 		
-		# Only update if this is the active reader for copy-select
-		if !activities.copySelectMode or activities.copySelectStartPK == 0
-			console.log('[updateCopySelectRange] Copy-select not active or no start PK')
+		# Get per-reader PKs
+		let startPK = readerType == 'main' ? activities.copySelectStartPKMain : activities.copySelectStartPKParallel
+		let endPK = readerType == 'main' ? activities.copySelectEndPKMain : activities.copySelectEndPKParallel
+		
+		console.log('[updateCopySelectRange v4] copySelectMode:', activities.copySelectMode, 'startPK:', startPK, 'endPK:', endPK, 'readerType:', readerType)
+		console.log('[updateCopySelectRange v4] Main PKs:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain)
+		console.log('[updateCopySelectRange v4] Parallel PKs:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
+		
+		# Only update if this reader has copy-select active
+		if !activities.copySelectMode or startPK == 0
+			console.log('[updateCopySelectRange v4] Copy-select not active or no start PK for this reader')
 			let box = self.getSelectionBox()
 			if box
 				box.style.display = 'none'
 			return
 		
-		# Check if copy-select is active for this reader
-		# Compare using the me property value ('main' or 'parallel')
-		let currentReaderType = self.me or ''
-		let activeReaderType = null
-		
-		if !activities.copySelectModeReader
-			# No reader set yet, allow this one
-			activeReaderType = currentReaderType
-		else if typeof activities.copySelectModeReader == 'string'
-			# It's a string ('main' or 'parallel')
-			activeReaderType = activities.copySelectModeReader
-		else
-			# It's an instance, get its me property
-			activeReaderType = activities.copySelectModeReader.me or ''
-		
-		let isActiveReader = activeReaderType == currentReaderType
-		console.log('[updateCopySelectRange v3] currentReaderType:', currentReaderType, 'activeReaderType:', activeReaderType, 'isActiveReader:', isActiveReader)
-		
-		if !isActiveReader
-			console.log('[updateCopySelectRange v3] Copy-select active for different reader, hiding box. Active:', activeReaderType, 'This:', currentReaderType)
-			let box = self.getSelectionBox()
-			if box
-				box.style.display = 'none'
-			return
-		
-		let startIdx = verses.findIndex(do |v| return v.pk == activities.copySelectStartPK)
-		let endIdx = verses.findIndex(do |v| return v.pk == activities.copySelectEndPK)
-		console.log('[updateCopySelectRange] startIdx:', startIdx, 'endIdx:', endIdx)
+		let startIdx = verses.findIndex(do |v| return v.pk == startPK)
+		let endIdx = verses.findIndex(do |v| return v.pk == endPK)
+		console.log('[updateCopySelectRange v4] startIdx:', startIdx, 'endIdx:', endIdx, 'startPK:', startPK, 'endPK:', endPK)
 		
 		if startIdx == -1 or endIdx == -1
 			console.warn('[updateCopySelectRange] Verse indices not found')
@@ -371,13 +352,23 @@ class GenericReader
 
 		if activities.copySelectMode
 			let readerType = self.me or ''
-			console.log('[selectVerse v3] Copy select mode active, me:', me, 'readerType:', readerType)
+			console.log('[selectVerse v4] Copy select mode active, me:', me, 'readerType:', readerType)
 			# Switch copy-select to this reader and set the verse
 			activities.copySelectModeReader = me
+			# Set per-reader PKs for parallel view support
+			if readerType == 'main'
+				activities.copySelectStartPKMain = pk
+				activities.copySelectEndPKMain = pk
+				console.log('[selectVerse v4] Set main reader PKs - start:', pk, 'end:', pk)
+			else
+				activities.copySelectStartPKParallel = pk
+				activities.copySelectEndPKParallel = pk
+				console.log('[selectVerse v4] Set parallel reader PKs - start:', pk, 'end:', pk)
+			# Also set global PKs for backward compatibility
 			activities.copySelectStartPK = pk
 			activities.copySelectEndPK = pk
 			activities.copySelectedVersesPKs = [pk]
-			console.log('[selectVerse] Set copySelectModeReader to:', me, 'pk:', pk)
+			console.log('[selectVerse v4] Set copySelectModeReader to:', me, 'pk:', pk)
 			self.updateCopySelectRange!
 			imba.commit!
 			return
