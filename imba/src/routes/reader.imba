@@ -381,35 +381,58 @@ tag reader
 			if selectedPKs.length > 0
 				# Determine which reader has these verses and update the selection box
 				let targetReader = null
+				let readerType = ''
+				
+				# First check selectedParallel
 				if activities.selectedParallel == 'main'
 					targetReader = reader
-				elif activities.selectedParallel
-					targetReader = activities.selectedParallel
+					readerType = 'main'
+				elif activities.selectedParallel == parallelReader
+					targetReader = parallelReader
+					readerType = 'parallel'
 				else
-					# Try to determine which reader has these verses
+					# Try to determine which reader has these verses by checking PKs
 					let hasMainVerses = reader.verses.some(do |v| return selectedPKs.includes(v.pk))
-					if hasMainVerses
+					let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
+					
+					console.log('[toggleCopySelectMode v6] Checking verses - hasMainVerses:', hasMainVerses, 'hasParallelVerses:', hasParallelVerses)
+					
+					if hasMainVerses and !hasParallelVerses
 						targetReader = reader
-					else
-						let hasParallelVerses = parallelReader.verses.some(do |v| return selectedPKs.includes(v.pk))
-						if hasParallelVerses
+						readerType = 'main'
+					elif hasParallelVerses and !hasMainVerses
+						targetReader = parallelReader
+						readerType = 'parallel'
+					elif hasMainVerses and hasParallelVerses
+						# Both have verses - prefer the one with more matches
+						let mainCount = reader.verses.filter(do |v| return selectedPKs.includes(v.pk)).length
+						let parallelCount = parallelReader.verses.filter(do |v| return selectedPKs.includes(v.pk)).length
+						if parallelCount >= mainCount
 							targetReader = parallelReader
+							readerType = 'parallel'
+						else
+							targetReader = reader
+							readerType = 'main'
 				
 				# Set the active reader and update the selection box
 				if targetReader
-					let readerType = targetReader.me or ''
+					console.log('[toggleCopySelectMode v6] Setting copy-select for reader:', readerType, 'PKs:', selectedPKs, 'targetReader:', targetReader)
 					activities.copySelectModeReader = targetReader
 					# Set per-reader PKs
 					if readerType == 'main'
 						activities.copySelectStartPKMain = selectedPKs[0]
 						activities.copySelectEndPKMain = selectedPKs[selectedPKs.length - 1]
+						console.log('[toggleCopySelectMode v6] Set main reader PKs:', activities.copySelectStartPKMain, '-', activities.copySelectEndPKMain)
 					else
 						activities.copySelectStartPKParallel = selectedPKs[0]
 						activities.copySelectEndPKParallel = selectedPKs[selectedPKs.length - 1]
+						console.log('[toggleCopySelectMode v6] Set parallel reader PKs:', activities.copySelectStartPKParallel, '-', activities.copySelectEndPKParallel)
 					# Also set global PKs for backward compatibility
 					activities.copySelectStartPK = selectedPKs[0]
 					activities.copySelectEndPK = selectedPKs[selectedPKs.length - 1]
 					targetReader.updateCopySelectRange!
+				else
+					console.warn('[toggleCopySelectMode v6] Could not determine target reader for PKs:', selectedPKs)
 		
 		imba.commit!
 
