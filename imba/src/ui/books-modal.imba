@@ -196,6 +196,8 @@ tag books-modal
 			selectedChapter = null
 
 	<self>
+		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>
+			<svg src=ICONS.X [c@hover:red4] aria-hidden=true>
 		<header>
 			<[d:flex jc:space-between ai:center cursor:pointer padding-inline:0.5rem g:0.5rem]>
 				<[d:flex ai:center g:0.5rem]>
@@ -206,8 +208,6 @@ tag books-modal
 						[opacity:{(modalState == 'book') ? 0.5 : 1}]
 						aria-label=t.back
 						title=t.back>
-					<button @click=activities.cleanUp title=t.close>
-						<svg src=ICONS.X [c@hover:red4] aria-hidden=true>
 				if parallelReader.enabled
 					<[d:flex mih:2.25rem g:0.5rem]>
 						<button.btn title=translationFullName(reader.translation) .active=(activeTranslation == reader.translation) @click=setActiveTranslation(no)> reader.translation
@@ -534,3 +534,41 @@ tag books-modal
 			font-weight: bold
 			color: inherit
 			white-space: nowrap
+		
+		.bible-close-btn
+			display: flex
+			align-items: center
+			justify-content: center
+			padding: 0.75rem
+			min-width: 3rem
+			min-height: 3rem
+			border: none
+			background: transparent
+			cursor: pointer
+			border-radius: 4px
+			transition: background 0.15s ease
+			-webkit-tap-highlight-color: transparent
+		
+		.bible-close-btn svg
+			width: 1.75rem
+			height: 1.75rem
+		
+		.bible-close-corner
+			position: absolute
+			top: 0.75rem
+			right: 0.75rem
+			z-index: 10
+		
+		.bible-close-btn@hover
+			background: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+		
+		.bible-close-btn@active
+			background: var(--background-modifier-active, rgba(255, 255, 255, 0.15))
+		
+		.bible-close-btn svg
+			width: 1.5rem
+			height: 1.5rem
+		
+		.bible-close-btn svg
+			width: 1.5rem
+			height: 1.5rem
