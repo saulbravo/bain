@@ -562,8 +562,11 @@ tag books-modal
 			-webkit-overflow-scrolling: touch
 		
 		.bible-modal-slider.bible-enlarged-scroll
-			overflow-y: auto
-			-webkit-overflow-scrolling: touch
+			# When text is enlarged, avoid a nested scrollbar inside the modal content.
+			# Let the modal container itself scroll (keeps modal top-aligned).
+			overflow-y: visible
+			max-height: none
+			-webkit-overflow-scrolling: auto
 
 		# Chapter view (e.g. Psalms 150 chapters) needs its own scroll cap
 		.bible-modal-slider.bible-chapter-scroll

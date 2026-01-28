@@ -192,6 +192,9 @@ tag modal < section
 				bxs: 0 0 0 1px $acc-bgc, 0 1px 6px $acc-bgc, 0 3px 36px $acc-bgc, 0 9px 12.5rem -4rem $acc-bgc @lt-sm:none
 				rd:1rem @lt-sm:0
 				p:1.5rem @lt-sm:0.75rem
+				# For the books modal we want the container to be the scroller (no nested scrollbars),
+				# while keeping the modal pinned to the top.
+				overflow-y:{activities.activeModal == 'books' ? 'auto' : 'visible'}
 				margin:0
 				scale@off:0.95] @click.stop>
 
