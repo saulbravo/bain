@@ -178,7 +178,7 @@ tag modal < section
 
 	def render
 		<self
-			[pos:fixed inset:0 bg:{backdropColor} h:100% d:flex ai:center jc:center p:0 @lt-sm:0 o@off:0 zi:{activities.activeModal == "notes" ? 1200 : 3}]
+			[pos:fixed inset:0 bg:{backdropColor} h:100% d:flex ai:flex-start jc:center p:6vh 0 @lt-sm:0 o@off:0 zi:{activities.activeModal == "notes" ? 1200 : 3}]
 			@click=activities.cleanUp ease>
 
 			<[
@@ -192,7 +192,7 @@ tag modal < section
 				bxs: 0 0 0 1px $acc-bgc, 0 1px 6px $acc-bgc, 0 3px 36px $acc-bgc, 0 9px 12.5rem -4rem $acc-bgc @lt-sm:none
 				rd:1rem @lt-sm:0
 				p:1.5rem @lt-sm:0.75rem
-				margin:auto
+				margin:0
 				scale@off:0.95] @click.stop>
 
 				switch activities.activeModal
