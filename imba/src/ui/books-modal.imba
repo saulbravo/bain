@@ -14,6 +14,7 @@ import * as ICONS from 'imba-phosphor-icons'
 import TimelineIcon from '../icons/timeline.svg'
 import NIcon from '../icons/n.svg'
 
+import API from '../lib/Api'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 import activities from '../lib/Activities'
@@ -29,6 +30,10 @@ tag books-modal
 	modalState = 'book' # 'book' | 'chapter' | 'verse'
 	selectedBook = null # number | null
 	selectedChapter = null # number | null
+	selectedChapterNumber = null # number | null
+	verseCount = 0
+	loadingVerseCount = no
+	verseCountCache = {} # { [key: string]: number }
 	colorsEnabled = no
 	mode = 'browse' # 'browse' | 'history'
 	textEnlarged = no
@@ -211,13 +216,48 @@ tag books-modal
 	@action def selectBook bookIndex\number
 		selectedBook = bookIndex
 		selectedChapter = null
+		selectedChapterNumber = null
+		verseCount = 0
 		modalState = 'chapter'
 
 	@action def selectChapter chapterIndex\number
 		if selectedBook != null
 			const book = books[selectedBook]
 			if book
-				goToChapter(book.bookid, chapterIndex + 1)
+				selectedChapter = chapterIndex
+				selectedChapterNumber = chapterIndex + 1
+				modalState = 'verse'
+				loadVerseCount(book.bookid, selectedChapterNumber, activeTranslation)
+
+	@action def loadVerseCount bookid\number, chapter\number, translation\string
+		const cacheKey = "{translation}:{bookid}:{chapter}"
+		# cache can legitimately be 0, so check key existence instead of truthiness
+		if Object.prototype.hasOwnProperty.call(verseCountCache, cacheKey)
+			verseCount = verseCountCache[cacheKey]
+			return
+
+		loadingVerseCount = yes
+		verseCount = 0
+		try
+			let chapterVerses
+			if vault.downloaded_translations.indexOf(translation) != -1
+				chapterVerses = await vault.getChapter(translation, bookid, chapter)
+			else
+				chapterVerses = await API.getJson("/get-chapter/{translation}/{bookid}/{chapter}/")
+			# API/vault should return an array of verses; be defensive if shape changes
+			if chapterVerses && typeof chapterVerses.length == 'number'
+				verseCount = chapterVerses.length
+			elif chapterVerses && chapterVerses.verses && typeof chapterVerses.verses.length == 'number'
+				verseCount = chapterVerses.verses.length
+			else
+				verseCount = 0
+			verseCountCache[cacheKey] = verseCount
+		catch error
+			console.error(error)
+			verseCount = 0
+		finally
+			loadingVerseCount = no
+			imba.commit!
 
 	@action def goToChapter bookid\number, chapter\number
 		if parallelReader.enabled && activeTranslation == parallelReader.translation
@@ -227,6 +267,51 @@ tag books-modal
 			reader.book = bookid
 			reader.chapter = chapter
 		activities.cleanUp!
+
+	@action def goToVerse bookid\number, chapter\number, verse\number
+		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
+		if isParallel
+			parallelReader.book = bookid
+			parallelReader.chapter = chapter
+			parallelReader.verse = verse
+		else
+			reader.book = bookid
+			reader.chapter = chapter
+			reader.verse = verse
+		activities.cleanUp!
+		# Wait for chapter to load, then select and scroll to verse smoothly
+		const selectAndScroll = do
+			const targetReader = isParallel ? parallelReader : reader
+			# Wait for verses to load
+			if targetReader.verses && targetReader.verses.length > 0
+				# Find the verse by verse number
+				const verseObj = targetReader.verses.find(do |v| return v.verse == verse)
+				if verseObj
+					# Clear any existing selection and text selection first
+					activities.selectedVersesPKs = []
+					activities.selectedVerses = []
+					activities.selectedCategories = []
+					activities.selectedParallel = undefined
+					activities.activeVerseAction = undefined
+					if window.getSelection
+						window.getSelection().removeAllRanges()
+					# Select the verse
+					targetReader.selectVerse(verseObj.pk, verse)
+					# Scroll to center it smoothly
+					setTimeout(&, 100) do
+						const verseId = String(verse)
+						const verseElement = document.getElementById(verseId)
+						if verseElement
+							verseElement.scrollIntoView({behavior: 'smooth', block: 'center'})
+					return yes
+			return no
+		
+		# Try immediately, then retry with delays if needed
+		unless selectAndScroll()
+			setTimeout(&, 600) do
+				unless selectAndScroll()
+					setTimeout(&, 1200) do
+						selectAndScroll()
 	
 	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string
 		# Change translation if needed
@@ -238,10 +323,14 @@ tag books-modal
 		if modalState == 'verse'
 			modalState = 'chapter'
 			selectedChapter = null
+			selectedChapterNumber = null
+			verseCount = 0
 		elif modalState == 'chapter'
 			modalState = 'book'
 			selectedBook = null
 			selectedChapter = null
+			selectedChapterNumber = null
+			verseCount = 0
 
 	<self>
 		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>
@@ -382,6 +471,20 @@ tag books-modal
 							const isSelected = selectedChapter == i or (selectedChapter == null and chapterNum == activeChapter and book.bookid == activeBook)
 							<button.bible-chapter-btn .active=isSelected @click=selectChapter(i)>
 								chapterNum
+			elif modalState == 'verse' and selectedBook != null and selectedChapterNumber != null
+				const book = books[selectedBook]
+				if book
+					<div.bible-verse-divider>
+					if loadingVerseCount
+						<div[ta:center p:1rem]> "Loading…"
+					elif verseCount > 0
+						<div.bible-verse-grid>
+							for i in [1 .. verseCount]
+								const isSelected = (book.bookid == activeBook and selectedChapterNumber == activeChapter and i == reader.verse)
+								<button.bible-verse-btn .active=isSelected @click=goToVerse(book.bookid, selectedChapterNumber, i)>
+									i
+					else
+						<div[ta:center p:1rem]> "No verses"
 
 	css
 		.bible-top-buttons
@@ -634,7 +737,7 @@ tag books-modal
 		.bible-verse-grid
 			display: grid
 			grid-template-columns: repeat(7, 1fr)
-			gap: 8px
+			gap: 6px
 			padding: 0
 
 		.bible-verse-divider
