@@ -11,6 +11,9 @@ import Clock from 'lucide-static/icons/clock.svg'
 import Palette from 'lucide-static/icons/palette.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
+import TimelineIcon from '../icons/timeline.svg'
+import NIcon from '../icons/n.svg'
+
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 import activities from '../lib/Activities'
@@ -29,6 +32,7 @@ tag books-modal
 	colorsEnabled = no
 	mode = 'browse' # 'browse' | 'history'
 	textEnlarged = no
+	showFullBookNames = no
 	searchQuery = ''
 
 	@computed get activeTranslation
@@ -153,6 +157,9 @@ tag books-modal
 	
 	@action def toggleTextEnlarged
 		textEnlarged = !textEnlarged
+
+	@action def toggleFullBookNames
+		showFullBookNames = !showFullBookNames
 	
 	@computed get filteredHistory
 		unless searchQuery.trim()
@@ -261,7 +268,10 @@ tag books-modal
 					<span [fs:16px fw:bold]> "A"
 			<button.bible-mode-btn .active=settings.chronorder @click=toggleChronorder title=t.chronological_order aria-label=t.chronological_order>
 				<span.bible-mode-icon>
-					<svg src=Calendar width="18" height="18" aria-hidden=true>
+					<svg src=TimelineIcon width="18" height="18" aria-hidden=true>
+			<button.bible-mode-btn .active=showFullBookNames @click=toggleFullBookNames title="Show full book names" aria-label="Show full book names">
+				<span.bible-mode-icon>
+					<svg src=NIcon width="18" height="18" aria-hidden=true>
 			if vault.available
 				<button.bible-mode-btn @click=activities.toggleDownloads title=t.download aria-label=t.download>
 					<span.bible-mode-icon>
@@ -281,7 +291,12 @@ tag books-modal
 						activeTranslation
 						<svg[min-width:1rem h:1.1em mb:-0.2em transform:rotate({180 * +unfoldTranslationsList}deg)] src=ChevronDown aria-label="">
 		
-		<article.body.bible-modal-slider .bible-text-enlarged=textEnlarged .bible-translations-open=unfoldTranslationsList .bible-enlarged-scroll=textEnlarged>
+		<article.body.bible-modal-slider
+			.bible-text-enlarged=textEnlarged
+			.bible-translations-open=unfoldTranslationsList
+			.bible-enlarged-scroll=textEnlarged
+			.bible-show-full-names=showFullBookNames
+			.bible-chapter-scroll=(modalState == 'chapter')>
 			if mode == 'history'
 				<div.bible-history-results>
 					<input.bible-modal-input
@@ -342,7 +357,8 @@ tag books-modal
 								const colorClass = getBookColorClass(book.bookid)
 								<button.bible-book-btn .bible-color-red=(colorClass == 'bible-color-red') .bible-color-blue=(colorClass == 'bible-color-blue') .bible-color-orange=(colorClass == 'bible-color-orange') .bible-color-purple=(colorClass == 'bible-color-purple') .bible-color-green=(colorClass == 'bible-color-green') .active=isSelected @click=selectBook(bookIndex)>
 									<div.bible-book-abbreviation> getBookAbbreviation(book.bookid)
-									<div.bible-book-name> book.name
+									if showFullBookNames
+										<div.bible-book-name> book.name
 					# New Testament
 					if newTestamentBooks.length > 0
 						<div.bible-testament-divider>
@@ -354,7 +370,8 @@ tag books-modal
 								const colorClass = getBookColorClass(book.bookid)
 								<button.bible-book-btn .bible-color-red=(colorClass == 'bible-color-red') .bible-color-blue=(colorClass == 'bible-color-blue') .bible-color-orange=(colorClass == 'bible-color-orange') .bible-color-purple=(colorClass == 'bible-color-purple') .bible-color-green=(colorClass == 'bible-color-green') .active=isSelected @click=selectBook(bookIndex)>
 									<div.bible-book-abbreviation> getBookAbbreviation(book.bookid)
-									<div.bible-book-name> book.name
+									if showFullBookNames
+										<div.bible-book-name> book.name
 			elif modalState == 'chapter' and selectedBook != null
 				const book = books[selectedBook]
 				if book
@@ -444,6 +461,12 @@ tag books-modal
 		.bible-modal-slider.bible-enlarged-scroll
 			overflow-y: auto
 			-webkit-overflow-scrolling: touch
+
+		# Chapter view (e.g. Psalms 150 chapters) needs its own scroll cap
+		.bible-modal-slider.bible-chapter-scroll
+			overflow-y: auto
+			-webkit-overflow-scrolling: touch
+			max-height: calc(85vh - 180px)
 		
 		.bible-showing-books
 			padding: 0
@@ -529,6 +552,10 @@ tag books-modal
 			line-height: 1.1
 			font-weight: 400
 			text-align: center
+			display: none
+
+		.bible-show-full-names .bible-book-name
+			display: block
 
 		.bible-testament-divider
 			display: flex
