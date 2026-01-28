@@ -140,14 +140,11 @@ class Activities
 
 
 	def toggleBooksMenu parallel
-		if booksDrawerOffset
-			if !settingsDrawerOffset && hasTouchEvents
-				return cleanUp!
-			booksDrawerOffset = 0
+		if activeModal == 'books'
+			cleanUp!
 		else
-			imba.commit!.then do
-				booksDrawerOffset = -300
-				imba.commit!
+			cleanUp!
+			openModal 'books'
 		if typeof parallel == 'boolean'
 			activeParallelAtBooksDrawer = parallel
 

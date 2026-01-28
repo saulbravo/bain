@@ -195,6 +195,8 @@ tag modal < section
 				scale@off:0.95] @click.stop>
 
 				switch activities.activeModal
+					when 'books'
+						<books-modal>
 					when 'help'
 						<header>
 							<button @click=activities.cleanUp title=t.close>

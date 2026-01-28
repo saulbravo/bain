@@ -479,9 +479,6 @@ tag reader
 				@hotkey('mod+,').prevent.stop=activities.showHelp
 				@hotkey('alt+z').prevent.stop=openProfile
 			>
-				<books-drawer
-					[r:{activities.booksDrawerOffset}px bxs:{boxShadow(activities.booksDrawerOffset)} transition-duration:{drawerTransiton}]
-					@touchstart=slidestart @touchend=closedrawersend @touchcancel=closedrawersend @touchmove=closingdrawer @pointerleave=closeBooksDrawer>
 
 				<settings-drawer
 					[r:{activities.settingsDrawerOffset}px bxs:{boxShadow(activities.settingsDrawerOffset)} transition-duration:{drawerTransiton}]
