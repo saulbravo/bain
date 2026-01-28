@@ -184,9 +184,9 @@ tag modal < section
 			<[
 				pos:relative
 				d:flex fld:column
-				max-height:72vh @lt-sm:100vh
+				max-height:{activities.activeModal == 'books' ? '85vh' : '72vh'} @lt-sm:100vh
 				block-size@lt-sm:100vh
-				max-width:64em @lt-sm:100%
+				max-width:{activities.activeModal == 'books' ? '75em' : '64em'} @lt-sm:100%
 				w:82% @lt-sm:100%
 				bgc:$bgc bd:1px solid $acc-bgc-hover @lt-sm:none
 				bxs: 0 0 0 1px $acc-bgc, 0 1px 6px $acc-bgc, 0 3px 36px $acc-bgc, 0 9px 12.5rem -4rem $acc-bgc @lt-sm:none

@@ -248,10 +248,10 @@ class GenericReader
 						else
 							# Try querySelector within article
 							verseEl = articleEl.querySelector('span[id="{verseId}"]')
-							if verseEl
-								if !firstVerseEl
-									firstVerseEl = verseEl
-								lastVerseEl = verseEl
+						if verseEl
+							if !firstVerseEl
+								firstVerseEl = verseEl
+							lastVerseEl = verseEl
 				
 				if !firstVerseEl or !lastVerseEl
 					box.style.display = 'none'
@@ -347,7 +347,7 @@ class GenericReader
 
 		activities.selectedParallel = me
 		unless activities.highlight_color
-			activities.highlight_color = activities.randomColor
+		activities.highlight_color = activities.randomColor
 
 		if activities.selectedVersesPKs.length == 0 && me == 'main'
 			window.history.pushState(
@@ -491,7 +491,7 @@ class GenericReader
 				notifications.push('error')
 				saveOffline!
 		else saveOffline!
-		
+
 		for verse in activities.selectedVersesPKs
 			# Remove existing bookmark (including preview ones)
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)

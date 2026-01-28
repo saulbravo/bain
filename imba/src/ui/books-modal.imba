@@ -1,11 +1,14 @@
 import languages from '../data/languages.json'
 import ALL_BOOKS from '../data/translations_books.json'
 
-import HourGlassIcon from 'lucide-static/icons/hourglass.svg'
+import Calendar from 'lucide-static/icons/calendar-1.svg'
 import Download from 'lucide-static/icons/download.svg'
 import Heart from 'lucide-static/icons/heart.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import ArrowLeft from 'lucide-static/icons/arrow-left.svg'
+import BookOpen from 'lucide-static/icons/book-open.svg'
+import Clock from 'lucide-static/icons/clock.svg'
+import Palette from 'lucide-static/icons/palette.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 import reader from '../lib/Reader'
@@ -14,6 +17,8 @@ import activities from '../lib/Activities'
 import settings from '../lib/Settings'
 import vault from '../lib/Vault'
 import user from '../lib/User'
+import readingHistory from '../lib/ReadingHistory'
+
 
 tag books-modal
 	unfoldTranslationsList = no
@@ -22,6 +27,9 @@ tag books-modal
 	selectedBook = null # number | null
 	selectedChapter = null # number | null
 	colorsEnabled = no
+	mode = 'browse' # 'browse' | 'history'
+	textEnlarged = no
+	searchQuery = ''
 
 	@computed get activeTranslation
 		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
@@ -132,6 +140,33 @@ tag books-modal
 		modalState = 'book'
 		selectedBook = null
 		selectedChapter = null
+	
+	@action def toggleMode newMode\string
+		mode = newMode
+		searchQuery = ''
+		modalState = 'book'
+		selectedBook = null
+		selectedChapter = null
+	
+	@action def toggleColors
+		colorsEnabled = !colorsEnabled
+	
+	@action def toggleTextEnlarged
+		textEnlarged = !textEnlarged
+	
+	@computed get filteredHistory
+		unless searchQuery.trim()
+			return readingHistory.history.slice(0, 10)
+		
+		const query = searchQuery.toLowerCase()
+		return readingHistory.history.filter(do(item)
+			const book = ALL_BOOKS[item.translation]?.find(do(b) return b.bookid == item.book)
+			if !book
+				return no
+			const bookName = book.name.toLowerCase()
+			const abbr = getBookAbbreviation(item.book).toLowerCase()
+			return bookName.includes(query) or abbr.includes(query) or item.chapter.toString().includes(query) or (item.verse and item.verse.toString().includes(query))
+		).slice(0, 10)
 
 	def toggleLanguageTranslations language\string
 		if language != unfoldedLanguage
@@ -185,6 +220,12 @@ tag books-modal
 			reader.book = bookid
 			reader.chapter = chapter
 		activities.cleanUp!
+	
+	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string
+		# Change translation if needed
+		if translation != activeTranslation
+			changeTranslation(translation)
+		goToChapter(bookid, chapter)
 
 	@action def goBack
 		if modalState == 'verse'
@@ -198,37 +239,72 @@ tag books-modal
 	<self>
 		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>
 			<svg src=ICONS.X [c@hover:red4] aria-hidden=true>
+		<button.bible-back-btn.bible-back-corner @click=goBack
+			[pointer-events:{(modalState == 'book') ? 'none' : 'auto'}]
+			[opacity:{(modalState == 'book') ? 0.5 : 1}]
+			title=t.back
+			aria-label=t.back>
+			<svg src=ArrowLeft aria-hidden=true>
+		<[d:flex jc:center ai:center g:0.5rem flex-wrap:nowrap].bible-top-buttons>
+			<button.bible-mode-btn .active=(mode == 'browse') @click=toggleMode('browse') title="Browse">
+				<span.bible-mode-icon>
+					<svg src=BookOpen width="18" height="18" aria-hidden=true>
+			<button.bible-mode-btn .active=(mode == 'history') @click=toggleMode('history') title="History">
+				<span.bible-mode-icon>
+					<svg src=Clock width="18" height="18" aria-hidden=true>
+			<button.bible-mode-btn .active=colorsEnabled @click=toggleColors title="Color palette">
+				<span.bible-mode-icon>
+					<svg src=Palette width="18" height="18" aria-hidden=true>
+			<button.bible-mode-btn.bible-enlarge-text-btn .active=textEnlarged @click=toggleTextEnlarged title="Enlarge text">
+				<span.bible-mode-icon [d:flex ai:center g:2px fs:14px lh:1]>
+					<span [fs:12px]> "A"
+					<span [fs:16px fw:bold]> "A"
+			<button.bible-mode-btn .active=settings.chronorder @click=toggleChronorder title=t.chronological_order aria-label=t.chronological_order>
+				<span.bible-mode-icon>
+					<svg src=Calendar width="18" height="18" aria-hidden=true>
+			if vault.available
+				<button.bible-mode-btn @click=activities.toggleDownloads title=t.download aria-label=t.download>
+					<span.bible-mode-icon>
+						<svg src=Download width="18" height="18" aria-hidden=true>
 		<header>
-			<[d:flex jc:space-between ai:center cursor:pointer padding-inline:0.5rem g:0.5rem]>
-				<[d:flex ai:center g:0.5rem]>
-					<svg src=ArrowLeft
-						[transform:rotate({180 * +!!(modalState == 'book')}deg)]
-						@click=goBack
-						[pointer-events:{(modalState == 'book') ? 'none' : 'auto'}]
-						[opacity:{(modalState == 'book') ? 0.5 : 1}]
-						aria-label=t.back
-						title=t.back>
+			<[d:flex jc:center ai:center g:0.75rem]>
+				if selectedBook != null and books[selectedBook]
+					<span.bible-selected-book-name> books[selectedBook].name
+					<span.bible-separator> "|"
 				if parallelReader.enabled
 					<[d:flex mih:2.25rem g:0.5rem]>
 						<button.btn title=translationFullName(reader.translation) .active=(activeTranslation == reader.translation) @click=setActiveTranslation(no)> reader.translation
 						<button.btn [fw:black] @click=swapTranslations title=t.swap_parallels> "⇄"
 						<button.btn title=translationFullName(parallelReader.translation) .active=(activeTranslation == parallelReader.translation) @click=setActiveTranslation(yes)> parallelReader.translation
-				<[d:flex ai:center g:0.5rem]>
-					if selectedBook != null and books[selectedBook]
-						<span.bible-selected-book-name> books[selectedBook].name
+				else
 					<button.btn title=t.change_translation @click=(unfoldTranslationsList = !unfoldTranslationsList)>
 						activeTranslation
 						<svg[min-width:1rem h:1.1em mb:-0.2em transform:rotate({180 * +unfoldTranslationsList}deg)] src=ChevronDown aria-label="">
-				<[d:flex ai:center g:0.5rem]>
-					<svg src=HourGlassIcon
-						[transform:rotate({63 * (1 - +settings.chronorder)}deg)]
-						@click=toggleChronorder
-						aria-label=t.chronological_order>
-					if vault.available
-						<svg src=Download role="button" @click=activities.toggleDownloads aria-label=t.download>
 		
-		<article.body.bible-modal-slider>
-			if unfoldTranslationsList
+		<article.body.bible-modal-slider .bible-text-enlarged=textEnlarged .bible-translations-open=unfoldTranslationsList .bible-enlarged-scroll=textEnlarged>
+			if mode == 'history'
+				<div.bible-history-results>
+					<input.bible-modal-input
+						type="text"
+						placeholder="Search history or type a reference…"
+						bind=searchQuery
+						aria-label="Search history">
+					<div.bible-history-list>
+						if filteredHistory.length > 0
+							for item in filteredHistory
+								const bookData = ALL_BOOKS[item.translation]?.find(do(b) return b.bookid == item.book)
+								if bookData
+									<div.bible-history-item @click=goToChapterFromHistory(item.book, item.chapter, item.translation)>
+										<span.bible-history-item-icon>
+											<svg src=BookOpen width="16" height="16" aria-hidden=true>
+										<div.bible-history-item-text>
+											<div.bible-history-item-primary> "{bookData.name} {item.chapter}"
+											if item.verse
+												<div.bible-history-item-secondary> "Verse {item.verse}"
+											<div.bible-history-item-hint> item.translation
+						else
+							<div.bible-history-empty> "No history found"
+			elif mode == 'browse' and unfoldTranslationsList
 				<div[h:auto max-height:100% ofy:scroll -webkit-overflow-scrolling:touch pb:2rem]>
 					if settings.favoriteTranslations.length
 						<[d:flex flw:wrap ai:center p:0.5rem]>
@@ -253,7 +329,7 @@ tag books-modal
 													<svg src=Heart [size:1em stroke:$c @hover:$acc-hover fill: {translationHeartFill(translation.short_name)}] @click.prevent.stop=toggleTranslationFavor(translation.short_name)>
 									if vault.downloaded_translations.length == 0 && !window.navigator.onLine
 										<p.li> t["no_translation_downloaded"]
-			elif modalState == 'book'
+			elif mode == 'browse' and modalState == 'book'
 				<div.bible-showing-books>
 					# Old Testament
 					if oldTestamentBooks.length > 0
@@ -291,15 +367,91 @@ tag books-modal
 								chapterNum
 
 	css
+		.bible-top-buttons
+			position: absolute
+			top: 0.75rem
+			left: 50%
+			transform: translateX(-50%)
+			z-index: 10
+			display: flex
+			align-items: center
+			justify-content: center
+			gap: 0.5rem
+		
 		header
-			padding: 0.5rem 0.75rem
+			padding: 3.5rem 0.75rem 0.5rem 0.75rem
 			min-height: auto
+			overflow: hidden
+			max-height: none
+			display: flex
+			justify-content: center
+			align-items: center
+		
+		header > div
+			width: auto
+			flex-shrink: 0
+			display: flex
+			justify-content: center
+			align-items: center
+		
+		.bible-back-btn
+			display: flex
+			align-items: center
+			justify-content: center
+			padding: 0.75rem
+			min-width: 3rem
+			min-height: 3rem
+			border: none
+			background: transparent
+			cursor: pointer
+			border-radius: 4px
+			transition: background 0.15s ease
+			-webkit-tap-highlight-color: transparent
+		
+		.bible-back-btn svg
+			width: 1.75rem
+			height: 1.75rem
+		
+		.bible-back-corner
+			position: absolute
+			top: 0.75rem
+			left: 0.75rem
+			z-index: 10
+		
+		.bible-back-btn@hover
+			background: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+		
+		.bible-back-btn@active
+			background: var(--background-modifier-active, rgba(255, 255, 255, 0.15))
+		
+		.bible-separator
+			color: var(--text-muted, rgba(255, 255, 255, 0.5))
+			margin: 0 0.5rem
+			font-size: 1rem
 		
 		.bible-modal-slider
-			max-height: calc(72vh - 100px)
-			overflow-y: auto
+			max-height: calc(85vh - 180px)
+			overflow-y: hidden
 			overflow-x: hidden
 			padding: 4px 8px 8px 8px
+			display: flex
+			flex-direction: column
+		
+		.bible-modal-slider.bible-translations-open
+			overflow-y: auto
+			-webkit-overflow-scrolling: touch
+		
+		.bible-modal-slider.bible-enlarged-scroll
+			overflow-y: auto
+			-webkit-overflow-scrolling: touch
+		
+		.bible-showing-books
+			padding: 0
+			overflow-y: visible
+			flex: 1
+			display: flex
+			flex-direction: column
+			min-height: 0
 
 		.bible-showing-books
 			padding: 0
@@ -511,6 +663,149 @@ tag books-modal
 			c@hover:$acc-hover
 			cursor: pointer
 
+		.bible-mode-btn
+			display: flex
+			align-items: center
+			justify-content: center
+			padding: 6px
+			border: none
+			background: transparent
+			color: var(--text-normal, rgba(255, 255, 255, 0.7))
+			cursor: pointer
+			border-radius: 4px
+			transition: all 0.2s ease
+			font-size: 14px
+			font-weight: 400
+			min-width: 36px
+			height: 36px
+
+		.bible-mode-btn@hover
+			background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+			color: var(--text-on-accent, #ffffff)
+
+		.bible-mode-btn.active
+			background-color: var(--interactive-normal, rgba(255, 255, 255, 0.15))
+			color: var(--text-on-accent, #ffffff)
+
+		.bible-mode-btn.active@hover
+			background-color: var(--interactive-normal, rgba(255, 255, 255, 0.2))
+			color: var(--text-on-accent, #ffffff)
+
+		.bible-mode-icon
+			display: flex
+			align-items: center
+			justify-content: center
+			width: 18px
+			height: 18px
+
+		.bible-mode-icon svg
+			width: 100%
+			height: 100%
+
+		.bible-enlarge-text-btn .bible-mode-icon svg
+			width: 20px
+			height: 14px
+
+		.bible-text-enlarged .bible-book-btn
+			height: 44px
+
+		.bible-text-enlarged .bible-book-abbreviation
+			font-size: 16px
+
+		.bible-text-enlarged .bible-book-name
+			font-size: 12px
+
+		.bible-text-enlarged .bible-chapter-btn
+			height: 44px
+			font-size: 16px
+
+		.bible-text-enlarged .bible-verse-btn
+			height: 44px
+			font-size: 16px
+
+		.bible-history-results
+			display: flex
+			flex-direction: column
+			gap: 12px
+			padding: 8px
+
+		.bible-modal-input
+			width: 100%
+			padding: 8px 12px
+			border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.2))
+			border-radius: 4px
+			background-color: var(--background-primary, rgba(255, 255, 255, 0.05))
+			color: var(--text-normal, #ffffff)
+			font-size: 14px
+			outline: none
+			transition: border-color 0.2s ease
+
+		.bible-modal-input@focus
+			border-color: var(--interactive-accent, #7c3aed)
+			box-shadow: 0 0 0 2px var(--background-modifier-border, rgba(255, 255, 255, 0.1))
+
+		.bible-history-list
+			display: flex
+			flex-direction: column
+			gap: 4px
+			max-height: calc(72vh - 150px)
+			overflow-y: auto
+
+		.bible-history-item
+			display: flex
+			align-items: center
+			gap: 12px
+			padding: 10px 12px
+			border-radius: 4px
+			background: transparent
+			cursor: pointer
+			transition: background-color 0.15s ease
+
+		.bible-history-item@hover
+			background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+
+		.bible-history-item-icon
+			display: flex
+			align-items: center
+			justify-content: center
+			width: 20px
+			height: 20px
+			flex-shrink: 0
+			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+
+		.bible-history-item-icon svg
+			width: 100%
+			height: 100%
+
+		.bible-history-item-text
+			display: flex
+			flex-direction: column
+			gap: 2px
+			flex: 1
+			min-width: 0
+
+		.bible-history-item-primary
+			font-size: 14.5px
+			font-weight: 500
+			color: var(--text-normal, #ffffff)
+			line-height: 1.4
+
+		.bible-history-item-secondary
+			font-size: 11px
+			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+			line-height: 1.4
+
+		.bible-history-item-hint
+			font-size: 10px
+			color: var(--text-muted, rgba(255, 255, 255, 0.5))
+			line-height: 1.4
+
+		.bible-history-empty
+			padding: 24px
+			text-align: center
+			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+			font-size: 14px
+
 		.li
 			d:hcs
 			color:inherit
@@ -534,6 +829,10 @@ tag books-modal
 			font-weight: bold
 			color: inherit
 			white-space: nowrap
+		
+		header .btn
+			font-size: 1.25rem
+			font-weight: bold
 		
 		.bible-close-btn
 			display: flex
