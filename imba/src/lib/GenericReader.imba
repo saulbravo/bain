@@ -356,8 +356,16 @@ class GenericReader
 				window.location.origin + '/' + translation + '/' + book + '/' + chapter + '/' + id + '/'
 			)
 
+		console.log('[DEBUG] selectVerse called:', {
+			pk,
+			id,
+			alreadySelected: activities.selectedVersesPKs.includes(pk),
+			currentSelectedCount: activities.selectedVersesPKs.length
+		})
+		
 		# Check if the user chosen a verse in the same parallel scope
 		if activities.selectedVersesPKs.includes(pk)
+			console.log('[DEBUG] Deselecting verse:', { pk, id })
 			activities.selectedVersesPKs.splice(activities.selectedVersesPKs.indexOf(pk), 1)
 			activities.selectedVerses.splice(activities.selectedVerses.indexOf(id), 1)
 			let collection = getCollectionOfChosen(pk)
@@ -366,6 +374,7 @@ class GenericReader
 					if piece != ''
 						activities.selectedCategories.splice(activities.selectedCategories.indexOf(piece), 1)
 		else
+			console.log('[DEBUG] Selecting verse:', { pk, id })
 			activities.selectedVersesPKs.push(pk)
 			activities.selectedVerses.push(id)
 			pushCollectionIfExist(pk)
@@ -388,8 +397,15 @@ class GenericReader
 		if activities.selectedVersesPKs.length
 			showDeleteBookmark()
 			mergeNotes()
-			activities.activeVerseAction ||= 'options'
+			# Only show slideup if not called from modal navigation
+			# We check if activeVerseAction is already undefined (set by goToVerse)
+			if activities.activeVerseAction !== undefined
+				activities.activeVerseAction ||= 'options'
+				console.log('[DEBUG] Showing verse-actions slideup')
+			else
+				console.log('[DEBUG] Verse selected but slideup suppressed (from modal navigation)')
 		else
+			console.log('[DEBUG] Verse deselected, hiding slideup')
 			activities.activeVerseAction = undefined
 			activities.selectedParallel = undefined
 		

@@ -39,6 +39,8 @@ tag books-modal
 	textEnlarged = no
 	showFullBookNames = no
 	searchQuery = ''
+	autoInitialized = no # Track if we've already auto-initialized to prevent re-initialization
+	previousModalState = '' # Track previous modal state to detect when modal first opens
 
 	@computed get activeTranslation
 		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
@@ -269,7 +271,12 @@ tag books-modal
 		activities.cleanUp!
 
 	@action def goToVerse bookid\number, chapter\number, verse\number
+		console.log('[DEBUG] goToVerse called:', { bookid, chapter, verse, activeTranslation })
+		
 		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
+		const targetReader = isParallel ? parallelReader : reader
+		
+		# Set the book/chapter/verse to trigger loading FIRST
 		if isParallel
 			parallelReader.book = bookid
 			parallelReader.chapter = chapter
@@ -278,40 +285,97 @@ tag books-modal
 			reader.book = bookid
 			reader.chapter = chapter
 			reader.verse = verse
-		activities.cleanUp!
-		# Wait for chapter to load, then select and scroll to verse smoothly
-		const selectAndScroll = do
-			const targetReader = isParallel ? parallelReader : reader
-			# Wait for verses to load
-			if targetReader.verses && targetReader.verses.length > 0
-				# Find the verse by verse number
-				const verseObj = targetReader.verses.find(do |v| return v.verse == verse)
-				if verseObj
-					# Clear any existing selection and text selection first
-					activities.selectedVersesPKs = []
-					activities.selectedVerses = []
-					activities.selectedCategories = []
-					activities.selectedParallel = undefined
-					activities.activeVerseAction = undefined
-					if window.getSelection
-						window.getSelection().removeAllRanges()
-					# Select the verse
-					targetReader.selectVerse(verseObj.pk, verse)
-					# Scroll to center it smoothly
-					setTimeout(&, 100) do
-						const verseId = String(verse)
-						const verseElement = document.getElementById(verseId)
-						if verseElement
-							verseElement.scrollIntoView({behavior: 'smooth', block: 'center'})
-					return yes
-			return no
 		
-		# Try immediately, then retry with delays if needed
-		unless selectAndScroll()
-			setTimeout(&, 600) do
-				unless selectAndScroll()
-					setTimeout(&, 1200) do
-						selectAndScroll()
+		console.log('[DEBUG] Set reader properties, closing modal')
+		# Close modal after setting properties
+		activities.activeModal = ''
+		window.history.back()
+		
+		# Wait for chapter to load, then select and scroll to verse smoothly
+		# fetchVerses calls cleanUp! which clears selections, so we need to select AFTER it completes
+		console.log('[DEBUG] Starting selectAndScroll retry logic')
+		
+		# Use a polling function that checks until verses are loaded
+		const pollForVerses = do
+			let attemptCount = 0
+			const maxAttempts = 20
+			const pollInterval = 200
+			
+			const checkAndSelect = do
+				attemptCount++
+				
+				# Safe access to verses array
+				const verses = targetReader.verses || []
+				const hasVerses = verses.length > 0
+				
+				console.log('[DEBUG] Poll attempt {attemptCount}:', {
+					loading: targetReader.loading,
+					hasVerses: hasVerses,
+					verseCount: verses.length,
+					targetVerse: verse,
+					currentBook: targetReader.book,
+					currentChapter: targetReader.chapter,
+					expectedChapter: chapter
+				})
+				
+				# Wait for loading to complete AND verses to be available AND correct chapter loaded
+				if !targetReader.loading and hasVerses and targetReader.chapter == chapter
+					# Find the verse by verse number
+					const verseObj = verses.find(do |v| return v.verse == verse)
+					if verseObj
+						console.log('[DEBUG] Found verse object, selecting:', { pk: verseObj.pk, verse: verseObj.verse })
+						
+						# Clear text selection but NOT verse selection
+						if window.getSelection
+							window.getSelection().removeAllRanges()
+						
+						# Prevent slideup from showing before selecting
+						activities.activeVerseAction = undefined
+						
+						# Select the verse (this will toggle if already selected)
+						# Note: cleanUp! was called by fetchVerses, so selection should be clear
+						targetReader.selectVerse(verseObj.pk, verse)
+						
+						# Ensure slideup doesn't show (selectVerse might set it)
+						activities.activeVerseAction = undefined
+						console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
+						
+						# Scroll to center it smoothly - wait a bit for DOM to update
+						setTimeout(&, 400) do
+							const verseId = String(verse)
+							const versePrefix = isParallel ? 'p' : ''
+							const fullVerseId = versePrefix + verseId
+							const verseElement = document.getElementById(fullVerseId)
+							if verseElement
+								console.log('[DEBUG] Scrolling to verse:', fullVerseId)
+								verseElement.scrollIntoView({behavior: 'smooth', block: 'center'})
+							else
+								console.log('[DEBUG] Verse element not found, retrying:', fullVerseId)
+								# Try again after a delay
+								setTimeout(&, 600) do
+									const retryElement = document.getElementById(fullVerseId)
+									if retryElement
+										console.log('[DEBUG] Found verse on retry, scrolling')
+										retryElement.scrollIntoView({behavior: 'smooth', block: 'center'})
+									else
+										console.log('[DEBUG] Verse element still not found:', fullVerseId)
+						return yes
+					else
+						console.log('[DEBUG] Verse object not found in verses array. Available verses:', verses.map(do |v| return v.verse).slice(0, 10))
+				
+				# Continue polling if not done and haven't exceeded max attempts
+				if attemptCount < maxAttempts
+					setTimeout(&, pollInterval) do
+						checkAndSelect()
+				else
+					console.log('[DEBUG] Max polling attempts reached, giving up')
+			
+			# Start polling
+			checkAndSelect()
+		
+		# Start polling after a short delay to let the modal close
+		setTimeout(&, 100) do
+			pollForVerses()
 	
 	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string
 		# Change translation if needed
@@ -320,17 +384,21 @@ tag books-modal
 		goToChapter(bookid, chapter)
 
 	@action def goBack
+		console.log('[DEBUG] goBack called, current modalState:', modalState)
 		if modalState == 'verse'
 			modalState = 'chapter'
 			selectedChapter = null
 			selectedChapterNumber = null
 			verseCount = 0
 		elif modalState == 'chapter'
+			# Set flag to prevent auto-initialization from running again
+			autoInitialized = yes
 			modalState = 'book'
 			selectedBook = null
 			selectedChapter = null
 			selectedChapterNumber = null
 			verseCount = 0
+			console.log('[DEBUG] Went back to book view, preventing auto-initialization')
 
 	<self>
 		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>
@@ -389,6 +457,32 @@ tag books-modal
 			.bible-enlarged-scroll=textEnlarged
 			.bible-show-full-names=showFullBookNames
 			.bible-chapter-scroll=(modalState == 'chapter')>
+			# Auto-initialize to chapter view if opening with selected verse (only when modal first opens)
+			# Check if modal just opened (wasn't 'books' before, is 'books' now)
+			const modalJustOpened = previousModalState != 'books' and activities.activeModal == 'books'
+			
+			if modalJustOpened
+				previousModalState = 'books'
+				# Reset auto-initialized flag when modal opens fresh
+				autoInitialized = no
+			
+			if activities.activeModal == 'books'
+				# Only auto-initialize if modal just opened, haven't done it yet, have selected verses, and in book state
+				if modalJustOpened and !autoInitialized and activities.selectedVersesPKs.length > 0 and modalState == 'book'
+					const currentBook = activeBook
+					if currentBook
+						const bookIndex = books.findIndex(do |b| return b.bookid == currentBook)
+						if bookIndex != -1
+							console.log('[DEBUG] Auto-initializing modal to chapter view:', { currentBook, bookIndex })
+							selectedBook = bookIndex
+							modalState = 'chapter'
+							autoInitialized = yes
+							imba.commit!
+			else
+				# Reset flags when modal closes
+				previousModalState = activities.activeModal
+				autoInitialized = no
+			
 			if mode == 'history'
 				<div.bible-history-results>
 					<input.bible-modal-input

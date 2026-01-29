@@ -271,7 +271,10 @@ tag chapter < section
 									<span> ' '
 							<span innerHTML=verse.text
 									id="{versePrefix}{verse.verse}"
-									@click.wait(200ms)=me.selectVerse(verse.pk, verse.verse)
+									@click.wait(200ms)=(do
+										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
+										me.selectVerse(verse.pk, verse.verse)
+									)
 									# make it focus-able to get keydown working on it
 									tabIndex=0
 									@keydown.enter=me.saveBookmark
