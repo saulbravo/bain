@@ -468,6 +468,7 @@ tag books-modal
 				const book = books[selectedBook]
 				if book
 					<div.bible-chapter-divider>
+						<span.bible-chapter-title> "Choose Chapter"
 					<div.bible-chapter-grid>
 						for i in [0 ... book.chapters]
 							const chapterNum = i + 1
@@ -478,6 +479,7 @@ tag books-modal
 				const book = books[selectedBook]
 				if book
 					<div.bible-verse-divider>
+						<span.bible-verse-title> "Choose Verse"
 					if loadingVerseCount
 						<div[ta:center p:1rem]> "Loading…"
 					elif verseCount > 0
@@ -708,14 +710,33 @@ tag books-modal
 		.bible-chapter-divider
 			display: flex
 			align-items: center
+			gap: 12px
 			margin: 12px 0 12px 0
+			color: rgba(255, 255, 255, 0.75)
+			font-size: 11px
+			text-transform: uppercase
+			letter-spacing: 0.5px
+			font-weight: 500
+			width: 100%
 
-		.bible-chapter-divider::before,
+		.bible-chapter-title
+			white-space: nowrap
+			flex-shrink: 0
+			font-weight: 500
+
+		.bible-chapter-divider::before
+			content: ''
+			flex: 1
+			height: 1px
+			background: rgba(255, 255, 255, 0.35)
+			min-width: 0
+
 		.bible-chapter-divider::after
 			content: ''
 			flex: 1
 			height: 1px
 			background: rgba(255, 255, 255, 0.35)
+			min-width: 0
 
 		.bible-chapter-btn
 			min-width: 40px
@@ -749,14 +770,33 @@ tag books-modal
 		.bible-verse-divider
 			display: flex
 			align-items: center
+			gap: 12px
 			margin: 12px 0 12px 0
+			color: rgba(255, 255, 255, 0.75)
+			font-size: 11px
+			text-transform: uppercase
+			letter-spacing: 0.5px
+			font-weight: 500
+			width: 100%
 
-		.bible-verse-divider::before,
+		.bible-verse-title
+			white-space: nowrap
+			flex-shrink: 0
+			font-weight: 500
+
+		.bible-verse-divider::before
+			content: ''
+			flex: 1
+			height: 1px
+			background: rgba(255, 255, 255, 0.35)
+			min-width: 0
+
 		.bible-verse-divider::after
 			content: ''
 			flex: 1
 			height: 1px
 			background: rgba(255, 255, 255, 0.35)
+			min-width: 0
 
 		.bible-verse-btn
 			min-width: 40px
