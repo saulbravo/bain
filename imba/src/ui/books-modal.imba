@@ -368,7 +368,10 @@ tag books-modal
 		<header>
 			<[d:flex jc:center ai:center g:0.75rem]>
 				if selectedBook != null and books[selectedBook]
-					<span.bible-selected-book-name> books[selectedBook].name
+					<span.bible-selected-book-name> 
+						books[selectedBook].name
+						if modalState == 'verse' and selectedChapterNumber != null
+							" {selectedChapterNumber}"
 					<span.bible-separator> "|"
 				if parallelReader.enabled
 					<[d:flex mih:2.25rem g:0.5rem]>
