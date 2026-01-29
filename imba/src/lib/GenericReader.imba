@@ -397,16 +397,18 @@ class GenericReader
 		if activities.selectedVersesPKs.length
 			showDeleteBookmark()
 			mergeNotes()
-			# Only show slideup if not called from modal navigation
-			# We check if activeVerseAction is already undefined (set by goToVerse)
-			if activities.activeVerseAction !== undefined
-				activities.activeVerseAction ||= 'options'
+			# Show slideup unless it was explicitly suppressed (from modal navigation)
+			# We use a special marker 'suppressed' to indicate suppression
+			if activities.activeVerseAction != 'suppressed'
+				# Always set to 'options' for normal selections (not from modal)
+				activities.activeVerseAction = 'options'
 				console.log('[DEBUG] Showing verse-actions slideup')
 			else
 				console.log('[DEBUG] Verse selected but slideup suppressed (from modal navigation)')
 		else
 			console.log('[DEBUG] Verse deselected, hiding slideup')
-			activities.activeVerseAction = undefined
+			# Reset to empty string so next selection will show slideup
+			activities.activeVerseAction = ''
 			activities.selectedParallel = undefined
 		
 		imba.commit!

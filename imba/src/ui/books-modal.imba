@@ -329,16 +329,16 @@ tag books-modal
 						if window.getSelection
 							window.getSelection().removeAllRanges()
 						
-						# Prevent slideup from showing before selecting
-						activities.activeVerseAction = undefined
-						
-						# Select the verse (this will toggle if already selected)
-						# Note: cleanUp! was called by fetchVerses, so selection should be clear
-						targetReader.selectVerse(verseObj.pk, verse)
-						
-						# Ensure slideup doesn't show (selectVerse might set it)
-						activities.activeVerseAction = undefined
-						console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
+					# Prevent slideup from showing (use special marker instead of undefined)
+					activities.activeVerseAction = 'suppressed'
+					
+					# Select the verse (this will toggle if already selected)
+					# Note: cleanUp! was called by fetchVerses, so selection should be clear
+					targetReader.selectVerse(verseObj.pk, verse)
+					
+					# Ensure slideup doesn't show (selectVerse might set it)
+					activities.activeVerseAction = 'suppressed'
+					console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
 						
 						# Scroll to center it smoothly - wait a bit for DOM to update
 						setTimeout(&, 400) do
