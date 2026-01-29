@@ -488,7 +488,7 @@ tag reader
 				if activities.activeModal
 					<modal />
 
-				if activities.activeVerseAction
+				if activities.activeVerseAction and activities.selectedVersesPKs.length > 0
 					<verse-actions />
 
 				if reader.loading || parallelReader.loading || dictionary.loading || search.loading || compare.loading
