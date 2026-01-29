@@ -8,6 +8,7 @@ import parallelReader from './ParallelReader'
 import reader from './Reader'
 import readingHistory from './ReadingHistory'
 import search from './Search'
+import goToBook from './GoToBook'
 import settings from './Settings'
 import theme from './Theme'
 import user from './User'
@@ -61,6 +62,9 @@ extend tag element
 	
 	get search
 		return search
+	
+	get goToBook
+		return goToBook
 	
 	get dictionary
 		return dictionary

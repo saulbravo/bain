@@ -9,6 +9,7 @@ import ArrowLeft from 'lucide-static/icons/arrow-left.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import Palette from 'lucide-static/icons/palette.svg'
+import Search from 'lucide-static/icons/search.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 import TimelineIcon from '../icons/timeline.svg'
@@ -22,6 +23,7 @@ import settings from '../lib/Settings'
 import vault from '../lib/Vault'
 import user from '../lib/User'
 import readingHistory from '../lib/ReadingHistory'
+import goToBook from '../lib/GoToBook'
 
 
 tag books-modal
@@ -416,6 +418,9 @@ tag books-modal
 			<button.bible-mode-btn .active=(mode == 'history') @click=toggleMode('history') title="History">
 				<span.bible-mode-icon>
 					<svg src=Clock width="18" height="18" aria-hidden=true>
+			<button.bible-mode-btn .active=(activities.activeModal == 'gotobook') @click=(activities.openModal('gotobook')) title="Go to book">
+				<span.bible-mode-icon>
+					<svg src=Search width="18" height="18" aria-hidden=true>
 			<button.bible-mode-btn .active=colorsEnabled @click=toggleColors title="Color palette">
 				<span.bible-mode-icon>
 					<svg src=Palette width="18" height="18" aria-hidden=true>

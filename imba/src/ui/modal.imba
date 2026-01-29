@@ -201,6 +201,35 @@ tag modal < section
 				switch activities.activeModal
 					when 'books'
 						<books-modal>
+					when 'gotobook'
+						<header#gotobook-header [pos:relative]>
+							<button.focusable[c@hover:red4] @click=activities.cleanUp title=t.close>
+								<svg src=ICONS.X aria-hidden=yes>
+
+							<input id="gotobooksearch"
+								[direction:{textDirection(goToBook.query)}]
+								type='text' placeholder="Type book, chapter and verse" aria-label="Go to book"
+								bind=goToBook.query @keydown.enter=goToBook.run>
+
+							if goToBook.suggestions.books..length or goToBook.suggestions.recent..length
+								<ul.suggestions>
+									for book in goToBook.suggestions.books
+										<li>
+											<p.li.focusable tabIndex="0"
+												@keydown.enter=goToBook.goToBook(book)
+												@click=goToBook.goToBook(book)
+												> goToBook.getSuggestionText(book)
+
+									for recent in goToBook.suggestions.recent
+										<li>
+											<p.li.focusable tabIndex="0"
+												@keydown.enter=goToBook.goToRecentSearch(recent)
+												@click=goToBook.goToRecentSearch(recent)
+												> recent
+
+							<button.focusable.gotobook-go-btn @click=goToBook.run title="Go">
+								"Go"
+
 					when 'help'
 						<header>
 							<button @click=activities.cleanUp title=t.close>
@@ -750,6 +779,21 @@ tag modal < section
 			.suggestions
 				visibility:visible
 				o:1
+		
+		#gotobook-header@focin
+			.suggestions
+				visibility:visible
+				o:1
+		
+		.gotobook-go-btn
+			min-width: 2rem
+			width: 2rem
+			height: 2rem
+			font-size: 1rem
+			font-weight: 600
+			display: flex
+			align-items: center
+			justify-content: center
 		
 		menu # search pagination
 			d:flex margin-inline:auto
