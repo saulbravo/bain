@@ -329,16 +329,16 @@ tag books-modal
 						if window.getSelection
 							window.getSelection().removeAllRanges()
 						
-					# Prevent slideup from showing (use special marker instead of undefined)
-					activities.activeVerseAction = 'suppressed'
-					
-					# Select the verse (this will toggle if already selected)
-					# Note: cleanUp! was called by fetchVerses, so selection should be clear
-					targetReader.selectVerse(verseObj.pk, verse)
-					
-					# Ensure slideup doesn't show (selectVerse might set it)
-					activities.activeVerseAction = 'suppressed'
-					console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
+						# Prevent slideup from showing (use special marker instead of undefined)
+						activities.activeVerseAction = 'suppressed'
+						
+						# Select the verse (this will toggle if already selected)
+						# Note: cleanUp! was called by fetchVerses, so selection should be clear
+						targetReader.selectVerse(verseObj.pk, verse)
+						
+						# Ensure slideup doesn't show (selectVerse might set it)
+						activities.activeVerseAction = 'suppressed'
+						console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
 						
 						# Scroll to center it smoothly - wait a bit for DOM to update
 						setTimeout(&, 400) do
@@ -638,13 +638,14 @@ tag books-modal
 			z-index: 10
 		
 		.bible-back-btn@hover
-			background: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+			background: var(--acc-bgc-hover, rgba(0, 0, 0, 0.1))
 		
 		.bible-back-btn@active
-			background: var(--background-modifier-active, rgba(255, 255, 255, 0.15))
+			background: var(--acc-bgc, rgba(0, 0, 0, 0.15))
 		
 		.bible-separator
-			color: var(--text-muted, rgba(255, 255, 255, 0.5))
+			color: var(--c, inherit)
+			opacity: 0.5
 			margin: 0 0.5rem
 			font-size: 1rem
 		
@@ -695,8 +696,8 @@ tag books-modal
 			padding: 6px 8px
 			border: none
 			border-radius: 4px
-			background: var(--background-modifier-form-field, rgba(255, 255, 255, 0.1))
-			color: var(--text-normal, #ffffff)
+			background: var(--acc-bgc, rgba(0, 0, 0, 0.1))
+			color: var(--c, inherit)
 			cursor: pointer
 			transition: all 0.15s ease
 			text-align: center
@@ -709,10 +710,10 @@ tag books-modal
 			justify-content: center
 
 		.bible-book-btn.active
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 25%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 25%, var(--acc-bgc, transparent))
 		
 		.bible-book-btn.active@hover
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 30%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 30%, var(--acc-bgc, transparent))
 
 		.bible-book-btn.bible-color-red
 			background: rgba(255, 118, 118, 0.3)
@@ -747,13 +748,14 @@ tag books-modal
 		.bible-book-abbreviation
 			font-size: 11px
 			font-weight: 500
-			color: #ffffff
+			color: var(--c, inherit)
 			line-height: 1.1
 			margin: 0
 
 		.bible-book-name
 			font-size: 9px
-			color: rgba(255, 255, 255, 0.85)
+			color: var(--c, inherit)
+			opacity: 0.85
 			line-height: 1.1
 			font-weight: 400
 			text-align: center
@@ -767,7 +769,8 @@ tag books-modal
 			align-items: center
 			gap: 12px
 			margin: 12px 0 12px 0
-			color: rgba(255, 255, 255, 0.75)
+			color: var(--c, inherit)
+			opacity: 0.75
 			font-size: 11px
 			text-transform: uppercase
 			letter-spacing: 0.5px
@@ -782,14 +785,16 @@ tag books-modal
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-testament-divider::after
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-testament-title
@@ -806,7 +811,8 @@ tag books-modal
 			align-items: center
 			gap: 12px
 			margin: 12px 0 12px 0
-			color: rgba(255, 255, 255, 0.75)
+			color: var(--c, inherit)
+			opacity: 0.75
 			font-size: 11px
 			text-transform: uppercase
 			letter-spacing: 0.5px
@@ -822,14 +828,16 @@ tag books-modal
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-chapter-divider::after
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-chapter-btn
@@ -838,8 +846,8 @@ tag books-modal
 			padding: 6px 10px
 			border: none
 			border-radius: 4px
-			background: var(--background-modifier-form-field, rgba(255, 255, 255, 0.1))
-			color: var(--text-normal, #ffffff)
+			background: var(--acc-bgc, rgba(0, 0, 0, 0.1))
+			color: var(--c, inherit)
 			font-weight: 500
 			font-size: 13.5px
 			cursor: pointer
@@ -850,10 +858,10 @@ tag books-modal
 			justify-content: center
 
 		.bible-chapter-btn.active
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 25%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 25%, var(--acc-bgc, transparent))
 		
 		.bible-chapter-btn.active@hover
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 30%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 30%, var(--acc-bgc, transparent))
 
 		.bible-verse-grid
 			display: grid
@@ -866,7 +874,8 @@ tag books-modal
 			align-items: center
 			gap: 12px
 			margin: 12px 0 12px 0
-			color: rgba(255, 255, 255, 0.75)
+			color: var(--c, inherit)
+			opacity: 0.75
 			font-size: 11px
 			text-transform: uppercase
 			letter-spacing: 0.5px
@@ -882,14 +891,16 @@ tag books-modal
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-verse-divider::after
 			content: ''
 			flex: 1
 			height: 1px
-			background: rgba(255, 255, 255, 0.35)
+			background: var(--c, currentColor)
+			opacity: 0.35
 			min-width: 0
 
 		.bible-verse-btn
@@ -898,8 +909,8 @@ tag books-modal
 			padding: 6px 10px
 			border: none
 			border-radius: 4px
-			background: var(--background-modifier-form-field, rgba(255, 255, 255, 0.1))
-			color: var(--text-normal, #ffffff)
+			background: var(--acc-bgc, rgba(0, 0, 0, 0.1))
+			color: var(--c, inherit)
 			font-weight: 500
 			font-size: 13.5px
 			cursor: pointer
@@ -910,10 +921,10 @@ tag books-modal
 			justify-content: center
 
 		.bible-verse-btn.active
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 25%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 25%, var(--acc-bgc, transparent))
 		
 		.bible-verse-btn.active@hover
-			background: color-mix(in srgb, var(--interactive-accent, #7c3aed) 30%, transparent)
+			background: color-mix(in srgb, var(--acc, #7c3aed) 30%, var(--acc-bgc, transparent))
 
 
 		.btn
@@ -940,7 +951,8 @@ tag books-modal
 			padding: 6px
 			border: none
 			background: transparent
-			color: var(--text-normal, rgba(255, 255, 255, 0.7))
+			color: var(--c, inherit)
+			opacity: 0.7
 			cursor: pointer
 			border-radius: 4px
 			transition: all 0.2s ease
@@ -950,16 +962,19 @@ tag books-modal
 			height: 36px
 
 		.bible-mode-btn@hover
-			background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
-			color: var(--text-on-accent, #ffffff)
+			background-color: var(--acc-bgc-hover, rgba(0, 0, 0, 0.1))
+			color: var(--c, inherit)
+			opacity: 1
 
 		.bible-mode-btn.active
-			background-color: var(--interactive-normal, rgba(255, 255, 255, 0.15))
-			color: var(--text-on-accent, #ffffff)
+			background-color: var(--acc-bgc, rgba(0, 0, 0, 0.15))
+			color: var(--c, inherit)
+			opacity: 1
 
 		.bible-mode-btn.active@hover
-			background-color: var(--interactive-normal, rgba(255, 255, 255, 0.2))
-			color: var(--text-on-accent, #ffffff)
+			background-color: var(--acc-bgc-hover, rgba(0, 0, 0, 0.2))
+			color: var(--c, inherit)
+			opacity: 1
 
 		.bible-mode-icon
 			display: flex
@@ -1002,17 +1017,17 @@ tag books-modal
 		.bible-modal-input
 			width: 100%
 			padding: 8px 12px
-			border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.2))
+			border: 1px solid var(--acc-bgc, rgba(0, 0, 0, 0.2))
 			border-radius: 4px
-			background-color: var(--background-primary, rgba(255, 255, 255, 0.05))
-			color: var(--text-normal, #ffffff)
+			background-color: var(--acc-bgc, rgba(0, 0, 0, 0.05))
+			color: var(--c, inherit)
 			font-size: 14px
 			outline: none
 			transition: border-color 0.2s ease
 
 		.bible-modal-input@focus
-			border-color: var(--interactive-accent, #7c3aed)
-			box-shadow: 0 0 0 2px var(--background-modifier-border, rgba(255, 255, 255, 0.1))
+			border-color: var(--acc, #7c3aed)
+			box-shadow: 0 0 0 2px var(--acc-bgc, rgba(0, 0, 0, 0.1))
 
 		.bible-history-list
 			display: flex
@@ -1032,7 +1047,7 @@ tag books-modal
 			transition: background-color 0.15s ease
 
 		.bible-history-item@hover
-			background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.1))
+			background-color: var(--acc-bgc-hover, rgba(0, 0, 0, 0.1))
 
 		.bible-history-item-icon
 			display: flex
@@ -1041,7 +1056,8 @@ tag books-modal
 			width: 20px
 			height: 20px
 			flex-shrink: 0
-			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+			color: var(--c, inherit)
+			opacity: 0.6
 
 		.bible-history-item-icon svg
 			width: 100%
@@ -1057,23 +1073,26 @@ tag books-modal
 		.bible-history-item-primary
 			font-size: 14.5px
 			font-weight: 500
-			color: var(--text-normal, #ffffff)
+			color: var(--c, inherit)
 			line-height: 1.4
 
 		.bible-history-item-secondary
 			font-size: 11px
-			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+			color: var(--c, inherit)
+			opacity: 0.6
 			line-height: 1.4
 
 		.bible-history-item-hint
 			font-size: 10px
-			color: var(--text-muted, rgba(255, 255, 255, 0.5))
+			color: var(--c, inherit)
+			opacity: 0.5
 			line-height: 1.4
 
 		.bible-history-empty
 			padding: 24px
 			text-align: center
-			color: var(--text-muted, rgba(255, 255, 255, 0.6))
+			color: var(--c, inherit)
+			opacity: 0.6
 			font-size: 14px
 
 		.li
