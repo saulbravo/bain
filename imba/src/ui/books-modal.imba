@@ -402,6 +402,44 @@ tag books-modal
 			verseCount = 0
 			console.log('[DEBUG] Went back to book view, preventing auto-initialization')
 
+	def handleKeydown event\KeyboardEvent
+		# Only handle if we're in browse mode and books modal is active
+		unless activities.activeModal == 'books' and mode == 'browse'
+			return
+		
+		# Don't handle if user is typing in an input field
+		const target = event.target
+		if target and (target.tagName == 'INPUT' or target.tagName == 'TEXTAREA')
+			return
+		
+		# Check if it's a printable character (not special keys)
+		const key = event.key
+		if key.length == 1 and !event.ctrlKey and !event.metaKey and !event.altKey
+			console.log('[DEBUG] Books modal: Typing detected, opening gotobook modal with key:', key)
+			# Prevent default to avoid any unwanted behavior
+			event.preventDefault()
+			event.stopPropagation()
+			# Open gotobook modal
+			activities.openModal('gotobook')
+			# Set the query to the typed character
+			goToBook.query = key
+			# Focus the input field after a short delay to ensure it's rendered
+			setTimeout(&, 50) do
+				const input = goToBook.inputElement
+				if input
+					input.focus()
+					# Set cursor to end
+					input.setSelectionRange(input.value.length, input.value.length)
+					console.log('[DEBUG] Books modal: Focused gotobook input with query:', goToBook.query)
+
+	def mount
+		console.log('[DEBUG] Books modal: mount called')
+		document.addEventListener('keydown', handleKeydown.bind(self), true)
+
+	def unmount
+		console.log('[DEBUG] Books modal: unmount called')
+		document.removeEventListener('keydown', handleKeydown.bind(self), true)
+
 	<self>
 		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>
 			<svg src=ICONS.X [c@hover:red4] aria-hidden=true>
