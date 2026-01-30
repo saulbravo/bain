@@ -273,8 +273,6 @@ tag books-modal
 		activities.cleanUp!
 
 	@action def goToVerse bookid\number, chapter\number, verse\number
-		console.log('[DEBUG] goToVerse called:', { bookid, chapter, verse, activeTranslation })
-		
 		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
 		const targetReader = isParallel ? parallelReader : reader
 		
@@ -288,15 +286,12 @@ tag books-modal
 			reader.chapter = chapter
 			reader.verse = verse
 		
-		console.log('[DEBUG] Set reader properties, closing modal')
 		# Close modal after setting properties
 		activities.activeModal = ''
 		window.history.back()
 		
 		# Wait for chapter to load, then select and scroll to verse smoothly
 		# fetchVerses calls cleanUp! which clears selections, so we need to select AFTER it completes
-		console.log('[DEBUG] Starting selectAndScroll retry logic')
-		
 		# Use a polling function that checks until verses are loaded
 		const pollForVerses = do
 			let attemptCount = 0
@@ -310,23 +305,11 @@ tag books-modal
 				const verses = targetReader.verses || []
 				const hasVerses = verses.length > 0
 				
-				console.log('[DEBUG] Poll attempt {attemptCount}:', {
-					loading: targetReader.loading,
-					hasVerses: hasVerses,
-					verseCount: verses.length,
-					targetVerse: verse,
-					currentBook: targetReader.book,
-					currentChapter: targetReader.chapter,
-					expectedChapter: chapter
-				})
-				
 				# Wait for loading to complete AND verses to be available AND correct chapter loaded
 				if !targetReader.loading and hasVerses and targetReader.chapter == chapter
 					# Find the verse by verse number
 					const verseObj = verses.find(do |v| return v.verse == verse)
 					if verseObj
-						console.log('[DEBUG] Found verse object, selecting:', { pk: verseObj.pk, verse: verseObj.verse })
-						
 						# Clear text selection but NOT verse selection
 						if window.getSelection
 							window.getSelection().removeAllRanges()
@@ -340,7 +323,6 @@ tag books-modal
 						
 						# Ensure slideup doesn't show (selectVerse might set it)
 						activities.activeVerseAction = 'suppressed'
-						console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
 						
 						# Scroll to center it smoothly - wait a bit for DOM to update
 						setTimeout(&, 400) do
@@ -349,28 +331,19 @@ tag books-modal
 							const fullVerseId = versePrefix + verseId
 							const verseElement = document.getElementById(fullVerseId)
 							if verseElement
-								console.log('[DEBUG] Scrolling to verse:', fullVerseId)
 								verseElement.scrollIntoView({behavior: 'smooth', block: 'center'})
 							else
-								console.log('[DEBUG] Verse element not found, retrying:', fullVerseId)
 								# Try again after a delay
 								setTimeout(&, 600) do
 									const retryElement = document.getElementById(fullVerseId)
 									if retryElement
-										console.log('[DEBUG] Found verse on retry, scrolling')
 										retryElement.scrollIntoView({behavior: 'smooth', block: 'center'})
-									else
-										console.log('[DEBUG] Verse element still not found:', fullVerseId)
 						return yes
-					else
-						console.log('[DEBUG] Verse object not found in verses array. Available verses:', verses.map(do |v| return v.verse).slice(0, 10))
 				
 				# Continue polling if not done and haven't exceeded max attempts
 				if attemptCount < maxAttempts
 					setTimeout(&, pollInterval) do
 						checkAndSelect()
-				else
-					console.log('[DEBUG] Max polling attempts reached, giving up')
 			
 			# Start polling
 			checkAndSelect()
@@ -386,7 +359,6 @@ tag books-modal
 		goToChapter(bookid, chapter)
 
 	@action def goBack
-		console.log('[DEBUG] goBack called, current modalState:', modalState)
 		if modalState == 'verse'
 			modalState = 'chapter'
 			selectedChapter = null
@@ -400,7 +372,6 @@ tag books-modal
 			selectedChapter = null
 			selectedChapterNumber = null
 			verseCount = 0
-			console.log('[DEBUG] Went back to book view, preventing auto-initialization')
 
 	def handleKeydown event\KeyboardEvent
 		# Only handle if we're in browse mode and books modal is active
@@ -415,7 +386,6 @@ tag books-modal
 		# Check if it's a printable character (not special keys)
 		const key = event.key
 		if key.length == 1 and !event.ctrlKey and !event.metaKey and !event.altKey
-			console.log('[DEBUG] Books modal: Typing detected, opening gotobook modal with key:', key)
 			# Prevent default to avoid any unwanted behavior
 			event.preventDefault()
 			event.stopPropagation()
@@ -430,14 +400,11 @@ tag books-modal
 					input.focus()
 					# Set cursor to end
 					input.setSelectionRange(input.value.length, input.value.length)
-					console.log('[DEBUG] Books modal: Focused gotobook input with query:', goToBook.query)
 
 	def mount
-		console.log('[DEBUG] Books modal: mount called')
 		document.addEventListener('keydown', handleKeydown.bind(self), true)
 
 	def unmount
-		console.log('[DEBUG] Books modal: unmount called')
 		document.removeEventListener('keydown', handleKeydown.bind(self), true)
 
 	<self>
@@ -516,7 +483,6 @@ tag books-modal
 					if currentBook
 						const bookIndex = books.findIndex(do |b| return b.bookid == currentBook)
 						if bookIndex != -1
-							console.log('[DEBUG] Auto-initializing modal to chapter view:', { currentBook, bookIndex })
 							selectedBook = bookIndex
 							modalState = 'chapter'
 							autoInitialized = yes
