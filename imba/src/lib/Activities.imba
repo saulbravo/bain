@@ -140,7 +140,17 @@ class Activities
 
 
 	def toggleBooksMenu parallel
+		console.log('[DEBUG] toggleBooksMenu called:', {
+			activeModal,
+			selectedVersesPKs: selectedVersesPKs.length,
+			selectedVerses: selectedVerses.length,
+			parallel,
+			readerBook: reader.book,
+			readerChapter: reader.chapter
+		})
+		
 		if activeModal == 'books'
+			console.log('[DEBUG] Closing books modal')
 			cleanUp!
 		else
 			# Check if we have a verse selected - if so, preserve it and show chapter view
@@ -148,6 +158,12 @@ class Activities
 			const preservedSelectedVerses = hadSelectedVerses ? [...selectedVersesPKs] : []
 			const preservedSelectedVersesNumbers = hadSelectedVerses ? [...selectedVerses] : []
 			const preservedSelectedParallel = hadSelectedVerses ? selectedParallel : undefined
+			
+			console.log('[DEBUG] Opening books modal:', {
+				hadSelectedVerses,
+				currentBook: reader.book,
+				currentChapter: reader.chapter
+			})
 			
 			# Open the modal first
 			openModal 'books'
@@ -157,6 +173,10 @@ class Activities
 				selectedVersesPKs = preservedSelectedVerses
 				selectedVerses = preservedSelectedVersesNumbers
 				selectedParallel = preservedSelectedParallel
+				console.log('[DEBUG] Restored selections:', {
+					selectedVersesPKs: selectedVersesPKs.length,
+					selectedVerses: selectedVerses.length
+				})
 		
 		if typeof parallel == 'boolean'
 			activeParallelAtBooksDrawer = parallel

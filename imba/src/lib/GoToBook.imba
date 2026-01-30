@@ -34,6 +34,7 @@ class GoToBook
 
 	@autorun
 	def generateSuggestions
+		console.log('[DEBUG] GoToBook.generateSuggestions called:', { query, queryLength: query.length })
 		const trimmedQuery = query.trim!.toLowerCase!
 		unless trimmedQuery.length
 			suggestions = {}
@@ -76,6 +77,8 @@ class GoToBook
 				bookname_parts.push(part)
 		const bookname = bookname_parts.join(' ')
 
+		console.log('[DEBUG] GoToBook parsed:', { bookname, chapter: suggestions.chapter, verse: suggestions.verse })
+
 		# Filter books by name
 		let filtered_books = []
 		if bookname.length > 0
@@ -112,6 +115,13 @@ class GoToBook
 
 		suggestions.recent = recent_matches.slice(0, 5) # Limit to 5 recent matches
 
+		console.log('[DEBUG] GoToBook suggestions:', { 
+			booksCount: suggestions.books.length, 
+			recentCount: suggestions.recent.length,
+			chapter: suggestions.chapter,
+			verse: suggestions.verse
+		})
+
 	def getBookAbbreviation bookNumber\number
 		const abbreviations = {
 			1: "GEN", 2: "EX", 3: "LEV", 4: "NUM", 5: "DEU",
@@ -140,6 +150,8 @@ class GoToBook
 		return text
 
 	@action def goToBook book\number|object
+		console.log('[DEBUG] GoToBook.goToBook called:', { book, suggestions })
+		
 		# Handle both book object and bookid number
 		let bookid = book
 		let bookObj = null
@@ -157,8 +169,10 @@ class GoToBook
 			const searchText = getSuggestionText(bookObj)
 			if searchText and !recentSearches.includes(searchText)
 				recentSearches.unshift(searchText)
-			if recentSearches.length > maxRecentSearches
-				recentSearches.pop!
+				if recentSearches.length > maxRecentSearches
+					recentSearches.pop!
+		
+		console.log('[DEBUG] GoToBook navigating to:', { bookid, chapter, verse, activeTranslation })
 		
 		# Navigate to the book/chapter/verse
 		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
@@ -174,8 +188,11 @@ class GoToBook
 		
 		# Close modal
 		activities.cleanUp!
+		console.log('[DEBUG] GoToBook navigation complete')
 
 	@action def goToRecentSearch recentText\string
+		console.log('[DEBUG] GoToBook.goToRecentSearch called:', { recentText })
+		
 		# Parse the recent search text (format: "Book Name 1" or "Book Name 1:1")
 		const parts = recentText.split(' ')
 		const lastPart = parts[parts.length - 1]
@@ -200,6 +217,7 @@ class GoToBook
 			suggestions.chapter = chapter
 			suggestions.verse = verse
 			# Navigate directly
+			console.log('[DEBUG] GoToBook.goToRecentSearch navigating to:', { bookid: book.bookid, chapter, verse })
 			if activities.activeParallelAtBooksDrawer && parallelReader.enabled
 				parallelReader.book = book.bookid
 				parallelReader.chapter = chapter
@@ -212,12 +230,17 @@ class GoToBook
 					reader.verse = verse
 			activities.cleanUp!
 		else
-			console.error('GoToBook.goToRecentSearch: Book not found:', bookname)
+			console.error('[DEBUG] GoToBook.goToRecentSearch: Book not found:', bookname)
 
 	@action def run
+		console.log('[DEBUG] GoToBook.run called:', { query })
+		
 		# If we have suggestions, go to the first one
 		if suggestions.books and suggestions.books.length > 0
+			console.log('[DEBUG] GoToBook.run: Going to first suggestion:', suggestions.books[0])
 			goToBook(suggestions.books[0])
+		else
+			console.log('[DEBUG] GoToBook.run: No suggestions available')
 
 
 const goToBook = new GoToBook()
