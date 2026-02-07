@@ -33,6 +33,7 @@ class Activities
 	show_color_picker = no
 	copySelectMode = no
 	freehandHighlightMode = no
+	freehandEraserMode = no
 	freehandHighlightColor = '#eab308'
 
 	blockInScroll = null

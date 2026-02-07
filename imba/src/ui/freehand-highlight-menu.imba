@@ -6,6 +6,7 @@ import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
+import Eraser from 'lucide-static/icons/eraser.svg'
 
 const colors = [
 	'FireBrick'
@@ -42,10 +43,13 @@ tag freehand-highlight-menu
 
 			for color in colors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
-					@click.stop.prevent=(activities.freehandHighlightColor = color)>
+					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
 
-		<div.clear-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
-			<svg src=Trash2 width="1.5rem" height="1.5rem">
+		<div.menu-actions>
+			<div.action-button .active=activities.freehandEraserMode @click=(activities.freehandEraserMode = !activities.freehandEraserMode) role="button" aria-label="Eraser" title="Eraser Tool">
+				<svg src=Eraser width="1.5rem" height="1.5rem">
+			<div.action-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
+				<svg src=Trash2 width="1.5rem" height="1.5rem">
 
 	css
 		pos:fixed b:0 l:0 r:0 zi:1100
@@ -71,12 +75,20 @@ tag freehand-highlight-menu
 				fs:0.875rem
 				o:0.7
 
-		.clear-button
+		.menu-actions
+			d:hcc
+			g:1.5rem
+			margin-top: 0.5rem
+
+		.action-button
 			d:hcc
 			cursor: pointer
 			o: 0.5 @hover: 1
-			margin-top: 0.5rem
-			transition: opacity 0.2s
+			transition: all 0.2s
+			&.active
+				o: 1
+				c: $acc
+				transform: scale(1.2)
 
 		ul
 			white-space: nowrap

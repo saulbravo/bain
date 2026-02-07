@@ -376,26 +376,27 @@ global css
 
 	html.freehand-mode
 		--freehand-color: #eab308
-
-		&, &, *
-			cursor: none
-
-		*::selection
-			bgc@important:var(--freehand-color)
-			c@important:inherit
 		
-		*::-moz-selection
-			bgc@important:var(--freehand-color)
-			c@important:inherit
+		&, & body, & *, & *::before, & *::after
+			cursor@important: none
 
 	.freehand-cursor
 		pos: fixed
+		top: 0
+		left: 0
 		size: 24px
 		rd: 50%
-		zi: 9999
+		zi: 1000000
 		pointer-events: none
-		transform: translate(-50%, -50%)
 		display: none
+		border@important: 2px solid var(--freehand-color, #eab308)
+		background-color@important: transparent
+		box-shadow@important: 0 0 4px rgba(0,0,0,0.3)
+		transform: translate3d(-100px, -100px, 0) translate(-50%, -50%)
 
 	html.freehand-mode .freehand-cursor
-		display: block
+		display@important: block
+
+	html.eraser-mode .freehand-cursor
+		border-color@important: red
+		box-shadow@important: 0 0 8px rgba(255,0,0,0.5)

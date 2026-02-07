@@ -1,4 +1,5 @@
 import './lib'
+import activities from './lib/Activities'
 import './global.css'
 import './routes'
 import * as Sentry from "@sentry/browser";
@@ -27,17 +28,16 @@ tag app
 			sendDefaultPii: true
 		})
 
+		window.addEventListener('pointermove') do |e|
+			if activities.freehandHighlightMode
+				if let el = document.querySelector('.freehand-cursor')
+					el.style.transform = "translate3d({e.clientX}px, {e.clientY}px, 0) translate(-50%, -50%)"
+
 	@observable cursorPos = { x: 0, y: 0 }
 
-	def handlePointerMove e
-		if activities.freehandHighlightMode
-			cursorPos.x = e.clientX
-			cursorPos.y = e.clientY
-			imba.commit!
-
-	<self @pointermove=handlePointerMove>
+	<self>
 		<global [cursor:none]=activities.freehandHighlightMode>
-		<html .freehand-mode=activities.freehandHighlightMode [--freehand-color:{activities.freehandHighlightColor}]>
+		<html .freehand-mode=activities.freehandHighlightMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
 		<downloads route='/downloads/'>
 		<donate route='/donate/'>
@@ -49,7 +49,7 @@ tag app
 		<notifications>
 		<freehand-highlight-menu>
 		
-		<div.freehand-cursor [l:{cursorPos.x}px t:{cursorPos.y}px bd:2px solid {activities.freehandHighlightColor}]>
+		<div.freehand-cursor>
 
 
 imba.mount <app>

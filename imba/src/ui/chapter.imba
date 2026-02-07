@@ -133,18 +133,61 @@ tag chapter < section
 		let startOffset = getCharOffset(range.startContainer, range.startOffset, startSpan)
 		let endOffset = getCharOffset(range.endContainer, range.endOffset, endSpan)
 		
-		let highlight = {
-			startVerse: startVerse
-			startOffset: startOffset
-			endVerse: endVerse
-			endOffset: endOffset
-			color: activities.freehandHighlightColor or '#eab308'
-		}
-		
-		console.log('[DEBUG] Created freehand highlight:', highlight)
-		
-		me.freehandHighlights.push(highlight)
-		me.saveFreehandHighlights!
+		if activities.freehandEraserMode
+			# Precise erasing logic: Split or truncate highlights that overlap with the selected range
+			let newHighlights = []
+			let changed = false
+			let sStart = startVerse * 1000000 + startOffset
+			let sEnd = endVerse * 1000000 + endOffset
+
+			for h in me.freehandHighlights
+				let hStart = h.startVerse * 1000000 + h.startOffset
+				let hEnd = h.endVerse * 1000000 + h.endOffset
+				
+				# Check if highlight 'h' overlaps with current selection [sStart, sEnd]
+				if sEnd < hStart or sStart > hEnd
+					# No overlap, keep the highlight as is
+					newHighlights.push(h)
+					continue
+				
+				changed = true
+				
+				# Part of highlight before selection
+				if hStart < sStart
+					newHighlights.push({
+						startVerse: h.startVerse
+						startOffset: h.startOffset
+						endVerse: Math.floor(sStart / 1000000)
+						endOffset: sStart % 1000000
+						color: h.color
+					})
+				
+				# Part of highlight after selection
+				if hEnd > sEnd
+					newHighlights.push({
+						startVerse: Math.floor(sEnd / 1000000)
+						startOffset: sEnd % 1000000
+						endVerse: h.endVerse
+						endOffset: h.endOffset
+						color: h.color
+					})
+			
+			if changed
+				me.freehandHighlights = newHighlights
+				me.saveFreehandHighlights!
+		else
+			let highlight = {
+				startVerse: startVerse
+				startOffset: startOffset
+				endVerse: endVerse
+				endOffset: endOffset
+				color: activities.freehandHighlightColor or '#eab308'
+			}
+			
+			console.log('[DEBUG] Created freehand highlight:', highlight)
+			
+			me.freehandHighlights.push(highlight)
+			me.saveFreehandHighlights!
 		
 		# Clear selection
 		selection.removeAllRanges()
