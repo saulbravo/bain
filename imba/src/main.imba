@@ -28,9 +28,17 @@ tag app
 			sendDefaultPii: true
 		})
 
+	get cursorSvg
+		let color = activities.freehandEraserMode ? 'red' : (activities.freehandHighlightColor or '#eab308')
+		# URL encode the hex color if it starts with #
+		let encodedColor = color.startsWith('#') ? "%23{color.slice(1)}" : color
+		let svg = "<svg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><circle cx='12' cy='12' r='9' stroke='{encodedColor}' stroke-width='2'/><circle cx='12' cy='12' r='11' stroke='rgba(0,0,0,0.2)' stroke-width='1'/></svg>"
+		return "url(\"data:image/svg+xml;utf8,{svg}\") 12 12, auto"
+
 	<self>
-		if activities.freehandHighlightMode
+		if activities.freehandHighlightMode or activities.freehandEraserMode
 			<style> "
+				body, html, *, span \{ cursor: {cursorSvg} !important; \}
 				*::selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
 				*::-moz-selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
 			"
