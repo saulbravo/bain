@@ -35,14 +35,37 @@ tag app
 		let svg = "<svg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><circle cx='12' cy='12' r='9' stroke='{encodedColor}' stroke-width='2'/><circle cx='12' cy='12' r='11' stroke='rgba(0,0,0,0.2)' stroke-width='1'/></svg>"
 		return "url(\"data:image/svg+xml;utf8,{svg}\") 12 12, auto"
 
+	get selectionTextColor
+		let color = activities.freehandHighlightColor or '#eab308'
+		# Standard dark presets from menu
+		const darkPresets = ['FireBrick', 'RebeccaPurple', 'RoyalBlue', 'OliveDrab', 'Chocolate']
+		if darkPresets.includes(color)
+			return 'white'
+		
+		if color.startsWith('#')
+			let hex = color.replace('#', '')
+			if hex.length == 3
+				hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+			
+			try
+				const r = parseInt(hex.slice(0, 2), 16)
+				const g = parseInt(hex.slice(2, 4), 16)
+				const b = parseInt(hex.slice(4, 6), 16)
+				const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+				return luminance > 0.5 ? 'black' : 'white'
+			catch
+				return 'black'
+		
+		return 'black'
+
 	<self>
 		if activities.freehandHighlightMode or activities.freehandEraserMode
 			<style> "
 				article, article * \{ cursor: {cursorSvg} !important; \}
 				button, a, svg, .chevron, [role='button'], .color-option, .action-button, header, header *, .arrow \{ cursor: pointer !important; \}
 				freehand-highlight-menu \{ cursor: auto; \}
-				*::selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
-				*::-moz-selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
+				*::selection \{ background-color: {activities.freehandHighlightColor} !important; color: {selectionTextColor} !important; \}
+				*::-moz-selection \{ background-color: {activities.freehandHighlightColor} !important; color: {selectionTextColor} !important; \}
 			"
 		<html .freehand-mode=activities.freehandHighlightMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
