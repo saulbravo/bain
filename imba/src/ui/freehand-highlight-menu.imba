@@ -1,8 +1,11 @@
 import activities from '../lib/Activities'
+import reader from '../lib/Reader'
+import parallelReader from '../lib/ParallelReader'
 import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
 import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
+import Trash2 from 'lucide-static/icons/trash-2.svg'
 
 const colors = [
 	'FireBrick'
@@ -17,6 +20,12 @@ tag freehand-highlight-menu
 	def setHighlightColor event
 		if event.detail
 			activities.freehandHighlightColor = event.detail
+
+	def clearAllHighlights
+		if window.confirm("Clear all freehand highlights in this chapter?")
+			reader.clearFreehandHighlights!
+			if parallelReader.enabled
+				parallelReader.clearFreehandHighlights!
 
 	<self [y:0 @off:100% o@off:0 transition-duration:0.3s] ease [y:100%]=!activities.freehandHighlightMode>
 		<svg.chevron src=ChevronDown @click=(activities.freehandHighlightMode = no)>
@@ -35,6 +44,9 @@ tag freehand-highlight-menu
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
 					@click.stop.prevent=(activities.freehandHighlightColor = color)>
 
+		<div.clear-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
+			<svg src=Trash2 width="1.5rem" height="1.5rem">
+
 	css
 		pos:fixed b:0 l:0 r:0 zi:1100
 		w:100% bgc:$bgc
@@ -52,12 +64,19 @@ tag freehand-highlight-menu
 			cursor: pointer
 
 		header
-			d:hcs
+			d:hcc
 			g:0.5rem
 			span
 				tt:uppercase fw:700
 				fs:0.875rem
 				o:0.7
+
+		.clear-button
+			d:hcc
+			cursor: pointer
+			o: 0.5 @hover: 1
+			margin-top: 0.5rem
+			transition: opacity 0.2s
 
 		ul
 			white-space: nowrap

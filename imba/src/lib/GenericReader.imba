@@ -315,6 +315,11 @@ class GenericReader
 		catch error
 			console.log "Error saving freehand highlights:", error
 
+	def clearFreehandHighlights
+		freehandHighlights = []
+		saveFreehandHighlights!
+		imba.commit!
+
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs
 			if bookmarks.find(do |element| return element.verse == verse)
