@@ -1,4 +1,5 @@
 import GenericReader from '../lib/GenericReader'
+import activities from '../lib/Activities'
 
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
@@ -501,7 +502,8 @@ tag chapter < section
 						<>
 							<span 
 								.selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) 
-								[background-image: {me.getHighlight(verse.pk)}]>
+								[background-image: {me.getHighlight(verse.pk)}]
+								[color: {activities.selectedVersesPKs.includes(verse.pk) ? null : me.getHighlightTextColor(verse.pk)}]>
 								
 								if settings.verse_number
 									unless settings.verse_break
@@ -651,7 +653,7 @@ tag chapter < section
 			y@hover:-2px
 
 		.selected-verse
-			c: $acc
+			c@important: $acc
 			background: none
 			background-image: none
 			background-color: transparent
