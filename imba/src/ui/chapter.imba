@@ -249,6 +249,30 @@ tag chapter < section
 		# Sort highlights by start offset ascending
 		highlights.sort(do |a, b| return a.start - b.start)
 
+		# Helper to get contrast color (white or black) based on background hex or name
+		def getContrastColor color
+			return 'black' if !color
+			
+			# Map common CSS names to luminance values (simplified)
+			const darkColors = ['FireBrick', 'RebeccaPurple', 'RoyalBlue', 'OliveDrab', 'Chocolate']
+			if darkColors.includes(color)
+				return 'white'
+			
+			if color.startsWith('#')
+				let hex = color.replace('#', '')
+				if hex.length == 3
+					hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+				
+				const r = parseInt(hex.slice(0, 2), 16)
+				const g = parseInt(hex.slice(2, 4), 16)
+				const b = parseInt(hex.slice(4, 6), 16)
+				
+				# Standard luminance calculation
+				const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+				return luminance > 0.5 ? 'black' : 'white'
+			
+			return 'black'
+
 		let result = ""
 		let currentChar = 0
 		let highlightIndex = 0
@@ -265,8 +289,10 @@ tag chapter < section
 			while textPos < text.length
 				# Check for highlights starting here
 				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
-					result += "<mark style=\"background-color:{highlights[highlightIndex].color}\">"
-					activeHighlights.push(highlights[highlightIndex])
+					let h = highlights[highlightIndex]
+					let textColor = getContrastColor(h.color)
+					result += "<mark style=\"background-color:{h.color}; color: {textColor}\">"
+					activeHighlights.push(h)
 					highlightIndex++
 
 				# Check for highlights ending here
@@ -278,8 +304,10 @@ tag chapter < section
 					
 					# Re-check for new highlights starting exactly here
 					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
-						result += "<mark style=\"background-color:{highlights[highlightIndex].color}\">"
-						activeHighlights.push(highlights[highlightIndex])
+						let h = highlights[highlightIndex]
+						let textColor = getContrastColor(h.color)
+						result += "<mark style=\"background-color:{h.color}; color: {textColor}\">"
+						activeHighlights.push(h)
 						highlightIndex++
 
 				result += text[textPos]
