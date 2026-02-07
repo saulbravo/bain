@@ -55,7 +55,7 @@ tag freehand-highlight-menu
 				<svg src=Trash2 width="1.5rem" height="1.5rem">
 
 	css
-		pos:fixed b:0 l:0 r:0 zi:1100
+		pos:fixed b:0 l:0 r:0 zi:1200
 		w:100% bgc:$bgc
 		bdt:1px solid $acc-bgc
 		ta:center

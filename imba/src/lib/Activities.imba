@@ -142,6 +142,20 @@ class Activities
 		selectedParallel = undefined
 		imba.commit!
 
+	def toggleFreehandHighlightMode
+		freehandHighlightMode = !freehandHighlightMode
+		if freehandHighlightMode
+			# Clear verse selection and hide regular slideup
+			selectedVerses = []
+			selectedVersesPKs = []
+			selectedParallel = undefined
+			activeVerseAction = ''
+			show_sharing = no
+			show_bookmarks = no
+			show_add_bookmark = no
+			window.getSelection().removeAllRanges()
+		imba.commit!
+
 
 	def toggleBooksMenu parallel
 		console.log('[DEBUG] toggleBooksMenu called:', {

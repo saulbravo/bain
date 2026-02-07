@@ -587,13 +587,13 @@ tag reader
 							<svg src=BookOpenText aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
-						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.freehandHighlightMode = !activities.freehandHighlightMode) title="Freehand Highlight">
+						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
 							<svg src=Highlighter aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SlidersHorizontal aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
-						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.freehandHighlightMode = !activities.freehandHighlightMode) title="Freehand Highlight">
+						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
 							<svg src=Highlighter aria-hidden=yes>
 
 
