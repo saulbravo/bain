@@ -96,11 +96,11 @@ tag verse-actions < section
 			parallelReader.deleteBookmark activities.selectedVersesPKs
 
 	def clearAllHighlights
-		if window.confirm("Clear all regular highlights in this chapter?")
+		if window.confirm("Clear all highlights in this chapter?")
 			if activities.selectedParallel == 'main'
-				reader.clearAllRegularHighlights!
+				reader.clearAllChapterHighlights!
 			else
-				parallelReader.clearAllRegularHighlights!
+				parallelReader.clearAllChapterHighlights!
 
 	def showAddNewCategory
 		activities.show_add_bookmark = yes

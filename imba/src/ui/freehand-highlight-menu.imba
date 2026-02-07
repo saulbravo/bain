@@ -24,10 +24,10 @@ tag freehand-highlight-menu
 			activities.freehandHighlightColor = event.detail
 
 	def clearAllHighlights
-		if window.confirm("Clear all freehand highlights in this chapter?")
-			reader.clearFreehandHighlights!
+		if window.confirm("Clear all highlights in this chapter?")
+			reader.clearAllChapterHighlights!
 			if parallelReader.enabled
-				parallelReader.clearFreehandHighlights!
+				parallelReader.clearAllChapterHighlights!
 
 	<self [y:0 @off:100% o@off:0 transition-duration:0.3s] ease [y:100%]=!activities.freehandHighlightMode>
 		<svg.chevron src=ChevronDown @click=(activities.toggleFreehandHighlightMode!)>
