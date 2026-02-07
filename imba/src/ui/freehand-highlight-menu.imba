@@ -7,6 +7,7 @@ import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
+import Highlighter from 'lucide-static/icons/highlighter.svg'
 
 const colors = [
 	'FireBrick'
@@ -46,7 +47,9 @@ tag freehand-highlight-menu
 					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
 
 		<div.menu-actions>
-			<div.action-button .active=activities.freehandEraserMode @click=(activities.freehandEraserMode = !activities.freehandEraserMode) role="button" aria-label="Eraser" title="Eraser Tool">
+			<div.action-button .active=!activities.freehandEraserMode @click=(activities.freehandEraserMode = no) role="button" aria-label="Highlight" title="Highlight Tool">
+				<svg src=Highlighter width="1.5rem" height="1.5rem">
+			<div.action-button .active=activities.freehandEraserMode @click=(activities.freehandEraserMode = yes) role="button" aria-label="Eraser" title="Eraser Tool">
 				<svg src=Eraser width="1.5rem" height="1.5rem">
 			<div.action-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
 				<svg src=Trash2 width="1.5rem" height="1.5rem">
