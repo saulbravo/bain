@@ -225,9 +225,6 @@ tag verse-actions < section
 				<button @click=compare.load title=(t.compare or "Compare")>
 					<svg src=Split aria-hidden=yes>
 			<li>
-				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
-					<svg src=Trash2 aria-hidden=yes>
-			<li>
 				<menu-popup bind=activities.show_sharing>
 					<button @click=(do activities.show_sharing = !activities.show_sharing) title=(t.share or "Share")>
 						<svg src=Share aria-hidden=yes>
@@ -258,6 +255,9 @@ tag verse-actions < section
 				<menu-popup bind=activities.show_bookmarks>
 					<button @click=activities.toggleBookmarks .applied=(activities.selectedCategories.length > 0) title=(t.bookmark or "Bookmark")>
 						<svg src=Bookmark aria-hidden=yes>
+			<li>
+				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
+					<svg src=Trash2 aria-hidden=yes>
 					css
 						input
 							w:100% bg:transparent
