@@ -47,9 +47,13 @@ tag freehand-highlight-menu
 					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
 
 		<div.menu-actions>
-			<div.action-button .active=!activities.freehandEraserMode @click=(activities.freehandEraserMode = no) role="button" aria-label="Highlight" title="Highlight Tool">
+			<div.action-button .active=!activities.freehandEraserMode 
+				@click=(!activities.freehandEraserMode ? (activities.freehandHighlightMode = no) : (activities.freehandEraserMode = no)) 
+				role="button" aria-label="Highlight" title="Highlight Tool">
 				<svg src=Highlighter width="1.5rem" height="1.5rem">
-			<div.action-button .active=activities.freehandEraserMode @click=(activities.freehandEraserMode = yes) role="button" aria-label="Eraser" title="Eraser Tool">
+			<div.action-button .active=activities.freehandEraserMode 
+				@click=(activities.freehandEraserMode ? (activities.freehandHighlightMode = no) : (activities.freehandEraserMode = yes)) 
+				role="button" aria-label="Eraser" title="Eraser Tool">
 				<svg src=Eraser width="1.5rem" height="1.5rem">
 			<div.action-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
 				<svg src=Trash2 width="1.5rem" height="1.5rem">
