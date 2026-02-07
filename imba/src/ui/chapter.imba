@@ -138,7 +138,7 @@ tag chapter < section
 			startOffset: startOffset
 			endVerse: endVerse
 			endOffset: endOffset
-			color: activities.highlight_color or '#eab308'
+			color: activities.freehandHighlightColor or '#eab308'
 		}
 		
 		console.log('[DEBUG] Created freehand highlight:', highlight)

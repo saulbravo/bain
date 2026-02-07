@@ -373,3 +373,29 @@ global css
 	.hide-comments
 		sup
 			display: none
+
+	html.freehand-mode
+		--freehand-color: #eab308
+
+		&, &, *
+			cursor: none
+
+		*::selection
+			bgc@important:var(--freehand-color)
+			c@important:inherit
+		
+		*::-moz-selection
+			bgc@important:var(--freehand-color)
+			c@important:inherit
+
+	.freehand-cursor
+		pos: fixed
+		size: 24px
+		rd: 50%
+		zi: 9999
+		pointer-events: none
+		transform: translate(-50%, -50%)
+		display: none
+
+	html.freehand-mode .freehand-cursor
+		display: block

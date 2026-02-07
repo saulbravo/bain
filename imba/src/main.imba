@@ -27,7 +27,17 @@ tag app
 			sendDefaultPii: true
 		})
 
-	<self>
+	@observable cursorPos = { x: 0, y: 0 }
+
+	def handlePointerMove e
+		if activities.freehandHighlightMode
+			cursorPos.x = e.clientX
+			cursorPos.y = e.clientY
+			imba.commit!
+
+	<self @pointermove=handlePointerMove>
+		<global [cursor:none]=activities.freehandHighlightMode>
+		<html .freehand-mode=activities.freehandHighlightMode [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
 		<downloads route='/downloads/'>
 		<donate route='/donate/'>
@@ -37,6 +47,9 @@ tag app
 		<reader route='/*'>
 
 		<notifications>
+		<freehand-highlight-menu>
+		
+		<div.freehand-cursor [l:{cursorPos.x}px t:{cursorPos.y}px bd:2px solid {activities.freehandHighlightColor}]>
 
 
 imba.mount <app>

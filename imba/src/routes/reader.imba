@@ -605,9 +605,9 @@ tag reader
 				c: #a855f7
 		
 		.freehand-highlight-active
-			c: #eab308
+			c: var(--freehand-color, #eab308)
 			svg
-				c: #eab308
+				c: var(--freehand-color, #eab308)
 		
 		nav, aside
 			h: 100vh
