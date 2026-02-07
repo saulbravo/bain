@@ -28,15 +28,12 @@ tag app
 			sendDefaultPii: true
 		})
 
-		window.addEventListener('pointermove') do |e|
-			if activities.freehandHighlightMode
-				if let el = document.querySelector('.freehand-cursor')
-					el.style.transform = "translate3d({e.clientX}px, {e.clientY}px, 0) translate(-50%, -50%)"
-
-	@observable cursorPos = { x: 0, y: 0 }
-
 	<self>
-		<global [cursor:none]=activities.freehandHighlightMode>
+		if activities.freehandHighlightMode
+			<style> "
+				*::selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
+				*::-moz-selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
+			"
 		<html .freehand-mode=activities.freehandHighlightMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
 		<downloads route='/downloads/'>
@@ -48,8 +45,6 @@ tag app
 
 		<notifications>
 		<freehand-highlight-menu>
-		
-		<div.freehand-cursor>
 
 
 imba.mount <app>

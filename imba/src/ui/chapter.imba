@@ -98,12 +98,34 @@ tag chapter < section
 	def isMyRect matchId\string
 		if activities.activeModal != ''
 			return no
+	
+	@observable dragging = no
+	currentDragHighlight = null
+
+	def handlePointerDown e
+		if activities.freehandHighlightMode
+			dragging = yes
+			currentDragHighlight = null
+
+	def handlePointerUp e
+		if dragging
+			dragging = no
+			handleFreehandHighlight(yes)
+			window.getSelection().removeAllRanges()
+			imba.commit!
+
+	def handlePointerMove e
+		# Don't update highlights during drag to avoid DOM re-renders destroying selection
+		pass
 		
-	def handleFreehandHighlight
+	def handleFreehandHighlight isFinal = no
 		return unless activities.freehandHighlightMode
 		
 		let selection = window.getSelection()
-		return if selection.isCollapsed
+		if selection.isCollapsed
+			if isFinal and currentDragHighlight
+				currentDragHighlight = null
+			return
 		
 		let range = selection.getRangeAt(0)
 		
@@ -174,7 +196,8 @@ tag chapter < section
 			
 			if changed
 				me.freehandHighlights = newHighlights
-				me.saveFreehandHighlights!
+				if isFinal
+					me.saveFreehandHighlights!
 		else
 			let highlight = {
 				startVerse: startVerse
@@ -184,10 +207,20 @@ tag chapter < section
 				color: activities.freehandHighlightColor or '#eab308'
 			}
 			
-			console.log('[DEBUG] Created freehand highlight:', highlight)
+			if currentDragHighlight
+				# Replace the last temporary highlight
+				me.freehandHighlights[me.freehandHighlights.length - 1] = highlight
+			else
+				# Start a new temporary highlight
+				me.freehandHighlights.push(highlight)
 			
-			me.freehandHighlights.push(highlight)
-			me.saveFreehandHighlights!
+			currentDragHighlight = highlight
+			
+			if isFinal
+				me.saveFreehandHighlights!
+				currentDragHighlight = null
+		
+		imba.commit!
 		
 		# Clear selection
 		selection.removeAllRanges()
@@ -284,7 +317,9 @@ tag chapter < section
 	def render
 		<self .parallel=parallelReader.enabled
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
-			@mouseup=handleFreehandHighlight
+			@mousedown=handlePointerDown
+			@mousemove=handlePointerMove
+			@mouseup=handlePointerUp
 			@touchmove=changeHeadersSizeOnScroll
 			dir=translationTextDirection(me.translation)>
 			<>
