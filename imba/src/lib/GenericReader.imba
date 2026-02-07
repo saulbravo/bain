@@ -320,6 +320,28 @@ class GenericReader
 		saveFreehandHighlights!
 		imba.commit!
 
+	def clearAllRegularHighlights
+		if !user.username
+			return
+		
+		let pks = bookmarks.map(do |b| b.verse)
+		if pks.length == 0
+			return
+			
+		const deletedColors = new Set<string>()
+		for b in bookmarks
+			if b.color
+				deletedColors.add(b.color)
+			
+		requestDeleteBookmark(pks)
+		bookmarks = []
+		
+		for color in deletedColors
+			user.deleteBookmarkFromUserMap translation, book, chapter, color
+			
+		activities.cleanUp!
+		imba.commit!
+
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs
 			if bookmarks.find(do |element| return element.verse == verse)

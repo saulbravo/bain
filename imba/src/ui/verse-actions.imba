@@ -9,6 +9,7 @@ import NotebookPen from 'lucide-static/icons/notebook-pen.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
 import Facebook from 'lucide-static/icons/facebook.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
+import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
@@ -94,6 +95,13 @@ tag verse-actions < section
 		else
 			parallelReader.deleteBookmark activities.selectedVersesPKs
 
+	def clearAllHighlights
+		if window.confirm("Clear all regular highlights in this chapter?")
+			if activities.selectedParallel == 'main'
+				reader.clearAllRegularHighlights!
+			else
+				parallelReader.clearAllRegularHighlights!
+
 	def showAddNewCategory
 		activities.show_add_bookmark = yes
 		imba.commit!.then do $newcategoryinput.focus()
@@ -138,9 +146,8 @@ tag verse-actions < section
 		<menu>
 			if reader.selectionHasBookmark or parallelReader.selectionHasBookmark
 				<li>
-					<button @click=deleteBookmark>
+					<button @click=deleteBookmark title=(t.delete or "Delete")>
 						<svg src=Eraser aria-hidden=yes>
-						t.delete
 			<li>
 				<button .copy-select-active=(activities.copySelectMode) @click=(do
 					let wasOff = !activities.copySelectMode
@@ -210,21 +217,20 @@ tag verse-actions < section
 					
 					imba.commit!
 				)>
-					<svg src=Obsidian aria-hidden=yes>
-					"Obsidian"
+					<svg src=Obsidian aria-hidden=yes title="Obsidian">
 			<li>
-				<button @click=activities.copyWithoutLink>
+				<button @click=activities.copyWithoutLink title=(t.copy or "Copy")>
 					<svg src=Copy aria-hidden=yes>
-					t.copy
 			<li>
-				<button @click=compare.load>
+				<button @click=compare.load title=(t.compare or "Compare")>
 					<svg src=Split aria-hidden=yes>
-					t.compare
+			<li>
+				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
+					<svg src=Trash2 aria-hidden=yes>
 			<li>
 				<menu-popup bind=activities.show_sharing>
-					<button @click=(do activities.show_sharing = !activities.show_sharing)>
+					<button @click=(do activities.show_sharing = !activities.show_sharing) title=(t.share or "Share")>
 						<svg src=Share aria-hidden=yes>
-						t.share
 						if activities.show_sharing
 							<.popup-menu [l:0 @lt-sm:0.5rem top:unset b:calc(100% + .25rem) y@off:2rem o@off:0 w:14rem] ease>
 								<button @click=shareViaWhatsApp>
@@ -250,9 +256,8 @@ tag verse-actions < section
 										t.copy_with_link
 			<li>
 				<menu-popup bind=activities.show_bookmarks>
-					<button @click=activities.toggleBookmarks .applied=(activities.selectedCategories.length > 0)>
+					<button @click=activities.toggleBookmarks .applied=(activities.selectedCategories.length > 0) title=(t.bookmark or "Bookmark")>
 						<svg src=Bookmark aria-hidden=yes>
-						t.bookmark
 					css
 						input
 							w:100% bg:transparent
@@ -384,17 +389,17 @@ tag verse-actions < section
 			pos:relative
 			flw:wrap
 
-			button
-				display:hcl g:.25rem
-				c:$c @hover:$acc
-				bgc:$acc-bgc @hover:$acc-bgc-hover
-				bgc:transparent
-				padding:0.5rem 0.75rem
-				cursor:pointer
-				rd:0.25rem
+		button
+			display:hcc g:.25rem
+			c:$c @hover:$acc
+			bgc:$acc-bgc @hover:$acc-bgc-hover
+			bgc:transparent
+			padding:0.75rem
+			cursor:pointer
+			rd:0.25rem
 
-				svg
-					size:1rem
+			svg
+				size:1.5rem
 
 		.popup-menu
 			> button
