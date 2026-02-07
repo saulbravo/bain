@@ -59,7 +59,7 @@ tag app
 		return 'black'
 
 	<self>
-		if activities.freehandHighlightMode or activities.freehandEraserMode
+		if activities.freehandHighlightMode
 			<style> "
 				article, article * \{ cursor: {cursorSvg} !important; \}
 				button, a, svg, .chevron, [role='button'], .color-option, .action-button, header, header *, .arrow \{ cursor: pointer !important; \}

@@ -120,6 +120,7 @@ class Activities
 		copySelectDragHandle = ''
 		copySelectReader = null
 		freehandHighlightMode = no
+		freehandEraserMode = no
 
 		reader.show_verse_picker = no
 		parallelReader.show_verse_picker = no
@@ -154,6 +155,8 @@ class Activities
 			show_bookmarks = no
 			show_add_bookmark = no
 			window.getSelection().removeAllRanges()
+		else
+			freehandEraserMode = no
 		imba.commit!
 
 

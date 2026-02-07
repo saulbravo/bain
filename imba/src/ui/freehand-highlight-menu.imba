@@ -30,7 +30,7 @@ tag freehand-highlight-menu
 				parallelReader.clearFreehandHighlights!
 
 	<self [y:0 @off:100% o@off:0 transition-duration:0.3s] ease [y:100%]=!activities.freehandHighlightMode>
-		<svg.chevron src=ChevronDown @click=(activities.freehandHighlightMode = no)>
+		<svg.chevron src=ChevronDown @click=(activities.toggleFreehandHighlightMode!)>
 		<header>
 			<span> "Freehand Highlight"
 
@@ -48,11 +48,11 @@ tag freehand-highlight-menu
 
 		<div.menu-actions>
 			<div.action-button .active=!activities.freehandEraserMode 
-				@click=(!activities.freehandEraserMode ? (activities.freehandHighlightMode = no) : (activities.freehandEraserMode = no)) 
+				@click=(!activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = no)) 
 				role="button" aria-label="Highlight" title="Highlight Tool">
 				<svg src=Highlighter width="1.5rem" height="1.5rem">
 			<div.action-button .active=activities.freehandEraserMode 
-				@click=(activities.freehandEraserMode ? (activities.freehandHighlightMode = no) : (activities.freehandEraserMode = yes)) 
+				@click=(activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = yes)) 
 				role="button" aria-label="Eraser" title="Eraser Tool">
 				<svg src=Eraser width="1.5rem" height="1.5rem">
 			<div.action-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
