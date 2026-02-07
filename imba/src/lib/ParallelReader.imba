@@ -74,6 +74,7 @@ class ParallelReader < GenericReader
 			updateMainReader book, chapter
 
 		getBookmarks!
+		getFreehandHighlights!
 
 		if verse
 			if typeof verse === 'string' and verse.includes('-')

@@ -52,6 +52,8 @@ urlpatterns = [
     ),
     path("get-verse-counts/<slug:translation>/", views.get_verse_counts),
     path("get-random-verse/<slug:translation>/", views.get_random_verse),
+    path("get-freehand-highlights/<slug:translation>/<int:book>/<int:chapter>/", views.get_freehand_highlights),
+    path("save-freehand-highlights/", views.save_freehand_highlights),
     path("dictionary-definition/<slug:dict>/<str:query>/", views.dictionary_search),
     path("dictionary-definition/<slug:dict>/<str:query>", views.dictionary_search),
     path("get-dictionary/<slug:dictionary>/", views.get_dictionary),

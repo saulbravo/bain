@@ -54,6 +54,20 @@ class History(models.Model):
     favorite_translations = models.TextField(null=True, default=None)
 
 
+class FreehandHighlight(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    translation = models.CharField(max_length=120)
+    book = models.PositiveSmallIntegerField()
+    chapter = models.PositiveSmallIntegerField()
+    # Storing ranges as JSON: [{"startVerse": 1, "startOffset": 0, "endVerse": 1, "endOffset": 10, "color": "#ff0000"}]
+    highlights = models.TextField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'translation', 'book', 'chapter']),
+        ]
+
+
 class Dictionary(models.Model):
     dictionary = models.CharField(max_length=8)
     topic = models.TextField()

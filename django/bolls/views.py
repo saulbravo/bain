@@ -22,7 +22,7 @@ from django.http import JsonResponse, HttpResponse
 from bolls.books_map import books_map
 from bolls.forms import SignUpForm
 
-from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary
+from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary, FreehandHighlight
 
 from .utils.books import BOOKS, get_book_id, is_number
 
@@ -747,6 +747,51 @@ def get_me_if_am_logged_in(request):
 
 def api(request):
     return render(request, "bolls/api.html")
+
+
+def get_freehand_highlights(request, translation, book, chapter):
+    if not request.user.is_authenticated:
+        return JsonResponse([], safe=False)
+
+    highlights = FreehandHighlight.objects.filter(
+        user=request.user, translation=translation, book=book, chapter=chapter
+    )
+
+    if not highlights.exists():
+        return JsonResponse([], safe=False)
+
+    # We expect only one record per user/chapter for now, but if there are multiple, we merge them
+    # Actually, let's just return the highlights from the first one for simplicity
+    return JsonResponse(json.loads(highlights.first().highlights), safe=False)
+
+
+@require_POST
+@csrf_exempt
+def save_freehand_highlights(request):
+    if not request.user.is_authenticated:
+        return HttpResponse(status=401)
+
+    try:
+        data = json.loads(request.body)
+        translation = data.get("translation")
+        book = data.get("book")
+        chapter = data.get("chapter")
+        highlights_json = json.dumps(data.get("highlights", []))
+
+        if not all([translation, book, chapter]):
+            return HttpResponse(status=400, content="Missing required fields")
+
+        FreehandHighlight.objects.update_or_create(
+            user=request.user,
+            translation=translation,
+            book=book,
+            chapter=chapter,
+            defaults={"highlights": highlights_json},
+        )
+        return HttpResponse(status=200)
+    except Exception as e:
+        print(f"Error saving freehand highlights: {e}")
+        return HttpResponse(status=400, content=str(e))
 
 
 def handler404(request, *args, **argv):

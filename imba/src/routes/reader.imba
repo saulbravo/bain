@@ -12,6 +12,7 @@ import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
 import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
+import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
 
@@ -572,7 +573,7 @@ tag reader
 							bdt@lt-lg:1px solid $acc-bgc
 							button
 								padding:3em @lt-lg:0
-								width:calc(100% / 3) @lg:auto
+								width:calc(100% / 4) @lg:auto
 								height:2.75rem @lg:auto
 								bgc:transparent
 								c:$acc @lt-lg:$c @hover:$acc-hover
@@ -586,10 +587,14 @@ tag reader
 							<svg src=BookOpenText aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) d@lg:none] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.freehandHighlightMode = !activities.freehandHighlightMode) title="Freehand Highlight">
+							<svg src=Highlighter aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SlidersHorizontal aria-hidden=yes>
 						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
+						<button[transform: translateY({activities.menuIconsTransform}%) translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.freehandHighlightMode = !activities.freehandHighlightMode) title="Freehand Highlight">
+							<svg src=Highlighter aria-hidden=yes>
 
 
 
@@ -598,6 +603,11 @@ tag reader
 			c: #a855f7
 			svg
 				c: #a855f7
+		
+		.freehand-highlight-active
+			c: #eab308
+			svg
+				c: #eab308
 		
 		nav, aside
 			h: 100vh

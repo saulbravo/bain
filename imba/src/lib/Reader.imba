@@ -80,6 +80,7 @@ class Reader < GenericReader
 
 		readingHistory.saveToHistory(translation, book, chapter, verse)
 		getBookmarks!
+		getFreehandHighlights!
 
 		if verse
 			if typeof verse === 'string' and verse.includes('-')

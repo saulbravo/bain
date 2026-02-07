@@ -32,6 +32,7 @@ class Activities
 	show_add_bookmark = no
 	show_color_picker = no
 	copySelectMode = no
+	freehandHighlightMode = no
 
 	blockInScroll = null
 	scrollLockTimeout = null
@@ -116,6 +117,7 @@ class Activities
 		copySelectDragging = no
 		copySelectDragHandle = ''
 		copySelectReader = null
+		freehandHighlightMode = no
 
 		reader.show_verse_picker = no
 		parallelReader.show_verse_picker = no

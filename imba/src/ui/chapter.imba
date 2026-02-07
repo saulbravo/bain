@@ -98,14 +98,150 @@ tag chapter < section
 	def isMyRect matchId\string
 		if activities.activeModal != ''
 			return no
+		
+	def handleFreehandHighlight
+		return unless activities.freehandHighlightMode
+		
+		let selection = window.getSelection()
+		return if selection.isCollapsed
+		
+		let range = selection.getRangeAt(0)
+		
+		# Ensure we are selecting within the article
+		let article = range.startContainer.parentElement.closest('article')
+		return unless article
+		
+		# Find the verse spans
+		let startSpan = range.startContainer.parentElement.closest('span[id]')
+		let endSpan = range.endContainer.parentElement.closest('span[id]')
+		
+		return unless startSpan and endSpan
+		
+		let startVerse = parseInt(startSpan.id.replace(versePrefix, ''))
+		let endVerse = parseInt(endSpan.id.replace(versePrefix, ''))
+
+		# Helper to get character offset relative to a root element, ignoring tags
+		def getCharOffset node, offset, root
+			let count = 0
+			let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
+			while (let next = walker.nextNode())
+				if next == node
+					return count + offset
+				count += next.textContent.length
+			return count
+
+		let startOffset = getCharOffset(range.startContainer, range.startOffset, startSpan)
+		let endOffset = getCharOffset(range.endContainer, range.endOffset, endSpan)
+		
+		let highlight = {
+			startVerse: startVerse
+			startOffset: startOffset
+			endVerse: endVerse
+			endOffset: endOffset
+			color: activities.highlight_color or '#eab308'
+		}
+		
+		console.log('[DEBUG] Created freehand highlight:', highlight)
+		
+		me.freehandHighlights.push(highlight)
+		me.saveFreehandHighlights!
+		
+		# Clear selection
+		selection.removeAllRanges()
+		imba.commit!
 		if versePrefix == ''
 			// check if there is any letter in the matchId
 			return !matchId.match(/[a-zA-Z]/)
 		return matchId.startsWith(versePrefix)
 
+	def applyHighlightsToHtml html, highlights
+		# Parse the HTML into a list of "parts": either a tag or a text node
+		let parts = []
+		let i = 0
+		while i < html.length
+			if html[i] == '<'
+				let end = html.indexOf('>', i)
+				if end != -1
+					parts.push({ type: 'tag', content: html.slice(i, end + 1) })
+					i = end + 1
+					continue
+			let nextTag = html.indexOf('<', i)
+			let content = nextTag == -1 ? html.slice(i) : html.slice(i, nextTag)
+			parts.push({ type: 'text', content: content })
+			i += content.length
+
+		# Sort highlights by start offset ascending
+		highlights.sort(do |a, b| return a.start - b.start)
+
+		let result = ""
+		let currentChar = 0
+		let highlightIndex = 0
+		let activeHighlights = []
+
+		for part in parts
+			if part.type == 'tag'
+				result += part.content
+				continue
+
+			let text = part.content
+			let textPos = 0
+
+			while textPos < text.length
+				# Check for highlights starting here
+				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
+					result += "<mark style=\"background-color:{highlights[highlightIndex].color}\">"
+					activeHighlights.push(highlights[highlightIndex])
+					highlightIndex++
+
+				# Check for highlights ending here
+				let highlightsEnding = activeHighlights.filter(do |h| return h.end == currentChar)
+				if highlightsEnding.length > 0
+					for j in [0 ... highlightsEnding.length]
+						result += "</mark>"
+					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
+					
+					# Re-check for new highlights starting exactly here
+					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
+						result += "<mark style=\"background-color:{highlights[highlightIndex].color}\">"
+						activeHighlights.push(highlights[highlightIndex])
+						highlightIndex++
+
+				result += text[textPos]
+				textPos++
+				currentChar++
+			
+			# Check for highlights ending at the very end of a text node
+			let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
+			if highlightsEndingAtEnd.length > 0
+				for j in [0 ... highlightsEndingAtEnd.length]
+					result += "</mark>"
+				activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
+
+		return result
+
+	def getVerseText verse
+		let verseText = verse.text
+		let relevantHighlights = []
+		
+		for h in me.freehandHighlights
+			if h.startVerse == verse.verse and h.endVerse == verse.verse
+				relevantHighlights.push({ start: h.startOffset, end: h.endOffset, color: h.color })
+			elif h.startVerse == verse.verse
+				relevantHighlights.push({ start: h.startOffset, end: 999999, color: h.color })
+			elif h.endVerse == verse.verse
+				relevantHighlights.push({ start: 0, end: h.endOffset, color: h.color })
+			elif h.startVerse < verse.verse and h.endVerse > verse.verse
+				relevantHighlights.push({ start: 0, end: 999999, color: h.color })
+		
+		if relevantHighlights.length > 0
+			verseText = self.applyHighlightsToHtml(verseText, relevantHighlights)
+		
+		return verseText
+
 	def render
 		<self .parallel=parallelReader.enabled
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
+			@mouseup=handleFreehandHighlight
 			@touchmove=changeHeadersSizeOnScroll
 			dir=translationTextDirection(me.translation)>
 			<>
@@ -254,22 +390,25 @@ tag chapter < section
 					for verse, verse_index in me.verses
 						let bookmark = me.getBookmark(verse.pk, 'bookmarks')
 						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
+						let verseText = getVerseText(verse)
 
-						<span 
-							.selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) 
-							[background-image: {me.getHighlight(verse.pk)}]>
-							
-							if settings.verse_number
-								unless settings.verse_break
-									<span> ' '
-								<span.verse dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
-									if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
-									verse.verse
-									"\u2007"
-							else
-								unless settings.verse_break
-									<span> ' '
-							<span innerHTML=verse.text
+						<>
+							<span 
+								.selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) 
+								[background-image: {me.getHighlight(verse.pk)}]>
+								
+								if settings.verse_number
+									unless settings.verse_break
+										<span> ' '
+									<span.verse dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
+										if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
+										verse.verse
+										"\u2007"
+								else
+									unless settings.verse_break
+										<span> ' '
+								
+								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
 									@click.wait(200ms)=(do
 										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
@@ -280,19 +419,19 @@ tag chapter < section
 									@keydown.enter=me.saveBookmark
 									[scroll-margin-top: 1.4rem]
 								>
-						if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (bookmark.collection || bookmark.note)
-							<note-tooltip style=superStyle bookmark=bookmark>
-								<svg src=Bookmark>
-									<title> bookmark.collection + ': ' + bookmark.note
+							if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (bookmark.collection || bookmark.note)
+								<note-tooltip style=superStyle bookmark=bookmark>
+									<svg src=Bookmark>
+										<title> bookmark.collection + ': ' + bookmark.note
 
-						if verse.comment and settings.verse_commentary
-							<note-tooltip style=superStyle bookmark=verse.comment>
-								<span[c:$acc @hover:$acc-hover]> '†'
+							if verse.comment and settings.verse_commentary
+								<note-tooltip style=superStyle bookmark=verse.comment>
+									<span[c:$acc @hover:$acc-hover]> '†'
 
-						if settings.verse_break
-							<br>
-							unless settings.verse_number
-								<span.ws> '	'
+							if settings.verse_break
+								<br>
+								unless settings.verse_number
+									<span.ws> '	'
 				
 				<[d:hcs p:1.5rem .5rem 6rem overflow:hidden]>
 					<a.arrow [s:4rem] @click.prevent.stop=me.prevChapter title=t.prev href=me.prevChapterLink>

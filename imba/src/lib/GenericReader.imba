@@ -22,6 +22,7 @@ class GenericReader
 	verses\Array<Verse> = []
 	loading\boolean = no
 	@observable bookmarks\Bookmark[] = []
+	@observable freehandHighlights = []
 	show_verse_picker\boolean = no
 	verse\number|string = 0
 
@@ -52,6 +53,7 @@ class GenericReader
 				return book.chapters
 	
 	@action def nextChapter
+		freehandHighlights = []
 		if chapter + 1 <= chaptersOfCurrentBook
 			chapter += 1
 		else
@@ -61,6 +63,7 @@ class GenericReader
 				chapter = 1
 
 	@action def prevChapter
+		freehandHighlights = []
 		if chapter - 1 > 0
 			chapter -= 1
 		else
@@ -88,12 +91,14 @@ class GenericReader
 		return "/{translation}/{book}/{chapter}/" # default plug
 
 	@action def nextBook
+		freehandHighlights = []
 		let current_index = books.indexOf(books.find(do |element| return element.bookid == book))
 		if books[current_index + 1]
 			book = books[current_index + 1].bookid
 			chapter = 1
 
 	@action def prevBook
+		freehandHighlights = []
 		let current_index = books.indexOf(books.find(do |element| return element.bookid == book))
 		if books[current_index - 1]
 			book = books[current_index - 1].bookid
@@ -286,6 +291,30 @@ class GenericReader
 		bookmarks = offline_bookmarks.concat(server_bookmarks)
 		imba.commit!
 
+	def getFreehandHighlights
+		if !user.username or !window.navigator.onLine
+			return
+
+		try
+			freehandHighlights = await API.getJson("/get-freehand-highlights/" + translation + '/' + book + '/' + chapter + '/', 'freehandHighlights')
+			imba.commit!
+		catch error
+			console.log "Error fetching freehand highlights:", error
+
+	def saveFreehandHighlights
+		if !user.username or !window.navigator.onLine
+			return
+
+		try
+			await API.post("/save-freehand-highlights/", {
+				translation: translation,
+				book: book,
+				chapter: chapter,
+				highlights: freehandHighlights
+			})
+		catch error
+			console.log "Error saving freehand highlights:", error
+
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs
 			if bookmarks.find(do |element| return element.verse == verse)
@@ -305,7 +334,7 @@ class GenericReader
 
 
 	def selectVerse pk\number, id\number
-		if !document.getSelection().isCollapsed or activities.activeModal
+		if !document.getSelection().isCollapsed or activities.activeModal or activities.freehandHighlightMode
 			return
 
 		if activities.copySelectMode
