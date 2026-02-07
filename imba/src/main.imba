@@ -38,7 +38,9 @@ tag app
 	<self>
 		if activities.freehandHighlightMode or activities.freehandEraserMode
 			<style> "
-				body, html, *, span \{ cursor: {cursorSvg} !important; \}
+				article, article * \{ cursor: {cursorSvg} !important; \}
+				button, a, svg, .chevron, [role='button'], .color-option, .action-button, header, header *, .arrow \{ cursor: pointer !important; \}
+				freehand-highlight-menu \{ cursor: auto; \}
 				*::selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
 				*::-moz-selection \{ background-color: {activities.freehandHighlightColor} !important; color: inherit !important; \}
 			"
