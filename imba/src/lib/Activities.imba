@@ -3,7 +3,7 @@ import Color from "colorjs.io"
 import readingHistory from './ReadingHistory'
 import { hasTouchEvents } from '../constants'
 
-import { getBookName } from '../utils'
+import { getBookName, getValue, setValue } from '../utils'
 
 import pageSearch from './PageSearch'
 import parallelReader from './ParallelReader'
@@ -43,6 +43,99 @@ class Activities
 	booksDrawerOffset = -300
 	settingsDrawerOffset = -300
 	bottomDrawerOffset = 0
+
+	@observable tabs = []
+	@observable activeTabIndex = 0
+	isSwitchingTab = no
+
+	def loadTabs
+		let savedTabs = getValue('tabs')
+		tabs = Array.isArray(savedTabs) ? savedTabs : []
+		
+		let savedIndex = getValue('activeTabIndex')
+		activeTabIndex = typeof savedIndex === 'number' ? savedIndex : 0
+		
+		# If no tabs, create the first one from existing storage or defaults
+		if tabs.length == 0
+			const t = getValue('translation') || 'NVI'
+			const b = getValue('book') || 1
+			const c = getValue('chapter') || 1
+			tabs.push({
+				translation: t
+				book: b
+				chapter: c
+				name: "{getBookName(t, b)} {c}"
+			})
+			setValue('tabs', tabs)
+		
+		# Ensure index is valid
+		if activeTabIndex >= tabs.length
+			activeTabIndex = 0
+
+	def saveTabs
+		setValue('tabs', tabs)
+		setValue('activeTabIndex', activeTabIndex)
+
+	def addTab
+		const current = tabs[activeTabIndex]
+		tabs.push({
+			translation: current.translation
+			book: current.book
+			chapter: current.chapter
+			name: current.name
+		})
+		activeTabIndex = tabs.length - 1
+		saveTabs!
+		imba.commit!
+
+	def switchTab index
+		if index >= 0 and index < tabs.length
+			isSwitchingTab = yes
+			activeTabIndex = index
+			const tab = tabs[activeTabIndex]
+			
+			# Update reader state
+			reader.translation = tab.translation
+			reader.book = tab.book
+			reader.chapter = tab.chapter
+			
+			saveTabs!
+			# Use a timeout to reset the flag after reactions have settled
+			setTimeout(&, 0) do
+				isSwitchingTab = no
+				imba.commit!
+			imba.commit!
+
+	def closeTab index
+		if tabs.length > 1
+			isSwitchingTab = yes
+			tabs.splice(index, 1)
+			if activeTabIndex >= tabs.length
+				activeTabIndex = tabs.length - 1
+			
+			# Switch to the new active tab
+			const tab = tabs[activeTabIndex]
+			reader.translation = tab.translation
+			reader.book = tab.book
+			reader.chapter = tab.chapter
+			
+			saveTabs!
+			setTimeout(&, 0) do
+				isSwitchingTab = no
+				imba.commit!
+			imba.commit!
+
+	@autorun def updateCurrentTabName
+		return if isSwitchingTab
+		if tabs[activeTabIndex] and reader..nameOfCurrentBook
+			const tab = tabs[activeTabIndex]
+			const newName = "{reader.nameOfCurrentBook} {reader.chapter}"
+			if tab.name != newName or tab.translation != reader.translation or tab.book != reader.book or tab.chapter != reader.chapter
+				tab.name = newName
+				tab.translation = reader.translation
+				tab.book = reader.book
+				tab.chapter = reader.chapter
+				saveTabs!
 
 	@observable selectedVerses\number[] = []
 	@observable selectedVersesPKs\number[] = []
@@ -463,5 +556,6 @@ class Activities
 
 
 const activities = new Activities()
+activities.loadTabs()
 
 export default activities

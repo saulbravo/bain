@@ -345,7 +345,7 @@ tag chapter < section
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
 
 			if me.verses..length
-				<header[h:0 margin-block:min(4em, 8vw) zi:1] @click=activities.toggleBooksMenu(!!versePrefix)  @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
+				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
 					#main_header_arrow_size = "min(64px, max({minHeaderFont}em, {headerFontSize}em))"
 					<h1
 						[lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:max({minHeaderFont}em, min({headerFontSize}em, 8vw))]
@@ -354,10 +354,14 @@ tag chapter < section
 						<a.arrow @click.prevent.stop=me.prevChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.prev href="{me.prevChapterLink}">
 							getChevron(no)
 
-						me.nameOfCurrentBook, ' ', me.chapter
+						<span @click=activities.toggleBooksMenu(!!versePrefix)>
+							me.nameOfCurrentBook, ' ', me.chapter
 
 						<a.arrow @click.prevent.stop=me.nextChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.next href=me.nextChapterLink>
 							getChevron(yes)
+					
+					if me.me == 'main'
+						<bible-tabs scale=(0.6 + (headerFontSize / 5))>
 
 				<p[padding-inline:.5rem o:0 lh:1 ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:min({theme.fontSize * 2}px, 8vw) us:none word-break:break-word]> me.nameOfCurrentBook, ' ', me.chapter # since header height is changing, this takes constant space for header to avoid layout shifts
 				<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
@@ -583,7 +587,7 @@ tag chapter < section
 		w:100% max-width:100%
 		pos:relative
 
-		h1, header
+		h1
 			text-align: center
 			margin: 1em 0
 			padding: 0
@@ -593,15 +597,17 @@ tag chapter < section
 			line-height: 1
 			cursor: pointer
 			word-break: break-word
-
-		h1
 			padding-inline: 0.25rem
 
 		header
 			position: sticky
 			top: 0
 			background-color: $bgc
-			margin: 1em 0
+			margin: 0
+			padding-top: 1rem
+			zi: 100
+			ta: center
+			height: auto
 
 		section .arrowh
 			transition-property: fill, color, background, transform, border-radius
