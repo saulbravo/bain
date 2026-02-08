@@ -34,7 +34,7 @@ class Activities
 	copySelectMode = no
 	freehandHighlightMode = no
 	freehandEraserMode = no
-	freehandHighlightColor = '#eab308'
+	freehandHighlightColor = 'GoldenRod'
 
 	blockInScroll = null
 	scrollLockTimeout = null
