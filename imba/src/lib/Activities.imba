@@ -63,6 +63,7 @@ class Activities
 
 	activeModal = ''
 	activeVerseAction = ''
+	isVerseActionsMinimized = no
 	highlight_color\string = ''
 
 	note = ''

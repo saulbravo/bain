@@ -481,6 +481,7 @@ class GenericReader
 			if activities.activeVerseAction != 'suppressed'
 				# Always set to 'options' for normal selections (not from modal)
 				activities.activeVerseAction = 'options'
+				activities.isVerseActionsMinimized = no
 				console.log('[DEBUG] Showing verse-actions slideup')
 			else
 				console.log('[DEBUG] Verse selected but slideup suppressed (from modal navigation)')

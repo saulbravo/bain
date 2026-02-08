@@ -2,6 +2,7 @@ import Copy from 'lucide-static/icons/copy.svg'
 import Obsidian from '../icons/obsidian.svg'
 import Link from 'lucide-static/icons/link.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
+import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import Share from 'lucide-static/icons/share.svg'
 import Split from 'lucide-static/icons/split.svg'
@@ -36,6 +37,7 @@ tag verse-actions < section
 	def close
 		# should await for the transition-duration property update to achieve smoothness
 		#dy = DEFAULT_Y
+		activities.isVerseActionsMinimized = no
 		imba.commit!.then do
 			activities.cleanUp!
 
@@ -106,13 +108,14 @@ tag verse-actions < section
 		activities.show_add_bookmark = yes
 		imba.commit!.then do $newcategoryinput.focus()
 
-	<self [y:{#dy}px @off:100% o@off:0 transition-duration:{transitionDuration}] ease
-			@touch.fit(self)=touchHandler
-		>
+	<self [y:{activities.isVerseActionsMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
+		.is-minimized=activities.isVerseActionsMinimized
+		@touch.fit(self)=touchHandler
+	>
 		<div.control-tabs>
-			<button.tab.minimize title="Minimize">
-				<svg src=ChevronDown>
-			<button.tab.close title="Close">
+			<button.tab.minimize @click=(activities.isVerseActionsMinimized = !activities.isVerseActionsMinimized) title=(activities.isVerseActionsMinimized ? "Restore" : "Minimize")>
+				<svg src=(activities.isVerseActionsMinimized ? ChevronUp : ChevronDown)>
+			<button.tab.close @click=close title="Close">
 				<svg src=X>
 		<svg.chevron src=ChevronDown @click=close>
 		<header>
@@ -350,6 +353,15 @@ tag verse-actions < section
 		ta:center
 		d:vcc
 		padding-block:1rem 2.5rem
+		
+		&.is-minimized
+			bgc: transparent
+			bdt: none
+			pointer-events: none
+			.control-tabs
+				pointer-events: auto
+			header, ul, menu
+				o: 0
 
 		.chevron
 			pos:absolute
