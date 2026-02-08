@@ -1,7 +1,6 @@
 import activities from '../lib/Activities'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
-import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
 import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'

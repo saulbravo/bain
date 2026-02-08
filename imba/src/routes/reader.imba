@@ -11,7 +11,7 @@ import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
-import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
+import SettingsIcon from 'lucide-static/icons/settings.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
@@ -590,7 +590,7 @@ tag reader
 						<button[d@lg:none] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
 							<svg src=Highlighter aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
-							<svg src=SlidersHorizontal aria-hidden=yes>
+							<svg src=SettingsIcon aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
