@@ -77,7 +77,8 @@ tag app
 		<reader route='/*'>
 
 		<notifications>
-		<freehand-highlight-menu>
+		if activities.freehandHighlightMode
+			<freehand-highlight-menu>
 
 
 imba.mount <app>

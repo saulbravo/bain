@@ -64,6 +64,7 @@ class Activities
 	activeModal = ''
 	activeVerseAction = ''
 	isVerseActionsMinimized = no
+	isFreehandHighlightMinimized = no
 	highlight_color\string = ''
 
 	note = ''
@@ -147,6 +148,7 @@ class Activities
 
 	def toggleFreehandHighlightMode
 		freehandHighlightMode = !freehandHighlightMode
+		isFreehandHighlightMinimized = no
 		if freehandHighlightMode
 			# Clear verse selection and hide regular slideup
 			selectedVerses = []

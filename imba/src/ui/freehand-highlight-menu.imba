@@ -5,6 +5,7 @@ import SlidersHorizontal from 'lucide-static/icons/sliders-horizontal.svg'
 import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
+import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
@@ -33,6 +34,12 @@ tag freehand-highlight-menu
 			if parallelReader.enabled
 				parallelReader.clearAllChapterHighlights!
 
+	def close
+		activities.freehandHighlightMode = no
+		activities.isFreehandHighlightMinimized = no
+		activities.freehandEraserMode = no
+		imba.commit!
+
 	def touchHandler event
 		#dy = Math.max(event.y - event.y0, -DEFAULT_Y) + DEFAULT_Y
 		event.stopPropagation!
@@ -46,9 +53,15 @@ tag freehand-highlight-menu
 	get transitionDuration
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
 
-	<self [y:{activities.freehandHighlightMode ? #dy + 'px' : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
+	<self [y:{activities.freehandHighlightMode ? (activities.isFreehandHighlightMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px') : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
+		.is-minimized=activities.isFreehandHighlightMinimized
 		@touch.fit(self)=touchHandler>
-		<svg.chevron src=ChevronDown @click=(activities.toggleFreehandHighlightMode!)>
+		<div.control-tabs>
+			<button.tab.minimize @click=(activities.isFreehandHighlightMinimized = !activities.isFreehandHighlightMinimized) title=(activities.isFreehandHighlightMinimized ? "Restore" : "Minimize")>
+				<svg src=(activities.isFreehandHighlightMinimized ? ChevronUp : ChevronDown)>
+			<button.tab.close @click=close title="Close">
+				<svg src=X>
+		<svg.chevron src=ChevronDown @click=close>
 		<header>
 			<span> ""
 
@@ -68,12 +81,12 @@ tag freehand-highlight-menu
 		<menu>
 			<li>
 				<button .active=!activities.freehandEraserMode 
-					@click=(!activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = no)) 
+					@click=(activities.freehandEraserMode = no) 
 					role="button" aria-label="Highlight" title="Highlight Tool">
 					<svg src=Highlighter width="1.5rem" height="1.5rem">
 			<li>
 				<button .active=activities.freehandEraserMode 
-					@click=(activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = yes)) 
+					@click=(activities.freehandEraserMode = yes) 
 					role="button" aria-label="Eraser" title="Eraser Tool">
 					<svg src=Eraser width="1.5rem" height="1.5rem">
 			<li>
@@ -89,12 +102,45 @@ tag freehand-highlight-menu
 		padding-block:1rem 2.5rem
 		transition-property: transform, opacity
 
+		&.is-minimized
+			bgc: transparent
+			bdt: none
+			pointer-events: none
+			.control-tabs
+				pointer-events: auto
+			header, ul, menu
+				o: 0
+
 		.chevron
 			pos:absolute
 			top:-0.25rem
 			scale-x: 2
 			scale-y: 0.5
 			cursor: pointer
+			d:none
+
+		.control-tabs
+			pos: absolute
+			bottom: 100%
+			right: 2rem
+			d: flex
+			gap: 0.5rem
+
+		.tab
+			bgc: $bgc
+			bdt: 1.5px solid $acc-bgc
+			bdl: 1.5px solid $acc-bgc
+			bdr: 1.5px solid $acc-bgc
+			rd: 1rem 1rem 0 0
+			size: 4.5rem 2.5rem
+			d: hcc
+			p: 0
+			c: $c
+			cursor: pointer
+			border-bottom: none
+			transition: all 0.2s
+			svg
+				size: 1.75rem
 
 		header
 			d:hcs
