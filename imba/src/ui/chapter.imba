@@ -64,17 +64,6 @@ tag chapter < section
 		else
 			headerFontSize = 2
 
-		unless versePrefix
-			const last_known_scroll_position = e.target.scrollTop
-			setTimeout(&, 100) do
-				if e.target.scrollTop < last_known_scroll_position || not e.target.scrollTop
-					activities.menuIconsTransform = 0
-				elif e.target.scrollTop > last_known_scroll_position
-					if window.innerWidth >= 1024
-						activities.menuIconsTransform = -100
-					else
-						activities.menuIconsTransform = 100
-
 		if settings.parallel_sync and parallelReader.enabled
 			calculateTopVerse e
 		if dictionary.tooltip

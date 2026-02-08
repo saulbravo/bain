@@ -99,6 +99,7 @@ class Activities
 
 		booksDrawerOffset = -300
 		settingsDrawerOffset = -300
+		menuIconsTransform = 0
 
 		dictionary.tooltip = null
 		dictionary.loading = no
