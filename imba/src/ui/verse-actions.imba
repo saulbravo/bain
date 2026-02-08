@@ -109,6 +109,11 @@ tag verse-actions < section
 	<self [y:{#dy}px @off:100% o@off:0 transition-duration:{transitionDuration}] ease
 			@touch.fit(self)=touchHandler
 		>
+		<div.control-tabs>
+			<button.tab.minimize title="Minimize">
+				<svg src=ChevronDown>
+			<button.tab.close title="Close">
+				<svg src=X>
 		<svg.chevron src=ChevronDown @click=close>
 		<header>
 			<span role="button" @click=activities.copyTextToClipboard(activities.selectedVersesTitle)>
@@ -351,6 +356,30 @@ tag verse-actions < section
 			top:-0.25rem
 			scale-x: 2
 			scale-y: 0.5
+			d:none
+
+		.control-tabs
+			pos: absolute
+			bottom: 100%
+			right: 2rem
+			d: flex
+			gap: 0.5rem
+
+		.tab
+			bgc: $bgc
+			bdt: 1.5px solid $acc-bgc
+			bdl: 1.5px solid $acc-bgc
+			bdr: 1.5px solid $acc-bgc
+			rd: 1rem 1rem 0 0
+			size: 4.5rem 2.5rem
+			d: hcc
+			p: 0
+			c: $c
+			cursor: pointer
+			border-bottom: none
+			transition: all 0.2s
+			svg
+				size: 1.75rem
 
 		button
 			fs:0.875rem
