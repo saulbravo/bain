@@ -140,6 +140,7 @@ tag verse-actions < section
 
 			for color in colors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
+					.selected=(activities.highlight_color == color)
 					@click.stop.prevent=activities.changeHighlightColor(color)>
 
 
@@ -381,8 +382,9 @@ tag verse-actions < section
 			size:2rem
 			border-radius: 23%
 			cursor: pointer
-			border: 1px solid $acc-bgc-hover @hover: 1px solid $bgc
 			scale@hover: 1.2
+			&.selected
+				border: 3px solid $acc
 
 		menu
 			d:hcc
@@ -392,8 +394,7 @@ tag verse-actions < section
 		button
 			display:hcc g:.25rem
 			c:$c @hover:$acc
-			bgc:$acc-bgc @hover:$acc-bgc-hover
-			bgc:transparent
+			bgc:transparent @hover:$acc-bgc-hover
 			padding:0.75rem
 			cursor:pointer
 			rd:0.25rem
@@ -415,6 +416,6 @@ tag verse-actions < section
 			c@important:$acc
 		
 		.copy-select-active
-			c: #a855f7
+			c@important: #a855f7
 			svg
-				c: #a855f7
+				c@important: #a855f7

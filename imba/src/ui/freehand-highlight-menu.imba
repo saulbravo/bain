@@ -9,6 +9,8 @@ import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 
+const DEFAULT_Y = 32
+
 const colors = [
 	'FireBrick'
 	'Chocolate'
@@ -19,6 +21,8 @@ const colors = [
 ]
 
 tag freehand-highlight-menu
+	#dy = DEFAULT_Y
+
 	def setHighlightColor event
 		if event.detail
 			activities.freehandHighlightColor = event.detail
@@ -29,10 +33,24 @@ tag freehand-highlight-menu
 			if parallelReader.enabled
 				parallelReader.clearAllChapterHighlights!
 
-	<self [y:0 @off:100% o@off:0 transition-duration:0.3s] ease [y:100%]=!activities.freehandHighlightMode>
+	def touchHandler event
+		#dy = Math.max(event.y - event.y0, -DEFAULT_Y) + DEFAULT_Y
+		event.stopPropagation!
+
+		if event.phase == "ended"
+			if #dy > DEFAULT_Y * 2
+				event.preventDefault()
+				activities.toggleFreehandHighlightMode!
+			#dy = DEFAULT_Y
+
+	get transitionDuration
+		return #dy == DEFAULT_Y ? '0.5s' : '0s'
+
+	<self [y:{activities.freehandHighlightMode ? #dy + 'px' : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
+		@touch.fit(self)=touchHandler>
 		<svg.chevron src=ChevronDown @click=(activities.toggleFreehandHighlightMode!)>
 		<header>
-			<span> "Freehand Highlight"
+			<span> ""
 
 		<ul>
 			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
@@ -44,22 +62,26 @@ tag freehand-highlight-menu
 
 			for color in colors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
+					.selected=(activities.freehandHighlightColor == color)
 					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
 
-		<div.menu-actions>
-			<div.action-button .active=!activities.freehandEraserMode 
-				@click=(!activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = no)) 
-				role="button" aria-label="Highlight" title="Highlight Tool">
-				<svg src=Highlighter width="1.5rem" height="1.5rem">
-			<div.action-button .active=activities.freehandEraserMode 
-				@click=(activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = yes)) 
-				role="button" aria-label="Eraser" title="Eraser Tool">
-				<svg src=Eraser width="1.5rem" height="1.5rem">
-			<div.action-button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
-				<svg src=Trash2 width="1.5rem" height="1.5rem">
+		<menu>
+			<li>
+				<button .active=!activities.freehandEraserMode 
+					@click=(!activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = no)) 
+					role="button" aria-label="Highlight" title="Highlight Tool">
+					<svg src=Highlighter width="1.5rem" height="1.5rem">
+			<li>
+				<button .active=activities.freehandEraserMode 
+					@click=(activities.freehandEraserMode ? (activities.toggleFreehandHighlightMode!) : (activities.freehandEraserMode = yes)) 
+					role="button" aria-label="Eraser" title="Eraser Tool">
+					<svg src=Eraser width="1.5rem" height="1.5rem">
+			<li>
+				<button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
+					<svg src=Trash2 width="1.5rem" height="1.5rem">
 
 	css
-		pos:fixed b:0 l:0 r:0 zi:1200
+		pos:fixed b:0 l:0 r:0 zi:1100
 		w:100% bgc:$bgc
 		bdt:1px solid $acc-bgc
 		ta:center
@@ -75,27 +97,8 @@ tag freehand-highlight-menu
 			cursor: pointer
 
 		header
-			d:hcc
+			d:hcs
 			g:0.5rem
-			span
-				tt:uppercase fw:700
-				fs:0.875rem
-				o:0.7
-
-		.menu-actions
-			d:hcc
-			g:1.5rem
-			margin-top: 0.5rem
-
-		.action-button
-			d:hcc
-			cursor: pointer
-			o: 0.5 @hover: 1
-			transition: all 0.2s
-			&.active
-				o: 1
-				c: $acc
-				transform: scale(1.2)
 
 		ul
 			white-space: nowrap
@@ -109,8 +112,25 @@ tag freehand-highlight-menu
 			size:2rem
 			border-radius: 23%
 			cursor: pointer
-			border: 1px solid $acc-bgc-hover @hover: 1px solid $bgc
 			scale@hover: 1.2
+			&.selected
+				border: 3px solid $acc
+
+		menu
+			d:hcc
+			pos:relative
+			flw:wrap
+
+		button
+			display:hcc g:.25rem
+			c:$c @hover:$acc
+			bgc:transparent @hover:$acc-bgc-hover
+			padding:0.75rem
+			cursor:pointer
+			rd:0.25rem
+			transition: all 0.2s
+			&.active
+				c: $acc
 
 		li
 			list-style-type: none
