@@ -361,7 +361,7 @@ tag chapter < section
 							getChevron(yes)
 					
 					if me.me == 'main'
-						<bible-tabs scale=(0.6 + (headerFontSize / 5))>
+						<bible-tabs scale=1>
 
 				<p[padding-inline:.5rem o:0 lh:1 ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:min({theme.fontSize * 2}px, 8vw) us:none word-break:break-word]> me.nameOfCurrentBook, ' ', me.chapter # since header height is changing, this takes constant space for header to avoid layout shifts
 				<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
