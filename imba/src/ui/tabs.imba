@@ -44,13 +44,14 @@ tag bible-tabs
 			transition: all 0.2s
 			jc: space-between
 			border: 1px solid transparent
-			border-bottom: none
+			border-bottom: 1px solid transparent
+			mb: -1px
+			zi: 0
 
 			&.active
 				bgc: $bgc
 				bd: 1px solid $acc-bgc
-				border-bottom: 1px solid $bgc
-				mb: -1px
+				border-bottom-color: $bgc
 				zi: 1
 				.tab-name
 					fw: bold
