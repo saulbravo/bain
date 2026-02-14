@@ -74,6 +74,9 @@ class Activities
 	switchSyncTimer = null
 	switchSyncAttempts = 0
 	switchSyncMaxAttempts = 20
+	# Short-lived guard to ignore stale routed events after a tab switch
+	routeLockUntil = 0
+	routeLockTab = null
 
 	def finishSwitchWhenSynced tab
 		if !tab
@@ -201,6 +204,12 @@ class Activities
 				tabUpdateTargetIndex,
 				reader: readerSummary
 			}
+			routeLockUntil = Date.now() + 800
+			routeLockTab = {
+				translation: tab.translation
+				book: tab.book
+				chapter: tab.chapter
+			}
 			isSwitchingTab = yes
 			applyTabToReader(tab, 'switchTab')
 			activeTabIndex = index
@@ -226,6 +235,12 @@ class Activities
 			logTabDebug 'closeTab apply', {
 				newIndex,
 				tab: tabSummary(tab)
+			}
+			routeLockUntil = Date.now() + 800
+			routeLockTab = {
+				translation: tab.translation
+				book: tab.book
+				chapter: tab.chapter
 			}
 			applyTabToReader(tab, 'closeTab')
 			activeTabIndex = newIndex

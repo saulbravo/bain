@@ -3,6 +3,7 @@ import '../ui'
 import { hasTouchEvents } from '../constants'
 import { getValue, deleteValue } from '../utils'
 import reader from '../lib/Reader'
+import activities from '../lib/Activities'
 import parallelReader from '../lib/ParallelReader'
 
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
@@ -210,6 +211,18 @@ tag reader
 		const chapter = parseInt(params.chapter, 10)
 		if Number.isNaN(book) or Number.isNaN(chapter)
 			return
+		# Ignore stale routed events right after a tab switch
+		if activities.routeLockUntil and Date.now() < activities.routeLockUntil and activities.routeLockTab
+			const lock = activities.routeLockTab
+			if params.translation != lock.translation or book != lock.book or chapter != lock.chapter
+				console.log('[TAB DEBUG] reader routed skipped (route lock)', {
+					params,
+					lock
+				})
+				return
+			# Clear lock once we see the expected route
+			activities.routeLockUntil = 0
+			activities.routeLockTab = null
 		# Guard against stale router params (URL is source of truth)
 		const offset = link_segments[0] == 'international' ? 1 : 0
 		const actualTranslation = link_segments[offset]
