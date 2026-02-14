@@ -264,16 +264,37 @@ tag books-modal
 			imba.commit!
 
 	@action def goToChapter bookid\number, chapter\number
-		if parallelReader.enabled && activeTranslation == parallelReader.translation
+		# Bind this navigation to the currently active tab
+		activities.tabUpdateTargetIndex = activities.activeTabIndex
+		console.log('[TAB DEBUG] books-modal goToChapter', {
+			activeTabIndex: activities.activeTabIndex,
+			bookid,
+			chapter,
+			activeTranslation
+		})
+		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
+		if isParallel
 			parallelReader.book = bookid
 			parallelReader.chapter = chapter
 		else
-			reader.book = bookid
-			reader.chapter = chapter
-		activities.cleanUp!
+			activities.applyTabToReader({
+				translation: reader.translation
+				book: bookid
+				chapter: chapter
+			}, 'books-modal:goToChapter')
+		activities.cleanUp { onPopState: yes }
 
 	@action def goToVerse bookid\number, chapter\number, verse\number
 		console.log('[DEBUG] goToVerse called:', { bookid, chapter, verse, activeTranslation })
+		# Bind this navigation to the currently active tab
+		activities.tabUpdateTargetIndex = activities.activeTabIndex
+		console.log('[TAB DEBUG] books-modal goToVerse', {
+			activeTabIndex: activities.activeTabIndex,
+			bookid,
+			chapter,
+			verse,
+			activeTranslation
+		})
 		
 		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
 		const targetReader = isParallel ? parallelReader : reader
@@ -284,14 +305,16 @@ tag books-modal
 			parallelReader.chapter = chapter
 			parallelReader.verse = verse
 		else
-			reader.book = bookid
-			reader.chapter = chapter
+			activities.applyTabToReader({
+				translation: reader.translation
+				book: bookid
+				chapter: chapter
+			}, 'books-modal:goToVerse')
 			reader.verse = verse
 		
 		console.log('[DEBUG] Set reader properties, closing modal')
-		# Close modal after setting properties
-		activities.activeModal = ''
-		window.history.back()
+		# Close modal without changing history (keep tab state stable)
+		activities.cleanUp { onPopState: yes }
 		
 		# Wait for chapter to load, then select and scroll to verse smoothly
 		# fetchVerses calls cleanUp! which clears selections, so we need to select AFTER it completes

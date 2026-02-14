@@ -113,8 +113,10 @@ services:
       - ./nginx_dev/nginx.conf:/etc/nginx/conf.d/nginx.conf
     networks:
       - internal
+      - web
     depends_on:
       - django
+      - imba
 
   traefik:
     image: traefik:latest

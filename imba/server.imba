@@ -7,6 +7,7 @@ import { translationNames } from './src/dataindex'
 
 const app = express!
 const port = process.env.PORT or 3000
+const host = process.env.HOST or '0.0.0.0'
 
 app.use(express.static('public', maxAge:'1m'))
 app.use(express.static('dist/public', maxAge:'1m'))
@@ -109,4 +110,4 @@ app.get ['/', '/downloads', '/profile', '/donate'] do(req, res)
 app.get '{*splat}', do(req, res)
 	res.status(404).send notFound.body
 
-imba.serve app.listen(port)
+imba.serve app.listen(port, host)

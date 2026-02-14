@@ -204,16 +204,42 @@ tag reader
 
 	@action def routed params
 		const link_segments = window.location.pathname.split('/').filter(Boolean)
-		if params.translation && params.book && params.chapter
-			if 'international' in window.location.pathname
-				if link_segments.length == 5
-					reader.verse = link_segments[-1]
-			else
-				reader.translation = params.translation
-				if link_segments.length == 4
-					reader.verse = link_segments[-1]
-			reader.book = parseInt(params.book)
-			reader.chapter = parseInt(params.chapter)
+		unless params.translation and params.book and params.chapter
+			return
+		const book = parseInt(params.book, 10)
+		const chapter = parseInt(params.chapter, 10)
+		if Number.isNaN(book) or Number.isNaN(chapter)
+			return
+		# Guard against stale router params (URL is source of truth)
+		const offset = link_segments[0] == 'international' ? 1 : 0
+		const actualTranslation = link_segments[offset]
+		const actualBook = parseInt(link_segments[offset + 1], 10)
+		const actualChapter = parseInt(link_segments[offset + 2], 10)
+		if actualTranslation and !Number.isNaN(actualBook) and !Number.isNaN(actualChapter)
+			if params.translation != actualTranslation or book != actualBook or chapter != actualChapter
+				console.log('[TAB DEBUG] reader routed skipped (stale params)', {
+					params,
+					actual: { translation: actualTranslation, book: actualBook, chapter: actualChapter }
+				})
+				return
+		# Skip if already in sync (prevents tab overwrite on switches)
+		if reader and reader.translation == params.translation and reader.book == book and reader.chapter == chapter
+			return
+		console.log('[TAB DEBUG] reader routed', {
+			params,
+			book,
+			chapter,
+			current: { translation: reader.translation, book: reader.book, chapter: reader.chapter }
+		})
+		if 'international' in window.location.pathname
+			if link_segments.length == 5
+				reader.verse = link_segments[-1]
+		else
+			reader.translation = params.translation
+			if link_segments.length == 4
+				reader.verse = link_segments[-1]
+		reader.book = book
+		reader.chapter = chapter
 
 
 	def hidePanels event\MouseEvent
