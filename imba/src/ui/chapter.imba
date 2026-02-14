@@ -14,12 +14,6 @@ tag chapter < section
 	prop headerFontSize = 2 # rem
 	prop versePrefix = ''
 	minHeaderFont = 0 # rem
-	# Use a different name so we don't shadow the DOM element's scrollTop
-	@observable headerScrollY = 0
-	get headerReveal
-		return Math.max(0, 1 - headerScrollY / 80)
-	get headerTitleMaxHeight
-		return "{headerReveal * 5}em"
 
 	get main
 		return document.getElementById "main"
@@ -61,14 +55,14 @@ tag chapter < section
 	def changeHeadersSizeOnScroll e\Event
 		if e.target != self
 			return
-		headerFontSize = 2
-		const el = e.target
-		const comp = self
-		unless comp._headerScrollRaf
-			comp._headerScrollRaf = requestAnimationFrame do
-				comp._headerScrollRaf = null
-				comp.headerScrollY = el.scrollTop
-				imba.commit!
+
+		let testSize = 2 - ((e.target.scrollTop * 8) / window.innerHeight)
+		if testSize * theme.fontSize < 12
+			headerFontSize = 16 / theme.fontSize
+		elif e.target.scrollTop > 0
+			headerFontSize = testSize
+		else
+			headerFontSize = 2
 		if settings.parallel_sync and parallelReader.enabled
 			calculateTopVerse e
 		if dictionary.tooltip
@@ -350,7 +344,7 @@ tag chapter < section
 
 	def render
 		<self .parallel=parallelReader.enabled
-			@scroll=changeHeadersSizeOnScroll
+			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
 			@mousedown=handlePointerDown
 			@mousemove=handlePointerMove
 			@mouseup=handlePointerUp
@@ -362,25 +356,24 @@ tag chapter < section
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
-					<div.header-title-wrap [opacity:headerReveal max-height:headerTitleMaxHeight overflow:hidden]>
-						#main_header_arrow_size = "min(64px, max({minHeaderFont}em, {headerFontSize}em))"
-						<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:max({minHeaderFont}em, min({headerFontSize}em, 8vw))]
-							title=translationFullName(me.translation)>
+					#main_header_arrow_size = "min(64px, max({minHeaderFont}em, {headerFontSize}em))"
+					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:max({minHeaderFont}em, min({headerFontSize}em, 8vw))]
+						title=translationFullName(me.translation)>
 
-							<a.arrow @click.prevent.stop=me.prevChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.prev href="{me.prevChapterLink}">
-								getChevron(no)
+						<a.arrow @click.prevent.stop=me.prevChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.prev href="{me.prevChapterLink}">
+							getChevron(no)
 
-							<span @click=activities.toggleBooksMenu(!!versePrefix)>
-								me.nameOfCurrentBook, ' ', me.chapter
+						<span @click=activities.toggleBooksMenu(!!versePrefix)>
+							me.nameOfCurrentBook, ' ', me.chapter
 
-							<a.arrow @click.prevent.stop=me.nextChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.next href=me.nextChapterLink>
-								getChevron(yes)
+						<a.arrow @click.prevent.stop=me.nextChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.next href=me.nextChapterLink>
+							getChevron(yes)
 
-						<p.header-title [padding-inline:.5rem o:0 lh:1 ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:min({theme.fontSize * 2}px, 8vw) us:none word-break:break-word]> me.nameOfCurrentBook, ' ', me.chapter
 					if me.me == 'main'
 						<bible-tabs scale=1>
-				<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
+			<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
+				[mt: 30px]
 					[pl: 30px]
 					[pr: 30px]
 					[position: relative]>
@@ -623,10 +616,6 @@ tag chapter < section
 			zi: 100
 			ta: center
 			height: auto
-
-		.header-title-wrap
-			# No transition: visibility follows scroll position directly
-			display: block
 
 		.header-title
 			margin: 0
