@@ -10,11 +10,11 @@ import * as Sentry from "@sentry/browser";
 window.addEventListener('message', do |event|
 	# Only accept messages from same origin or localhost
 	if event.origin.includes('localhost') or event.origin.includes('127.0.0.1') or event.origin == window.location.origin
-		if event.data?.type == 'clear-cache' and event.data?.force
+		if event.data and event.data.type == 'clear-cache' and event.data.force
 			console.log('Bible App: Received clear-cache message (ignoring to prevent reload loops)')
 			# Just log - don't actually clear cache or reload
 			# The cache-busting URL parameters should be sufficient
-		elif event.data?.type == 'unregister-sw' and event.data?.force
+		elif event.data and event.data.type == 'unregister-sw' and event.data.force
 			console.log('Bible App: Received unregister-sw message (ignoring to prevent reload loops)')
 			# Just log - don't actually unregister
 )

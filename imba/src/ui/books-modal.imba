@@ -43,6 +43,7 @@ tag books-modal
 	searchQuery = ''
 	autoInitialized = no # Track if we've already auto-initialized to prevent re-initialization
 	previousModalState = '' # Track previous modal state to detect when modal first opens
+	keydownHandler = null
 
 	@computed get activeTranslation
 		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
@@ -442,26 +443,38 @@ tag books-modal
 			# Prevent default to avoid any unwanted behavior
 			event.preventDefault()
 			event.stopPropagation()
-			# Open gotobook modal
-			activities.openModal('gotobook')
+			# Open gotobook modal if not already open
+			if activities.activeModal != 'gotobook'
+				activities.openModal('gotobook')
 			# Set the query to the typed character
 			goToBook.query = key
-			# Focus the input field after a short delay to ensure it's rendered
-			setTimeout(&, 50) do
+			# Focus the input field with retries to avoid delayed render
+			let attempts = 0
+			let focusTimer = null
+			const focusInput = do
+				attempts++
 				const input = goToBook.inputElement
 				if input
 					input.focus()
 					# Set cursor to end
 					input.setSelectionRange(input.value.length, input.value.length)
 					console.log('[DEBUG] Books modal: Focused gotobook input with query:', goToBook.query)
+					return
+				if attempts < 10
+					focusTimer = setTimeout(&, 50) do
+						focusInput!
+			focusInput!
 
 	def mount
 		console.log('[DEBUG] Books modal: mount called')
-		document.addEventListener('keydown', handleKeydown.bind(self), true)
+		keydownHandler = handleKeydown.bind(self)
+		document.addEventListener('keydown', keydownHandler, true)
 
 	def unmount
 		console.log('[DEBUG] Books modal: unmount called')
-		document.removeEventListener('keydown', handleKeydown.bind(self), true)
+		if keydownHandler
+			document.removeEventListener('keydown', keydownHandler, true)
+			keydownHandler = null
 
 	<self>
 		<button.bible-close-btn.bible-close-corner @click=activities.cleanUp title=t.close aria-label=t.close>

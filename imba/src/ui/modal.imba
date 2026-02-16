@@ -202,27 +202,28 @@ tag modal < section
 					when 'books'
 						<books-modal>
 					when 'gotobook'
-						<header#gotobook-header [pos:relative]>
+						<header#gotobook-header [pos:relative] @keydown=(do |e| goToBook.handleKeydown(e))>
 							<button.focusable[c@hover:red4] @click=activities.cleanUp title=t.close>
 								<svg src=ICONS.X aria-hidden=yes>
 
 							<input id="gotobooksearch"
 								[direction:{textDirection(goToBook.query)}]
 								type='text' placeholder="Type book, chapter and verse" aria-label="Go to book"
-								bind=goToBook.query @keydown.enter=goToBook.run>
+								bind=goToBook.query @keydown=(do |e| goToBook.handleKeydown(e))>
 
 							if goToBook.suggestions.books..length or goToBook.suggestions.recent..length
 								<ul.suggestions>
-									for book in goToBook.suggestions.books
+									for book, index in goToBook.suggestions.books
 										<li>
-											<p.li.focusable tabIndex="0"
+											<p.li.focusable .selected=(goToBook.selectedIndex == index) tabIndex="0"
 												@keydown.enter=goToBook.goToBook(book)
 												@click=goToBook.goToBook(book)
 												> goToBook.getSuggestionText(book)
 
-									for recent in goToBook.suggestions.recent
+									for recent, rindex in goToBook.suggestions.recent
+										let itemIndex = (goToBook.suggestions.books ? goToBook.suggestions.books.length : 0) + rindex
 										<li>
-											<p.li.focusable tabIndex="0"
+											<p.li.focusable .selected=(goToBook.selectedIndex == itemIndex) tabIndex="0"
 												@keydown.enter=goToBook.goToRecentSearch(recent)
 												@click=goToBook.goToRecentSearch(recent)
 												> recent
@@ -823,6 +824,12 @@ tag modal < section
 			p:0.5rem c@hover:$acc-hover
 			cursor:pointer
 			width:100%
+
+		.li.selected
+			bgc:$acc-bgc-hover
+			c:$acc
+			fw:600
+			bd:1px solid $acc
 
 		.focusable
 			rd:0.5rem

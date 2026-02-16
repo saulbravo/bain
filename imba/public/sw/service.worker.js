@@ -58,8 +58,13 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         if (DEV_MODE) {
           // In dev mode, always fetch fresh from network, bypass cache
-          const response = await fetch(event.request, { cache: 'no-store' });
-          return response;
+          try {
+            const response = await fetch(event.request, { cache: 'no-store' });
+            return response;
+          } catch (err) {
+            // Always return a Response to avoid "Failed to convert value to 'Response'"
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
+          }
         }
         
         // Production mode: use cache-first strategy
@@ -115,8 +120,9 @@ self.addEventListener("fetch", (event) => {
           }
         }
         return response;
-      })().catch(() => {
-        return caches.match("/");
+      })().catch(async () => {
+        const fallback = await caches.match("/");
+        return fallback || new Response('', { status: 503, statusText: 'Service Unavailable' });
       })
     );
   }

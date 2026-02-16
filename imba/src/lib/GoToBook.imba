@@ -8,6 +8,7 @@ import ALL_BOOKS from '../data/translations_books.json'
 
 class GoToBook
 	@observable query\string = ''
+	@observable selectedIndex\number = -1
 	suggestions = {}
 	recentSearches\string[] = getValue('gotobook_recent_searches') || []
 	maxRecentSearches = 10
@@ -38,6 +39,7 @@ class GoToBook
 		const trimmedQuery = query.trim!.toLowerCase!
 		unless trimmedQuery.length
 			suggestions = {}
+			selectedIndex = -1
 			return
 
 		const parts = trimmedQuery.split(' ')
@@ -121,6 +123,69 @@ class GoToBook
 			chapter: suggestions.chapter,
 			verse: suggestions.verse
 		})
+		# Reset selection so arrows start from first item
+		selectedIndex = -1
+
+	def suggestionItems
+		let items = []
+		for book in (suggestions.books or [])
+			items.push({ type: 'book', value: book })
+		for recent in (suggestions.recent or [])
+			items.push({ type: 'recent', value: recent })
+		return items
+
+	def moveSelection delta\number
+		const items = suggestionItems!
+		if items.length == 0
+			console.log('[GOTO DEBUG] moveSelection: no items')
+			return
+		let next = selectedIndex + delta
+		if next < 0
+			next = items.length - 1
+		if next >= items.length
+			next = 0
+		selectedIndex = next
+		console.log('[GOTO DEBUG] moveSelection', { selectedIndex, total: items.length })
+		imba.commit!
+
+	def selectByIndex idx\number
+		const items = suggestionItems!
+		if idx < 0 or idx >= items.length
+			console.log('[GOTO DEBUG] selectByIndex: out of range', { idx, total: items.length })
+			return
+		const item = items[idx]
+		console.log('[GOTO DEBUG] selectByIndex', { idx, type: item.type })
+		if item.type == 'book'
+			goToBook(item.value)
+		else
+			goToRecentSearch(item.value)
+
+	def handleKeydown e
+		const key = e.key or e.code
+		const code = e.keyCode or e.which
+		console.log('[GOTO DEBUG] handleKeydown', { key, code })
+		if key == 'ArrowDown' or code == 40
+			e.preventDefault()
+			e.stopPropagation()
+			moveSelection(1)
+			return
+		if key == 'ArrowUp' or code == 38
+			e.preventDefault()
+			e.stopPropagation()
+			moveSelection(-1)
+			return
+		if key == 'Enter' or code == 13
+			e.preventDefault()
+			e.stopPropagation()
+			if selectedIndex >= 0
+				selectByIndex(selectedIndex)
+				return
+			const items = suggestionItems!
+			if items.length > 0
+				selectByIndex(0)
+				return
+			run!
+			return
 
 	def getBookAbbreviation bookNumber\number
 		const abbreviations = {
@@ -181,8 +246,19 @@ class GoToBook
 			if verse
 				parallelReader.verse = verse
 		else
-			reader.book = bookid
-			reader.chapter = chapter
+			# Bind this navigation to the current tab and guard route sync
+			activities.tabUpdateTargetIndex = activities.activeTabIndex
+			activities.routeLockUntil = Date.now() + 800
+			activities.routeLockTab = {
+				translation: reader.translation
+				book: bookid
+				chapter: chapter
+			}
+			activities.applyTabToReader({
+				translation: reader.translation
+				book: bookid
+				chapter: chapter
+			}, 'gotobook')
 			if verse
 				reader.verse = verse
 		
@@ -224,8 +300,19 @@ class GoToBook
 				if verse
 					parallelReader.verse = verse
 			else
-				reader.book = book.bookid
-				reader.chapter = chapter
+				# Bind this navigation to the current tab and guard route sync
+				activities.tabUpdateTargetIndex = activities.activeTabIndex
+				activities.routeLockUntil = Date.now() + 800
+				activities.routeLockTab = {
+					translation: reader.translation
+					book: book.bookid
+					chapter: chapter
+				}
+				activities.applyTabToReader({
+					translation: reader.translation
+					book: book.bookid
+					chapter: chapter
+				}, 'gotobook:recent')
 				if verse
 					reader.verse = verse
 			activities.cleanUp!
@@ -234,6 +321,9 @@ class GoToBook
 
 	@action def run
 		console.log('[DEBUG] GoToBook.run called:', { query })
+		if selectedIndex >= 0
+			selectByIndex(selectedIndex)
+			return
 		
 		# If we have suggestions, go to the first one
 		if suggestions.books and suggestions.books.length > 0
