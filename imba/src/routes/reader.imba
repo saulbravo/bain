@@ -590,7 +590,7 @@ tag reader
 				if activities.activeVerseAction and activities.selectedVersesPKs.length > 0
 					<verse-actions />
 
-				if reader.loading || parallelReader.loading || dictionary.loading || search.loading || compare.loading
+				if (reader.loading || parallelReader.loading || dictionary.loading || search.loading || compare.loading) and !activities.isSwitchingTab
 					<loading>
 
 				if pageSearch.on

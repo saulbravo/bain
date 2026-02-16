@@ -52,29 +52,46 @@ class ParallelReader < GenericReader
 	def fetchVerses
 		unless theChapterExistInThisTranslation book, chapter
 			return
+		let requestId = (self._fetchId or 0) + 1
+		self._fetchId = requestId
+		const reqTranslation = translation
+		const reqBook = book
+		const reqChapter = chapter
 		const cached = activities and activities.getCachedChapter ? activities.getCachedChapter(translation, book, chapter) : null
+		const keepExisting = activities and activities.isSwitchingTab
 		if cached
 			verses = cached.verses
 			bookmarks = cached.bookmarks
 			freehandHighlights = cached.freehandHighlights
 		loading = yes
-		unless cached
+		unless cached or keepExisting
 			verses = []
 		imba.commit!
 
 		try
 			if vault.downloaded_translations.indexOf(translation) != -1
-				verses = await vault.getChapter(translation, book, chapter)
+				let fetched = await vault.getChapter(translation, book, chapter)
+				if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+					return
+				verses = fetched
 			else
-				verses = await API.getJson("/get-chapter/{translation}/{book}/{chapter}/")
+				let fetched = await API.getJson("/get-chapter/{translation}/{book}/{chapter}/")
+				if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+					return
+				verses = fetched
 		catch error
 			console.error(error)
 			notifications.push('error')
 		finally
+			# Only finalize if this request is still current
+			if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+				return
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			loading = no
 			activities.cleanUp!
 
+		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+			return
 		if settings.parallel_sync && enabled
 			readingHistory.saveToHistory(translation, book, chapter, verse)
 			updateMainReader book, chapter
@@ -82,6 +99,8 @@ class ParallelReader < GenericReader
 		getBookmarks!
 		getFreehandHighlights!
 
+		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+			return
 		if verse
 			if typeof verse === 'string' and verse.includes('-')
 				const parts = verse.split('-')
