@@ -542,22 +542,23 @@ tag chapter < section
 								unless settings.verse_number
 									<span.ws> '	'
 				
-				<[d:hcs p:1.5rem .5rem 6rem overflow:hidden]>
-					<a.arrow [s:4rem] @click.prevent.stop=me.prevChapter title=t.prev href=me.prevChapterLink>
-						getChevron(no)
-					<a.arrow [s:4rem] @click.prevent.stop=me.nextChapter title=t.next href=me.nextChapterLink>
-						getChevron(yes)
+					<[d:hcs p:1.5rem .5rem 6rem overflow:hidden]>
+						<a.arrow [s:4rem] @click.prevent.stop=me.prevChapter title=t.prev href=me.prevChapterLink>
+							getChevron(no)
+						<a.arrow [s:4rem] @click.prevent.stop=me.nextChapter title=t.next href=me.nextChapterLink>
+							getChevron(yes)
 
-			elif !window.navigator.onLine && vault.downloaded_translations.indexOf(me.translation) == -1
-				<p.in-offline>
-					t.this_translation_is_unavailable
-					<br>
-					<a.reload @click=(do window.location.reload(yes))> t.reload
-			elif not me.loading
-				<p.in-offline>
-					t.unexisten_chapter
-					<br>
-					<a.reload @click=(do window.location.reload(yes))> t.reload
+			if !me.verses..length
+				if !window.navigator.onLine && vault.downloaded_translations.indexOf(me.translation) == -1
+					<p.in-offline>
+						t.this_translation_is_unavailable
+						<br>
+						<a.reload @click=(do window.location.reload(yes))> t.reload
+				elif not me.loading
+					<p.in-offline>
+						t.unexisten_chapter
+						<br>
+						<a.reload @click=(do window.location.reload(yes))> t.reload
 
 			if me.show_verse_picker and settings.verse_picker then <global>
 				<section[origin:top left scale@off:0.96 y@off:-1rem o@off:0] ease>
