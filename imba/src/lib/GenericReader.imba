@@ -316,6 +316,8 @@ class GenericReader
 			offline_bookmarks = await vault.getChapterBookmarks(verses.map(do |verse| return verse.pk))
 
 		bookmarks = offline_bookmarks.concat(server_bookmarks)
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		imba.commit!
 
 	def getFreehandHighlights
@@ -324,6 +326,8 @@ class GenericReader
 
 		try
 			freehandHighlights = await API.getJson("/get-freehand-highlights/" + translation + '/' + book + '/' + chapter + '/', 'freehandHighlights')
+			if activities and activities.cacheChapterState
+				activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			imba.commit!
 		catch error
 			console.log "Error fetching freehand highlights:", error

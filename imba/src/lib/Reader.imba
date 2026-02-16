@@ -60,8 +60,14 @@ class Reader < GenericReader
 			return
 		
 		document.title = nameOfCurrentBook + ' ' + chapter + ' ' + translationNames[translation] + " Bolls Bible"
+		const cached = activities and activities.getCachedChapter ? activities.getCachedChapter(translation, book, chapter) : null
+		if cached
+			verses = cached.verses
+			bookmarks = cached.bookmarks
+			freehandHighlights = cached.freehandHighlights
 		loading = yes
-		verses = []
+		unless cached
+			verses = []
 		imba.commit!
 
 		updateParallelReader book, chapter
@@ -75,6 +81,7 @@ class Reader < GenericReader
 			console.error(error)
 			notifications.push('error')
 		finally
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			loading = no
 			activities.cleanUp!
 

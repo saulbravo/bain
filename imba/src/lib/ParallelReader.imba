@@ -52,9 +52,14 @@ class ParallelReader < GenericReader
 	def fetchVerses
 		unless theChapterExistInThisTranslation book, chapter
 			return
-		
+		const cached = activities and activities.getCachedChapter ? activities.getCachedChapter(translation, book, chapter) : null
+		if cached
+			verses = cached.verses
+			bookmarks = cached.bookmarks
+			freehandHighlights = cached.freehandHighlights
 		loading = yes
-		verses = []
+		unless cached
+			verses = []
 		imba.commit!
 
 		try
@@ -66,6 +71,7 @@ class ParallelReader < GenericReader
 			console.error(error)
 			notifications.push('error')
 		finally
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			loading = no
 			activities.cleanUp!
 

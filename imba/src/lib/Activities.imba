@@ -148,6 +148,24 @@ class Activities
 		reader.book = tab.book
 		reader.chapter = tab.chapter
 
+	# In-memory chapter cache to avoid blanking on tab switch
+	chapterCache = {}
+
+	def chapterCacheKey translation\string, book\number, chapter\number
+		return "{translation}:{book}:{chapter}"
+
+	def cacheChapterState translation\string, book\number, chapter\number, verses, bookmarks, freehandHighlights
+		const key = chapterCacheKey(translation, book, chapter)
+		chapterCache[key] = {
+			verses: Array.isArray(verses) ? verses.slice() : []
+			bookmarks: Array.isArray(bookmarks) ? bookmarks.slice() : []
+			freehandHighlights: Array.isArray(freehandHighlights) ? freehandHighlights.slice() : []
+		}
+
+	def getCachedChapter translation\string, book\number, chapter\number
+		const key = chapterCacheKey(translation, book, chapter)
+		return chapterCache[key]
+
 	def loadTabs
 		let savedTabs = getValue('tabs')
 		tabs = Array.isArray(savedTabs) ? savedTabs : []

@@ -23,6 +23,10 @@ tag reader
 	initialTouch = null
 	inTouchZone = no
 	inClosingTouchZone = no
+	beforeUnloadHandler = null
+	pageShowHandler = null
+	pageHideHandler = null
+	visibilityHandler = null
 
 	def onPopState event
 		if event.target.hash
@@ -42,6 +46,8 @@ tag reader
 	lastDragVersePK = 0
 	
 	def handleCopySelectDrag e\MouseEvent|TouchEvent
+		if !e or typeof e.type != 'string'
+			return
 		if !activities.copySelectDragging or !activities.copySelectReader
 			return
 		
@@ -54,9 +60,11 @@ tag reader
 		if handleCopySelectDragRAF
 			window.cancelAnimationFrame(handleCopySelectDragRAF)
 		
+		# Capture coordinates before RAF to avoid stale event refs
+		let touch = e.type.startsWith('touch') ? (e.touches and e.touches.length > 0 ? e.touches[0] : (e.changedTouches and e.changedTouches[0] ? e.changedTouches[0] : null)) : null
+		let clientX = touch ? touch.clientX : e.clientX
+		let clientY = touch ? touch.clientY : e.clientY
 		handleCopySelectDragRAF = window.requestAnimationFrame(do
-			let clientX = e.type.startsWith('touch') ? (e.touches.length > 0 ? e.touches[0].clientX : e.changedTouches[0].clientX) : e.clientX
-			let clientY = e.type.startsWith('touch') ? (e.touches.length > 0 ? e.touches[0].clientY : e.changedTouches[0].clientY) : e.clientY
 			let element = document.elementFromPoint(clientX, clientY)
 			if !element
 				return
@@ -166,6 +174,45 @@ tag reader
 				imba.commit!
 
 	def mount
+		# Reload/debug instrumentation (no override of window.location.reload)
+		beforeUnloadHandler = do(e)
+			console.log('[RELOAD DEBUG] beforeunload', {
+				url: window.location.href,
+				visibility: document.visibilityState
+			})
+
+		pageShowHandler = do(e)
+			try
+				let nav = null
+				if window.performance and typeof window.performance.getEntriesByType == 'function'
+					const entries = window.performance.getEntriesByType('navigation')
+					if entries and entries.length
+						nav = entries[0]
+				console.log('[RELOAD DEBUG] pageshow', {
+					persisted: e.persisted,
+					type: nav and nav.type,
+					url: window.location.href
+				})
+			catch err
+				console.log('[RELOAD DEBUG] pageshow error', { message: err and err.message })
+
+		pageHideHandler = do(e)
+			console.log('[RELOAD DEBUG] pagehide', {
+				persisted: e.persisted,
+				url: window.location.href
+			})
+
+		visibilityHandler = do
+			console.log('[RELOAD DEBUG] visibilitychange', {
+				visibility: document.visibilityState,
+				url: window.location.href
+			})
+
+		window.addEventListener('beforeunload', beforeUnloadHandler)
+		window.addEventListener('pageshow', pageShowHandler)
+		window.addEventListener('pagehide', pageHideHandler)
+		document.addEventListener('visibilitychange', visibilityHandler)
+
 		document.addEventListener('selectionchange', onSelectionChange.bind(self))
 		window.addEventListener('popstate', onPopState.bind(self))
 		window.onblur = hidePanels.bind(self)
@@ -195,6 +242,18 @@ tag reader
 
 
 	def unmount
+		if beforeUnloadHandler
+			window.removeEventListener('beforeunload', beforeUnloadHandler)
+			beforeUnloadHandler = null
+		if pageShowHandler
+			window.removeEventListener('pageshow', pageShowHandler)
+			pageShowHandler = null
+		if pageHideHandler
+			window.removeEventListener('pagehide', pageHideHandler)
+			pageHideHandler = null
+		if visibilityHandler
+			document.removeEventListener('visibilitychange', visibilityHandler)
+			visibilityHandler = null
 		document.removeEventListener('selectionchange', onSelectionChange.bind(self))
 		window.removeEventListener('popstate', onPopState.bind(self))
 		document.removeEventListener('mousemove', handleCopySelectDrag.bind(self), true)
