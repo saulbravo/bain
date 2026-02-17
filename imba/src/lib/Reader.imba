@@ -40,9 +40,15 @@ class Reader < GenericReader
 			verses = window.verses
 			loading = no
 		else
-			translation = getValue('translation')
-			book = getValue('book') || 1
-			chapter = getValue('chapter') || 1
+			const segments = window.location.pathname.split('/').filter(Boolean)
+			const hasExplicitRoute = segments[0] == 'international' ? segments.length >= 4 : segments.length >= 3
+			translation = getValue('translation') || 'NVI'
+			if hasExplicitRoute
+				book = getValue('book') || 1
+				chapter = getValue('chapter') || 1
+			else
+				book = 1
+				chapter = 1
 
 	get myRenderer
 		document.getElementById('main-reader')
