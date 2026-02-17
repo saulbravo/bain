@@ -606,7 +606,7 @@ tag chapter < section
 		.tabs-sticky
 			position: sticky
 			top: 0
-			zi: 100
+			zi: 2
 			bgc: $bgc
 			padding-top: 1rem
 
