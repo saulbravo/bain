@@ -1,0 +1,19 @@
+<!-- @license lucide-static v0.447.0 - ISC -->
+<svg
+  class="lucide lucide-columns-2"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <rect x="3" y="4" width="7" height="16" rx="1" />
+  <rect x="14" y="4" width="7" height="16" rx="1" />
+  <g transform="translate(6 6) scale(0.6)">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" stroke="none" />
+  </g>
+</svg>
