@@ -663,19 +663,49 @@ tag reader
 							<button @click=dictionary.loadDefinitions(dictionary.tooltip.strong)> dictionary.tooltip.strong
 
 				if settings.menuicons and not (activities.activeModal && window.innerWidth < 640)
-					<section [o@off:0 t@lg:0px b@lt-lg:0px] ease>
+					<section [o@off:0 b@lt-lg:0px] ease>
 						css
-							pos:fixed right:0px left:0px
-							bgc@lt-lg:$bgc d:flex jc:space-between
-							w:100% height:auto @lg:0px zi:2 cursor:pointer
+							pos:fixed
+							zi:2
+							d:flex
+							fld:column
+							jc:center
+							ai:center
+							g:.5rem
+							w:auto
+							h:auto
+							p:.5rem
+							bgc:$bgc
+							bd:1px solid $acc-bgc
+							rd:.75rem
+							right:.75rem
+							top:50%
+							transform:translateY(-50%)
+							cursor:pointer
+							left@lt-lg:0px
+							right@lt-lg:0px
+							bottom@lt-lg:0px
+							top@lt-lg:auto
+							transform@lt-lg:none
+							w@lt-lg:100%
+							fld@lt-lg:row
+							jc@lt-lg:space-between
+							g@lt-lg:0
+							p@lt-lg:0
+							rd@lt-lg:0
+							bd@lt-lg:none
 							bdt@lt-lg:1px solid $acc-bgc
+
 							button
-								padding:3em @lt-lg:0
-								width:calc(100% / 4) @lg:auto
-								height:2.75rem @lg:auto
+								w:2.75rem
+								h:2.75rem
+								min-width:2.75rem
+								p:0
 								bgc:transparent
-								c:$acc @lt-lg:$c @hover:$acc-hover
-								d@lt-lg:hcc
+								c:$acc @hover:$acc-hover
+								d:hcc
+								flex@lt-lg:1
+								w@lt-lg:calc(100% / 4)
 							
 							svg
 								o@lt-lg:0.75 @hover:1
@@ -683,16 +713,12 @@ tag reader
 
 						<button[transform: translateX({bibleIconTransform}px)] @click=activities.toggleBooksMenu title=t.change_book>
 							<svg src=BookOpenText aria-hidden=yes>
-						<button[d@lg:none] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
+						<button .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
 							<svg src=Obsidian aria-hidden=yes>
-						<button[d@lg:none] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
+						<button .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
 							<svg src=Highlighter aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SettingsIcon aria-hidden=yes>
-						<button[transform: translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
-							<svg src=Obsidian aria-hidden=yes>
-						<button[transform: translateX({settingsIconTransform}px) d@lt-lg:none mt@lg:0.5rem] .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
-							<svg src=Highlighter aria-hidden=yes>
 
 
 
