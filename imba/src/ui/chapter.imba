@@ -219,15 +219,6 @@ tag chapter < section
 		return matchId.startsWith(versePrefix)
 
 	def applyHighlightsToHtml html, highlights
-		# Be defensive: avoid crashes on unexpected input
-		unless typeof html == 'string'
-			return html != undefined ? html : ''
-		try
-			return applyHighlightsToHtmlInner(html, highlights)
-		catch err
-			return html != undefined ? html : ''
-
-	def applyHighlightsToHtmlInner html, highlights
 		# Parse the HTML into a list of "parts": either a tag or a text node
 		let parts = []
 		let i = 0
@@ -244,7 +235,6 @@ tag chapter < section
 			i += content.length
 
 		# Sort highlights by start offset ascending
-		highlights = Array.isArray(highlights) ? highlights : []
 		highlights.sort(do |a, b| return a.start - b.start)
 
 		# Helper to get contrast color (white or black) based on background hex or name
@@ -277,13 +267,11 @@ tag chapter < section
 		let activeHighlights = []
 
 		for part in parts
-			unless part and typeof part == 'object' and 'type' in part
-				continue
 			if part.type == 'tag'
-				result += (part.content != undefined ? part.content : '')
+				result += part.content
 				continue
 
-			let text = part.content != undefined ? part.content : ''
+			let text = part.content
 			let textPos = 0
 
 			while textPos < text.length
