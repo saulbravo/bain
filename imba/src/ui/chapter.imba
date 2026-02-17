@@ -56,13 +56,8 @@ tag chapter < section
 		if e.target != self
 			return
 
-		let testSize = 2 - ((e.target.scrollTop * 8) / window.innerHeight)
-		if testSize * theme.fontSize < 12
-			headerFontSize = 16 / theme.fontSize
-		elif e.target.scrollTop > 0
-			headerFontSize = testSize
-		else
-			headerFontSize = 2
+		headerFontSize = 2
+		minHeaderFont = 2
 		if settings.parallel_sync and parallelReader.enabled
 			calculateTopVerse e
 		if dictionary.tooltip
@@ -70,11 +65,10 @@ tag chapter < section
 		imba.commit!
 
 	def enlargeHeader
-		unless hasTouchEvents
-			minHeaderFont = 1.2
+		return
 
 	def shrinkHeader
-		minHeaderFont = 0
+		return
 
 	# no -- means prev, yes -- means next
 	def getChevron direction\boolean
@@ -345,7 +339,7 @@ tag chapter < section
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
 					#main_header_arrow_size = "min(64px, max({minHeaderFont}em, {headerFontSize}em))"
-					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:max({minHeaderFont}em, min({headerFontSize}em, 8vw))]
+					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
 						title=translationFullName(me.translation)>
 
 						<a.arrow @click.prevent.stop=me.prevChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.prev href="{me.prevChapterLink}">
@@ -357,8 +351,9 @@ tag chapter < section
 						<a.arrow @click.prevent.stop=me.nextChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.next href=me.nextChapterLink>
 							getChevron(yes)
 
-					if me.me == 'main'
-						<bible-tabs scale=1>
+			if me.me == 'main'
+				<div.tabs-sticky>
+					<bible-tabs scale=1>
 			<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
 				[mt: 30px]
@@ -597,17 +592,23 @@ tag chapter < section
 			padding-inline: 0.25rem
 
 		header
-			position: sticky
-			top: 0
+			position: static
 			background-color: $bgc
 			margin: 0
 			padding-top: 1rem
-			zi: 100
 			ta: center
 			height: auto
 
 		.header-title
 			margin: 0
+			overflow: hidden
+
+		.tabs-sticky
+			position: sticky
+			top: 0
+			zi: 100
+			bgc: $bgc
+			padding-top: 1rem
 
 		section .arrowh
 			transition-property: fill, color, background, transform, border-radius
