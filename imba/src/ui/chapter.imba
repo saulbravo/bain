@@ -1,6 +1,7 @@
 import GenericReader from '../lib/GenericReader'
 import activities from '../lib/Activities'
 
+import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
