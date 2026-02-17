@@ -705,12 +705,14 @@ tag reader
 								c:$acc @hover:$acc-hover
 								d:hcc
 								flex@lt-lg:1
-								w@lt-lg:calc(100% / 4)
+								w@lt-lg:calc(100% / 6)
 							
 							svg
 								o@lt-lg:0.75 @hover:1
 								size:1.5rem @lt-lg:1.25rem
 
+						<button @click=reader.prevChapter title=t.prev>
+							<svg src=ChevronLeft aria-hidden=yes>
 						<button[transform: translateX({bibleIconTransform}px)] @click=activities.toggleBooksMenu title=t.change_book>
 							<svg src=BookOpenText aria-hidden=yes>
 						<button .copy-select-active=(activities.copySelectMode) @click=toggleCopySelectMode title="Obsidian">
@@ -719,6 +721,8 @@ tag reader
 							<svg src=Highlighter aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SettingsIcon aria-hidden=yes>
+						<button @click=reader.nextChapter title=t.next>
+							<svg src=ChevronRight aria-hidden=yes>
 
 
 

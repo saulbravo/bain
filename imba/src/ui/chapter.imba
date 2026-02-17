@@ -1,8 +1,6 @@
 import GenericReader from '../lib/GenericReader'
 import activities from '../lib/Activities'
 
-import ChevronRight from 'lucide-static/icons/chevron-right.svg'
-import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
@@ -70,13 +68,6 @@ tag chapter < section
 	def shrinkHeader
 		return
 
-	# no -- means prev, yes -- means next
-	def getChevron direction\boolean
-		const textDirection = translationTextDirection(me.translation)
-		if (textDirection == 'rtl' && direction) or (textDirection == 'ltr' && !direction)
-			return <svg src=ChevronLeft aria-label=t.prev> 
-		return <svg src=ChevronRight aria-label=t.next>
-	
 	def isMyRect matchId\string
 		if activities.activeModal != ''
 			return no
@@ -338,18 +329,11 @@ tag chapter < section
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
-					#main_header_arrow_size = "min(64px, max({minHeaderFont}em, {headerFontSize}em))"
-					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:space-between font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
+					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
 						title=translationFullName(me.translation)>
-
-						<a.arrow @click.prevent.stop=me.prevChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.prev href="{me.prevChapterLink}">
-							getChevron(no)
 
 						<span @click=activities.toggleBooksMenu(!!versePrefix)>
 							me.nameOfCurrentBook, ' ', me.chapter
-
-						<a.arrow @click.prevent.stop=me.nextChapter [d@lt-md:none max-height:{#main_header_arrow_size} max-width:{#main_header_arrow_size} min-height:{#main_header_arrow_size} min-width:{#main_header_arrow_size}] title=t.next href=me.nextChapterLink>
-							getChevron(yes)
 
 			if me.me == 'main'
 				<div.tabs-sticky>
@@ -525,12 +509,6 @@ tag chapter < section
 								unless settings.verse_number
 									<span.ws> '	'
 				
-					<[d:hcs p:1.5rem .5rem 6rem overflow:hidden]>
-						<a.arrow [s:4rem] @click.prevent.stop=me.prevChapter title=t.prev href=me.prevChapterLink>
-							getChevron(no)
-						<a.arrow [s:4rem] @click.prevent.stop=me.nextChapter title=t.next href=me.nextChapterLink>
-							getChevron(yes)
-
 			if !me.verses..length
 				if !window.navigator.onLine && vault.downloaded_translations.indexOf(me.translation) == -1
 					<p.in-offline>
@@ -629,17 +607,6 @@ tag chapter < section
 			vertical-align: super
 			white-space: pre
 			border-radius: 0.25rem
-
-		.arrow
-			c:inherit
-			bgc@hover:$acc-bgc-hover
-			rd@hover:50%
-			transform@hover:rotate(360deg)
-			d:hcc
-
-			svg
-				max-height: 100%
-				max-width: 100%
 
 		note-tooltip svg
 			c:$acc @hover:$acc-hover
