@@ -697,6 +697,10 @@ tag reader
 
 
 	css
+		#main
+			min-width: 0
+			overflow-x: hidden
+
 		.copy-select-active
 			c: #a855f7
 			svg

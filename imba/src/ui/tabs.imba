@@ -8,7 +8,7 @@ tag bible-tabs
 	<self>
 		<div.tabs-container [padding-inline:{scale}rem]>
 			for tab, index in activities.tabs
-				<div.tab .active=(activities.activeTabIndex == index) @click=activities.switchTab(index) [padding:{scale * 0.5}rem {scale * 1}rem min-width:{scale * 8}rem]>
+				<div.tab .active=(activities.activeTabIndex == index) @click=activities.switchTab(index) [padding:{scale * 0.5}rem {scale * 1}rem]>
 					<span.tab-name [fs:{scale * 0.875}rem]> tab.name
 					if activities.tabs.length > 1
 						<div.close-tab @click.stop=activities.closeTab(index) [size:{scale * 1.25}rem]>
@@ -21,7 +21,7 @@ tag bible-tabs
 		d: block
 		w: 100%
 		bgc: transparent
-		overflow-x: auto
+		overflow: hidden
 		scrollbar-width: none
 		&::-webkit-scrollbar
 			d: none
@@ -31,7 +31,10 @@ tag bible-tabs
 			ai: flex-end
 			gap: 4px
 			border-bottom: 1px solid $acc-bgc
-			min-width: fit-content
+			w: 100%
+			min-width: 0
+			box-sizing: border-box
+			overflow: hidden
 
 		.tab
 			d: flex
@@ -47,6 +50,9 @@ tag bible-tabs
 			border-bottom: 1px solid transparent
 			mb: -1px
 			zi: 0
+			flex: 1 1 0
+			min-width: 0
+			overflow: hidden
 
 			&.active
 				bgc: $bgc
@@ -62,6 +68,10 @@ tag bible-tabs
 
 		.tab-name
 			user-select: none
+			flex: 1 1 auto
+			min-width: 0
+			overflow: hidden
+			text-overflow: ellipsis
 
 		.close-tab
 			d: hcc
@@ -77,6 +87,7 @@ tag bible-tabs
 			c: $acc
 			cursor: pointer
 			rd: 50%
+			flex: 0 0 auto
 			@hover
 				bgc: $acc-bgc
 			mb: 4px

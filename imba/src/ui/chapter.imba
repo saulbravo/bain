@@ -609,6 +609,11 @@ tag chapter < section
 			zi: 2
 			bgc: $bgc
 			padding-top: 1rem
+			w: 100%
+			max-width: 100%
+			min-width: 0
+			box-sizing: border-box
+			overflow-x: hidden
 
 		section .arrowh
 			transition-property: fill, color, background, transform, border-radius
