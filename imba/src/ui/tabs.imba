@@ -8,7 +8,7 @@ tag bible-tabs
 	<self>
 		<div.tabs-container [padding-inline:{scale}rem]>
 			for tab, index in activities.tabs
-				<div.tab .active=(activities.activeTabIndex == index) @click=activities.switchTab(index) [padding:{scale * 0.5}rem {scale * 1}rem]>
+				<div.tab .active=(activities.activeTabIndex == index) @click=activities.switchTab(index) [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
 					<span.tab-name [fs:{scale * 0.875}rem]> tab.name
 					if activities.tabs.length > 1
 						<div.close-tab @click.stop=activities.closeTab(index) [size:{scale * 1.25}rem]>
