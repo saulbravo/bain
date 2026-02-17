@@ -530,12 +530,6 @@ tag reader
 
 	def render
 		<self[d:flex] @touchstart=slidestart @touchmove=openingdrawer @touchend=slideend @touchcancel=slideend>
-			<button.drawer-handle
-				[transform:translateX({bibleIconTransform}px)]
-				@click=activities.toggleBooksMenu>
-				<svg src=ChevronLeft aria-label=t.change_book
-					[transform:rotate({180*+!!bibleIconTransform}deg)]>
-
 			<main id="main"
 				.parallel_text=parallelReader.enabled .hide-comments=!settings.verse_commentary .parallels=parallelReader.enabled
 				[pos:{parallelReader.enabled ? 'relative' : 'static'} ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight} ta:{theme.align} fl:1]
@@ -543,12 +537,6 @@ tag reader
 				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!}] />
 				if parallelReader.enabled
 					<chapter id="parallel-reader" me=parallelReader [padding-inline:{readerPadding(no)}] versePrefix="p" />
-
-			<button.drawer-handle
-				[transform:translateX({settingsIconTransform}px)]
-				@click=activities.toggleSettingsMenu>
-				<svg src=ChevronLeft aria-label=t.settings
-					[transform:rotate({180*+!!settingsIconTransform}deg)]>
 
 			<global
 				@hotkey('mod+shift+f|mod+k').force.prevent.stop.cleanUpSelection=activities.showSearch

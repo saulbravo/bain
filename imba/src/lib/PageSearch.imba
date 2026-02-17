@@ -15,7 +15,7 @@ class PageSearch
 	get drawerOffset
 		// query select a button with className drawer-handle
 		const drawerHandle = document.querySelector('.drawer-handle')
-		return drawerHandle..clientWidth
+		return drawerHandle ? drawerHandle.clientWidth : 0
 	
 	get inputElement\HTMLInputElement
 		document.getElementById('pageSearch')
