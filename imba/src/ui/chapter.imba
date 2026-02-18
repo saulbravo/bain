@@ -3,6 +3,7 @@ import activities from '../lib/Activities'
 
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
+import Search from 'lucide-static/icons/search.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -330,11 +331,22 @@ tag chapter < section
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
-					<h1.header-title [lh:1 padding-block:0.2em m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
+					<h1.header-title [lh:1 padding-block:0.2em padding-inline:2.5rem m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% pos:relative box-sizing:border-box font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
 						title=translationFullName(me.translation)>
+
+						<button.header-action.header-bookmark
+							.active=activities.isBookBookmarked(me.translation, me.book)
+							@click.stop.prevent=activities.toggleBookBookmark(me.translation, me.book)
+							title="Bookmark book">
+							<svg src=Bookmark aria-hidden=yes>
 
 						<span @click=activities.toggleBooksMenu(!!versePrefix)>
 							me.nameOfCurrentBook, ' ', me.chapter
+
+						<button.header-action.header-search
+							@click.stop.prevent=activities.showSearch
+							title="Search">
+							<svg src=Search aria-hidden=yes>
 
 			if me.me == 'main'
 				<div.tabs-sticky>
@@ -584,6 +596,34 @@ tag chapter < section
 		.header-title
 			margin: 0
 			overflow: hidden
+		
+		.header-action
+			position: absolute
+			top: 50%
+			transform: translateY(-50%)
+			w: 2rem
+			h: 2rem
+			min-width: 2rem
+			p: 0
+			bgc: transparent
+			c: $acc @hover:$acc-hover
+			cursor: pointer
+			d: hcc
+			rd: 50%
+
+			svg
+				max-height: 100%
+				max-width: 100%
+		
+		.header-bookmark
+			left: 0.25rem
+			&.active
+				c: $acc-hover
+				svg
+					c: $acc-hover
+		
+		.header-search
+			right: 0.25rem
 
 		.tabs-sticky
 			position: sticky

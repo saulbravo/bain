@@ -20,6 +20,28 @@ import type { CopyObject, Verse } from './types'
 
 class Activities 
 	debugTabs = yes
+	@observable bookBookmarks = Array.isArray(getValue('book-bookmarks')) ? getValue('book-bookmarks') : []
+
+	def bookBookmarkKey translation\string, book\number
+		return "{translation}:{book}"
+
+	def isBookBookmarked translation\string, book\number
+		const key = bookBookmarkKey(translation, book)
+		return bookBookmarks.some(do |entry| return entry and entry.key == key)
+
+	def toggleBookBookmark translation\string, book\number
+		const key = bookBookmarkKey(translation, book)
+		const index = bookBookmarks.findIndex(do |entry| return entry and entry.key == key)
+		if index >= 0
+			bookBookmarks.splice(index, 1)
+		else
+			bookBookmarks.push({
+				key: key
+				translation: translation
+				book: book
+				name: getBookName(translation, book)
+			})
+		setValue('book-bookmarks', bookBookmarks)
 
 	def tabSummary tab
 		return tab ? {
