@@ -616,14 +616,14 @@ tag chapter < section
 				max-width: 100%
 		
 		.header-bookmark
-			left: 0.25rem
+			left: 30px
 			&.active
 				c: $acc-hover
 				svg
 					c: $acc-hover
 		
 		.header-search
-			right: 0.25rem
+			right: 30px
 
 		.tabs-sticky
 			position: sticky
