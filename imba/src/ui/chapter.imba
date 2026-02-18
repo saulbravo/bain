@@ -331,7 +331,7 @@ tag chapter < section
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
-					<h1.header-title [lh:1 padding-block:0.2em padding-inline:2.5rem m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% pos:relative box-sizing:border-box font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em]
+					<h1.header-title [lh:1 padding-block:0.2em padding-inline:2.5rem m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% pos:relative box-sizing:border-box font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em fs@lt-sm:{headerFontSize * 0.85}em]
 						title=translationFullName(me.translation)>
 
 						<button.header-action.header-bookmark
@@ -340,7 +340,7 @@ tag chapter < section
 							title="Bookmark book">
 							<svg src=Bookmark aria-hidden=yes>
 
-						<span @click=activities.toggleBooksMenu(!!versePrefix)>
+						<span.book-title @click=activities.toggleBooksMenu(!!versePrefix)>
 							me.nameOfCurrentBook, ' ', me.chapter
 
 						<button.header-action.header-search
@@ -596,6 +596,10 @@ tag chapter < section
 		.header-title
 			margin: 0
 			overflow: hidden
+		
+		.book-title
+			padding-inline: 0.5rem
+			display: inline-block
 		
 		.header-action
 			position: absolute
