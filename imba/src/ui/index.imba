@@ -1,5 +1,6 @@
 import './books-drawer'
 import './books-modal'
+import './bookmarks-modal'
 import './settings-drawer'
 import './menu-popup'
 import './chapter'

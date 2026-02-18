@@ -40,6 +40,7 @@ class Activities
 				translation: translation
 				book: book
 				name: getBookName(translation, book)
+				date: Date.now()
 			})
 		setValue('book-bookmarks', bookBookmarks)
 
@@ -528,6 +529,10 @@ class Activities
 		cleanUp!
 		readingHistory.syncHistory!
 		openModal 'history'
+	
+	@action def showBookmarksModal
+		cleanUp!
+		openModal 'bookmarks'
 
 	@action def showSearch
 		cleanUp!

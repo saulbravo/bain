@@ -17,6 +17,7 @@ import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
 import ParallelReading from '../icons/parallel-reading.svg'
+import ListIcon from 'lucide-static/icons/list.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -694,7 +695,7 @@ tag reader
 								c:$acc @hover:$acc-hover
 								d:hcc
 								flex@lt-lg:1
-								w@lt-lg:calc(100% / 7)
+								w@lt-lg:calc(100% / 8)
 							
 							svg
 								o@lt-lg:0.75 @hover:1
@@ -710,6 +711,8 @@ tag reader
 							<svg src=Highlighter aria-hidden=yes>
 						<button .parallel-active=parallelReader.enabled @click=(parallelReader.enable = !parallelReader.enabled) title=t.parallel>
 							<svg src=ParallelReading aria-hidden=yes>
+						<button @click=activities.showBookmarksModal title=(t.bookmarks or "Bookmarks")>
+							<svg src=ListIcon aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SettingsIcon aria-hidden=yes>
 						<button @click=reader.nextChapter title=t.next>
