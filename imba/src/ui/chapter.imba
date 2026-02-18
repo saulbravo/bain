@@ -407,6 +407,7 @@ tag chapter < section
 										
 										# Always try to send - let the parent decide if it wants to handle it
 										# Use structuredClone or JSON serialization to ensure all properties are included
+										let sent = no
 										try
 											# Create a plain object that will serialize correctly
 											let messageToSend = {
@@ -418,14 +419,16 @@ tag chapter < section
 												bookId: Number(messageData.bookId)
 											}
 											window.parent.postMessage(messageToSend, '*')
+											sent = yes
 										catch error
-											pass
+											sent = no
 										# Try sending with JSON serialization as fallback
-										try
-											let jsonMessage = JSON.parse(JSON.stringify(messageData))
-											window.parent.postMessage(jsonMessage, '*')
-										catch fallbackError
-											pass
+										if !sent
+											try
+												let jsonMessage = JSON.parse(JSON.stringify(messageData))
+												window.parent.postMessage(jsonMessage, '*')
+											catch fallbackError
+												pass
 								)>
 									<svg src=ChevronLeft>
 							<button.verse-selection-close-btn 
