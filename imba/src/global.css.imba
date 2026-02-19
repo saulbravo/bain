@@ -375,7 +375,7 @@ global css
 			display: none
 
 	html.freehand-mode
-		--freehand-color: #eab308
+		--freehand-color: #F9E2A0
 		
 		*::selection
 			bgc: var(--freehand-color)

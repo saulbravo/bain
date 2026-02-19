@@ -11,15 +11,6 @@ import Highlighter from 'lucide-static/icons/highlighter.svg'
 
 const DEFAULT_Y = 32
 
-const colors = [
-	'FireBrick'
-	'Chocolate'
-	'GoldenRod'
-	'OliveDrab'
-	'RoyalBlue'
-	'RebeccaPurple'
-]
-
 tag freehand-highlight-menu
 	#dy = DEFAULT_Y
 
@@ -64,7 +55,7 @@ tag freehand-highlight-menu
 		<header>
 			<span> ""
 
-		<ul>
+		<ul.color-options>
 			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
 				<svg src=Dices width="2rem" height="2rem" role="button" aria-label="Random"
 				@click=(activities.freehandHighlightColor = activities.randomColor)>
@@ -72,7 +63,7 @@ tag freehand-highlight-menu
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.freehandHighlightColor @change=setHighlightColor>
 
-			for color in colors
+			for color in activities.highlightColors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
 					.selected=(activities.freehandHighlightColor == color)
 					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
@@ -145,18 +136,22 @@ tag freehand-highlight-menu
 			d:hcs
 			g:0.5rem
 
-		ul
+		.color-options
 			white-space: nowrap
 			padding-block: 1rem .5rem
 			padding-inline: 0.5rem
 			max-width: 100%
-			d:hcc
-			g:.325rem
+			d:flex
+			flw:nowrap
+			jc:center
+			ai:center
+			g:.5rem
 
 		.color-option
 			size:2rem
 			border-radius: 23%
 			cursor: pointer
+			fls:0
 			scale@hover: 1.2
 			&.selected
 				border: 3px solid $acc

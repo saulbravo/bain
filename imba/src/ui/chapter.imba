@@ -224,28 +224,8 @@ tag chapter < section
 		# Sort highlights by start offset ascending
 		highlights.sort(do |a, b| return a.start - b.start)
 
-		# Helper to get contrast color (white or black) based on background hex or name
+		# Keep highlight text white for consistent contrast
 		def getContrastColor color
-			return 'black' if !color
-			
-			# Map common CSS names to luminance values (simplified)
-			const darkColors = ['FireBrick', 'RebeccaPurple', 'RoyalBlue', 'OliveDrab', 'Chocolate']
-			if darkColors.includes(color)
-				return 'white'
-			
-			if color.startsWith('#')
-				let hex = color.replace('#', '')
-				if hex.length == 3
-					hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
-				
-				const r = parseInt(hex.slice(0, 2), 16)
-				const g = parseInt(hex.slice(2, 4), 16)
-				const b = parseInt(hex.slice(4, 6), 16)
-				
-				# Standard luminance calculation
-				const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-				return luminance > 0.5 ? 'black' : 'white'
-			
 			return 'black'
 
 		let result = ""

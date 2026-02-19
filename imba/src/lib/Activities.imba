@@ -20,6 +20,14 @@ import type { CopyObject, Verse } from './types'
 
 class Activities 
 	debugTabs = yes
+	highlightColors = [
+		'#F4A3A3'
+		'#F7C59F'
+		'#F9E2A0'
+		'#B7E4C7'
+		'#A7C7E7'
+		'#CDB4DB'
+	]
 	@observable bookBookmarks = Array.isArray(getValue('book-bookmarks')) ? getValue('book-bookmarks') : []
 
 	def bookBookmarkKey translation\string, book\number
@@ -80,7 +88,7 @@ class Activities
 	copySelectMode = no
 	freehandHighlightMode = no
 	freehandEraserMode = no
-	freehandHighlightColor = 'GoldenRod'
+	freehandHighlightColor = '#F9E2A0'
 
 	blockInScroll = null
 	scrollLockTimeout = null
@@ -576,6 +584,8 @@ class Activities
 		return getSelectedVersesTitle(reader.translation, reader.book, reader.chapter, versesToCompare) + ' ' + reader.translation
 
 	get randomColor
+		if highlightColors and highlightColors.length
+			return highlightColors[Math.floor(Math.random() * highlightColors.length)]
 		const randomL = Math.random() * 0.6 + 0.2 # Range [0.2, 0.8]
 		const randomC = Math.random() * 0.25 + 0.05 # Range [0.05, 0.3]
 		const randomH = Math.random() * 360 # Range [0, 360)
