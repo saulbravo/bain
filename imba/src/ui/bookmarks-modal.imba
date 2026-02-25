@@ -8,6 +8,8 @@ import { getBookName } from '../utils'
 import BookmarkIcon from 'lucide-static/icons/bookmark.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
+import Clock from 'lucide-static/icons/clock.svg'
+import List from 'lucide-static/icons/list.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 tag bookmarks-modal
@@ -17,6 +19,10 @@ tag bookmarks-modal
 	groupedBookmarks = []
 	highlightEntries = []
 	fetchToken = 0
+	# 'bookmarks' | 'highlights' - which list is shown
+	activeTab = 'bookmarks'
+	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
+	bookmarkFilter = 'recent'
 
 	def titleRow translation\string, book\number, chapter\number, verses\number[]
 		let row = getBookName(translation, book) + ' ' + chapter + ':'
@@ -110,17 +116,24 @@ tag bookmarks-modal
 
 			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 			groupedBookmarks = buildGroupedBookmarks(normalized)
-			highlightEntries = normalized.map(do |item|
-				return {
+			let highlights = []
+			const defaultHighlightColor = '#eab308'
+			for item in normalized
+				const v = item.verse
+				if !v or v.verse == null
+					continue
+				# Include all verse bookmarks in highlights; use default color when none saved
+				const color = (item.color and item.color.trim!()) or defaultHighlightColor
+				highlights.push({
 					date: item.date or 0
-					color: item.color or ''
-					translation: item.verse.translation
-					book: item.verse.book
-					chapter: item.verse.chapter
-					verse: item.verse.verse
-					text: item.verse.text
-				}
-			).filter(do |entry| return entry.color and entry.verse != undefined)
+					color: color
+					translation: v.translation
+					book: v.book
+					chapter: v.chapter
+					verse: v.verse
+					text: v.text or ''
+				})
+			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 		catch err
 			console.error(err)
 			if token != fetchToken
@@ -150,6 +163,13 @@ tag bookmarks-modal
 	@computed get combinedBookmarks
 		let combined = bookBookmarkEntries.concat(groupedBookmarks)
 		return combined.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+
+	@computed get filteredBookmarks
+		if bookmarkFilter == 'book'
+			return combinedBookmarks.filter(do |e| return e.type == 'book')
+		if bookmarkFilter == 'verse'
+			return combinedBookmarks.filter(do |e| return e.type == 'verse')
+		return combinedBookmarks
 
 	@computed get highlightColors
 		const colors = new Set()
@@ -186,48 +206,63 @@ tag bookmarks-modal
 			book: book
 			chapter: chapter
 		}, 'bookmarks-modal:verse')
-		if verse
+		if verse != undefined and verse != null
 			reader.verse = verse
-			setTimeout(&, 120) do
-				reader.findVerse(String(verse))
 		activities.cleanUp { onPopState: yes }
+		if verse != undefined and verse != null
+			setTimeout(&, 400) do
+				reader.findVerse(String(verse))
 
 	def openBookmark entry
 		if entry.type == 'book'
 			return openBookBookmark(entry)
-		openVerseBookmark({
-			translation: entry.translation
-			book: entry.book
-			chapter: entry.chapter
-			verse: entry.verses and entry.verses[0]
-		})
+		openVerseBookmark(entry)
 
 	def mount
 		loadBookmarks!
 
 	<self>
-		<header>
-			<button @click=activities.cleanUp title=t.close>
+		<header.header-with-close>
+			<button.close-btn @click=activities.cleanUp title=t.close>
 				<svg src=ICONS.X aria-hidden=yes>
-			<h2> "Bookmarks"
-			<span.bookmarks-subtitle> "Bookmarks and Highlights"
+			<h2.header-title> "Highlights and Bookmarks"
+			<span.header-spacer>
 
-		<div.bookmarks-layout>
-			<section.bookmarks-column>
-				<header>
-					<div.bookmarks-column-title>
-						<svg src=BookmarkIcon aria-hidden=yes>
-						<h3> "Bookmarks"
-					<span.bookmarks-count> combinedBookmarks.length
+		<div.toggle-row>
+			<button.toggle-btn .active=(activeTab == 'bookmarks') @click=(activeTab = 'bookmarks')>
+				<svg src=BookmarkIcon aria-hidden=yes>
+				"Bookmarks"
+				<span.toggle-count> combinedBookmarks.length
+			<button.toggle-btn .active=(activeTab == 'highlights') @click=(activeTab = 'highlights')>
+				<svg src=Highlighter aria-hidden=yes>
+				"Highlights"
+				<span.toggle-count> highlightEntries.length
+
+		<div.bookmarks-content>
+			if activeTab == 'bookmarks'
+				if combinedBookmarks.length
+					<div.bookmark-filter>
+						<button.filter-btn .active=(bookmarkFilter == 'recent') @click=(bookmarkFilter = 'recent') title="Recent">
+							<svg src=Clock aria-hidden=yes>
+							"Recent"
+						<button.filter-btn .active=(bookmarkFilter == 'book') @click=(bookmarkFilter = 'book') title="Books only">
+							<svg src=BookOpen aria-hidden=yes>
+							"Book"
+						<button.filter-btn .active=(bookmarkFilter == 'verse') @click=(bookmarkFilter = 'verse') title="Verse bookmarks only">
+							<svg src=BookmarkIcon aria-hidden=yes>
+							"Verse"
+						<button.filter-btn .active=(bookmarkFilter == 'all') @click=(bookmarkFilter = 'all') title="All bookmarks">
+							<svg src=List aria-hidden=yes>
+							"All"
 				if loading
 					<p.bookmarks-empty> "Loading bookmarks..."
 				elif error
 					<p.bookmarks-empty> error
-				elif !combinedBookmarks.length
+				elif !filteredBookmarks.length
 					<p.bookmarks-empty> "No bookmarks yet"
 				else
 					<div.bookmarks-list>
-						for entry in combinedBookmarks
+						for entry in filteredBookmarks
 							<button.bookmark-item @click=openBookmark(entry)>
 								<div.bookmark-icon>
 									if entry.type == 'book'
@@ -248,13 +283,7 @@ tag bookmarks-modal
 									<div.bookmark-date>
 										if entry.date
 											new Date(entry.date).toLocaleString()
-
-			<section.bookmarks-column>
-				<header>
-					<div.bookmarks-column-title>
-						<svg src=Highlighter aria-hidden=yes>
-						<h3> "Highlights"
-					<span.bookmarks-count> highlightEntries.length
+			else
 				if highlightEntries.length
 					<div.highlight-filter>
 						<button .active=(highlightFilter == 'all') @click=(highlightFilter = 'all')> "All"
@@ -270,79 +299,124 @@ tag bookmarks-modal
 						for entry in filteredHighlights
 							<button.bookmark-item @click=openVerseBookmark(entry)>
 								<div.bookmark-icon>
-									<span.color-swatch [bgc:{entry.color}]>
+									<span.color-swatch [bgc:{entry.color or '#eab308'}]>
 								<div.bookmark-text>
 									<div.bookmark-title> "{getBookName(entry.translation, entry.book)} {entry.chapter}:{entry.verse}"
 									<div.bookmark-meta> entry.translation
-									<div.bookmark-snippet innerHTML=entry.text>
+									<div.bookmark-snippet innerHTML=(entry.text or '')>
 
 	css
 		header
-			d:hcc
-			g:0.5rem
 			mb:0.5rem
 
-			button
-				bgc:transparent
-				c:inherit
-				min-width:2rem
-				w:2rem
-				cursor:pointer
-				d:flex
-				fls:0
+		.header-with-close
+			d:grid
+			grid-template-columns: 2rem 1fr 2rem
+			ai:center
+			g:0.5rem
 
-			h2
-				text-align:center
-				margin:auto
-				-webkit-line-clamp:2
-				overflow:hidden
-				display:-webkit-box
-				-webkit-box-orient:vertical
-				fs:1.1em
+		.close-btn
+			bgc:transparent
+			c:inherit
+			min-width:2rem
+			w:2rem
+			cursor:pointer
+			d:flex
+			fls:0
+			grid-column:1
 
-		.bookmarks-subtitle
-			fs:0.85em
-			o:0.6
+		.header-title
+			text-align:center
+			margin:0
+			-webkit-line-clamp:2
+			overflow:hidden
+			display:-webkit-box
+			-webkit-box-orient:vertical
+			fs:1.1em
+			grid-column:2
+			justify-self:center
+
+		.header-spacer
+			grid-column:3
+			w:2rem
+			fls:0
+
+		.bookmark-filter
+			d:flex
+			g:0.5rem
+			flw:wrap
+			mb:0.5rem
+
+		.filter-btn
+			d:flex
+			ai:center
+			g:0.35rem
+			bgc:$acc-bgc
+			c:inherit
+			rd:999px
+			p:0.25rem 0.6rem
+			fs:0.8rem
+			cursor:pointer
+			bd:1px solid transparent
+
+		.filter-btn@hover
+			bgc:$acc-bgc-hover
+
+		.filter-btn.active
+			bgc:$acc-bgc-hover
+			c:$acc-hover
+			bd-color:$acc-hover
+
+		.filter-btn svg
+			size:1rem
+			fls:0
+
+		.toggle-row
+			d:flex
+			g:0.5rem
+			mb:1rem
+			w:100%
+
+		.toggle-btn
+			d:flex
+			ai:center
+			g:0.5rem
+			flex:1
+			p:0.6rem 1rem
+			rd:0.5rem
+			bgc:$acc-bgc
+			c:inherit
+			bd:1px solid $acc-bgc-hover
+			cursor:pointer
+			fs:0.95rem
+
+		.toggle-btn@hover
+			bgc:$acc-bgc-hover
+
+		.toggle-btn.active
+			bgc:$acc-bgc-hover
+			c:$acc-hover
+			bd-color:$acc-hover
+
+		.toggle-btn svg
+			size:1.2rem
+			fls:0
+
+		.toggle-count
+			fs:0.8rem
+			o:0.7
 			ml:auto
 
-		.bookmarks-layout
-			d:flex
-			g:1rem
-			min-height:0
-			@lt-sm
-				fld:column
-
-		.bookmarks-column
+		.bookmarks-content
 			d:flex
 			fld:column
-			fl:1
 			min-height:0
+			flex:1
+			w:100%
 			bgc:$bgc
 			bd:1px solid $acc-bgc-hover
 			rd:0.75rem
 			p:0.75rem
-
-		.bookmarks-column header
-			d:flex
-			ai:center
-			jc:space-between
-			mb:0.5rem
-
-		.bookmarks-column-title
-			d:flex
-			ai:center
-			g:0.5rem
-
-			h3
-				m:0
-				fs:1rem
-
-			svg
-				size:1.25rem
-
-		.bookmarks-count
-			fs:0.8rem
-			o:0.6
 
 		.bookmarks-list
 			d:flex
