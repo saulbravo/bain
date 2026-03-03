@@ -322,6 +322,8 @@ class GenericReader
 				chapter: chapter,
 				highlights: freehandHighlights
 			})
+			# So Highlights and Bookmarks modal refreshes and shows new freehand
+			window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		catch error
 			console.log "Error saving freehand highlights:", error
 

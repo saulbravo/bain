@@ -105,6 +105,60 @@ tag bookmarks-modal
 				})
 		return items
 
+	# Extract the actual highlighted text for a freehand range (single or multi-verse), then wrap as "...snippet..."
+	def getFreehandHighlightSnippet r, h
+		if !r or !r.verses or !r.verses.length
+			return '...'
+		const startVerse = h.startVerse != null ? h.startVerse : h.endVerse
+		const endVerse = h.endVerse != null ? h.endVerse : startVerse
+		const startOffset = Math.max(0, h.startOffset != null ? h.startOffset : 0)
+		const endOffset = h.endOffset != null ? h.endOffset : 0
+		let snippet = ''
+		if startVerse == endVerse
+			const verseObj = r.verses.find(do |v| return v.verse == startVerse)
+			const text = verseObj and verseObj.text ? verseObj.text : ''
+			const end = Math.min(text.length, endOffset)
+			snippet = text.slice(startOffset, end).trim()
+		else
+			# Span multiple verses: start verse from startOffset, full middle verses, end verse to endOffset
+			const versesSorted = r.verses.slice().sort(do |a, b| return a.verse - b.verse)
+			for v in versesSorted
+				if v.verse < startVerse or v.verse > endVerse
+					continue
+				const t = v.text or ''
+				if v.verse == startVerse
+					snippet += t.slice(startOffset)
+				elif v.verse == endVerse
+					snippet += t.slice(0, Math.min(t.length, endOffset))
+				else
+					snippet += t
+			snippet = snippet.trim()
+		if !snippet
+			return '...'
+		return '...' + snippet + '...'
+
+	# Convert reader freehand highlights to same shape as verse highlight entries (so they appear in the list and filters)
+	def readerFreehandToHighlightEntries r
+		let entries = []
+		if !r or !r.freehandHighlights or !r.freehandHighlights.length or !r.verses or !r.verses.length
+			return entries
+		const defaultColor = '#eab308'
+		for h in r.freehandHighlights
+			const color = (h.color and String(h.color).trim()) or defaultColor
+			const startVerse = h.startVerse != null ? h.startVerse : h.endVerse
+			const text = getFreehandHighlightSnippet(r, h)
+			entries.push({
+				date: 0
+				color: color
+				translation: r.translation
+				book: r.book
+				chapter: r.chapter
+				verse: startVerse
+				text: text
+				_freehandKey: "f:{r.translation}:{r.book}:{r.chapter}:{h.startVerse}:{h.startOffset}:{h.endVerse}:{h.endOffset}"
+			})
+		return entries
+
 	def loadBookmarks
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] loadBookmarks: start')
@@ -178,13 +232,30 @@ tag bookmarks-modal
 					verse: v.verse
 					text: v.text or ''
 				})
+			# Merge freehand highlights from current reader(s) so they appear in list and color filters
+			let freehandKeys = new Set()
+			for r in [reader, parallelReader]
+				for entry in readerFreehandToHighlightEntries(r)
+					if entry._freehandKey and !freehandKeys.has(entry._freehandKey)
+						freehandKeys.add(entry._freehandKey)
+						highlights.push({
+							date: entry.date
+							color: entry.color
+							translation: entry.translation
+							book: entry.book
+							chapter: entry.chapter
+							verse: entry.verse
+							text: entry.text or ''
+						})
 			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 			_cachedHighlightEntries = highlightEntries
 			window.dispatchEvent(new CustomEvent('highlights-cache-updated'))
 			# Fallback: if we have 0 but reader has highlights (e.g. modal reopened before API had them), sync from reader
-			if highlightEntries.length === 0 and reader.bookmarks and reader.bookmarks.length > 0 and reader.verses and reader.verses.length > 0
+			const readerHasVerse = reader.bookmarks and reader.bookmarks.length > 0 and reader.verses and reader.verses.length > 0
+			const readerHasFreehand = (reader.freehandHighlights and reader.freehandHighlights.length > 0) or (parallelReader.freehandHighlights and parallelReader.freehandHighlights.length > 0)
+			if highlightEntries.length === 0 and (readerHasVerse or readerHasFreehand)
 				if typeof console != 'undefined' and console.log
-					console.log('[HIGHLIGHTS] loadBookmarks: fallback merge from reader (had 0 but reader.bookmarks.length=', reader.bookmarks.length, ')')
+					console.log('[HIGHLIGHTS] loadBookmarks: fallback merge from reader (verse=', readerHasVerse, ', freehand=', readerHasFreehand, ')')
 				let fallbackHighlights = []
 				for r in [reader, parallelReader]
 					for item in readerBookmarksToApiShape(r)
@@ -201,6 +272,16 @@ tag bookmarks-modal
 							chapter: v.chapter
 							verse: v.verse
 							text: v.text or ''
+						})
+					for entry in readerFreehandToHighlightEntries(r)
+						fallbackHighlights.push({
+							date: entry.date
+							color: entry.color
+							translation: entry.translation
+							book: entry.book
+							chapter: entry.chapter
+							verse: entry.verse
+							text: entry.text or ''
 						})
 				if fallbackHighlights.length > 0
 					highlightEntries = fallbackHighlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
@@ -328,10 +409,12 @@ tag bookmarks-modal
 	def ensureHighlightsFromReader
 		if highlightEntries.length > 0 or loading
 			return
-		if !reader.bookmarks or reader.bookmarks.length === 0 or !reader.verses or reader.verses.length === 0
+		const hasVerse = reader.bookmarks and reader.bookmarks.length > 0 and reader.verses and reader.verses.length > 0
+		const hasFreehand = (reader.freehandHighlights and reader.freehandHighlights.length > 0) or (parallelReader.freehandHighlights and parallelReader.freehandHighlights.length > 0)
+		if !hasVerse and !hasFreehand
 			return
 		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] ensureHighlightsFromReader: had 0 but reader.bookmarks.length=', reader.bookmarks.length, ', syncing from reader')
+			console.log('[HIGHLIGHTS] ensureHighlightsFromReader: syncing from reader (verse=', hasVerse, ', freehand=', hasFreehand, ')')
 		let fallback = []
 		for r in [reader, parallelReader]
 			for item in readerBookmarksToApiShape(r)
@@ -341,6 +424,8 @@ tag bookmarks-modal
 				const defaultColor = '#eab308'
 				const color = (item.color and String(item.color).trim()) or defaultColor
 				fallback.push({ date: item.date or 0, color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
+			for entry in readerFreehandToHighlightEntries(r)
+				fallback.push({ date: entry.date, color: entry.color, translation: entry.translation, book: entry.book, chapter: entry.chapter, verse: entry.verse, text: entry.text or '' })
 		if fallback.length > 0
 			highlightEntries = fallback.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 			_cachedHighlightEntries = highlightEntries
