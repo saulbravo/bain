@@ -338,13 +338,15 @@ class GenericReader
 				for b in bookmarks
 					if b.color
 						deletedColors.add(b.color)
-					
-				requestDeleteBookmark(pks)
+				if typeof console != 'undefined' and console.log
+					console.log('[HIGHLIGHTS] clearAllChapterHighlights: removing', { pks })
+				await requestDeleteBookmark(pks)
 				bookmarks = []
-				
 				for color in deletedColors
 					user.deleteBookmarkFromUserMap translation, book, chapter, color
-		
+				window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+				window.dispatchEvent(new CustomEvent('highlights-cache-clear'))
+        
 		activities.cleanUp!
 		imba.commit!
 
@@ -559,6 +561,8 @@ class GenericReader
 			collections: collections
 			note: activities.note
 		}
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] saveBookmark: saving to DB', { verses: bookmarkToSave.verses, color: bookmarkToSave.color })
 
 		def saveOffline
 			if vault.available
@@ -570,16 +574,16 @@ class GenericReader
 				notifications.push('saved')
 			catch e
 				notifications.push('error')
+				if typeof console != 'undefined' and console.error
+					console.error('[HIGHLIGHTS] saveBookmark: API error', e)
 				saveOffline!
 		else saveOffline!
 
+		# Update local bookmarks BEFORE dispatch so modal merge sees new highlights
 		for verse in activities.selectedVersesPKs
-			# Remove existing bookmark (including preview ones)
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)
 			if existingBookmark
 				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
-			
-			# Add saved bookmark (will be persisted to server/storage)
 			bookmarks.push({
 				verse: verse,
 				date: Date.now(),
@@ -588,19 +592,27 @@ class GenericReader
 				note: activities.note
 			})
 		user.saveUserBookmarkToMap translation, book, chapter, activities.highlight_color
-		# add to user.categories the new collections
 		for category in activities.selectedCategories
 			if !user.categories.includes(category)
 				user.categories.push(category)
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] saveBookmark: local updated, reader.bookmarks.length=', bookmarks.length, ', dispatching bookmarks-updated')
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		activities.cleanUp!
 
 	def requestDeleteBookmark pks\number[]
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] requestDeleteBookmark: removing from DB', { pks })
 		vault.deleteBookmarks(pks)
 		if window.navigator.onLine
 			try
 				await API.post("/delete-bookmarks/", { verses: pks })
 				notifications.push('deleted')
+				if typeof console != 'undefined' and console.log
+					console.log('[HIGHLIGHTS] requestDeleteBookmark: removed from DB', { pks })
 			catch err
+				if typeof console != 'undefined' and console.error
+					console.error('[HIGHLIGHTS] requestDeleteBookmark: API error', err)
 				deleteLater (pks)
 		else deleteLater (pks)
 
@@ -612,6 +624,8 @@ class GenericReader
 		if !user.username
 			window.location.pathname = "/signup/"
 			return
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] deleteBookmark: deleting', { pks })
 
 		const deletedColors = new Set<string>()
 		for verse in activities.selectedVersesPKs
@@ -619,7 +633,7 @@ class GenericReader
 			if bookmark
 				deletedColors.add(bookmark.color)
 
-		requestDeleteBookmark(pks)
+		await requestDeleteBookmark(pks)
 		for verse in activities.selectedVersesPKs
 			if bookmarks.find(do |bookmark| return bookmark.verse == verse)
 				bookmarks.splice(bookmarks.indexOf(bookmarks.find(do |bookmark| return bookmark.verse == verse)), 1)
@@ -627,6 +641,9 @@ class GenericReader
 		if bookmarks.length !== 0
 			for color in deletedColors when !bookmarks.find(do |bookmark| return bookmark.color == color)
 				user.deleteBookmarkFromUserMap translation, book, chapter, color
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] deleteBookmark: dispatching bookmarks-updated')
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		activities.cleanUp!
 
 	def nextVerseHasTheSameBookmark verse_index

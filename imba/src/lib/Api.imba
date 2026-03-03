@@ -4,13 +4,13 @@ class API
 
 	def getJson pathname\string|URL
 		const url = baseUrl + pathname
-		const response = await window.fetch(url)
+		const response = await window.fetch(url, { credentials: 'include' })
 		return response.json()
 
 	def fetch pathname\string, method\string, data\object = undefined
 		if method == 'GET'
 			const url = baseUrl + pathname
-			return window.fetch(url)
+			return window.fetch(url, { credentials: 'include' })
 
 		const url = baseUrl + pathname
 		return window.fetch(url, {

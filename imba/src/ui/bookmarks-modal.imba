@@ -1,6 +1,7 @@
 import API from '../lib/Api'
 import activities from '../lib/Activities'
 import reader from '../lib/Reader'
+import parallelReader from '../lib/ParallelReader'
 import vault from '../lib/Vault'
 import user from '../lib/User'
 import { getBookName } from '../utils'
@@ -11,6 +12,9 @@ import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import List from 'lucide-static/icons/list.svg'
 import * as ICONS from 'imba-phosphor-icons'
+
+# Shared cache so highlights persist when parent re-renders and creates a new modal instance
+let _cachedHighlightEntries = []
 
 tag bookmarks-modal
 	loading = yes
@@ -23,6 +27,10 @@ tag bookmarks-modal
 	activeTab = 'bookmarks'
 	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
 	bookmarkFilter = 'recent'
+	_bookmarksUpdatedHandler = null
+	_highlightsCacheClearHandler = null
+	_highlightsCacheUpdatedHandler = null
+	cacheVersion = 0
 
 	def titleRow translation\string, book\number, chapter\number, verses\number[]
 		let row = getBookName(translation, book) + ' ' + chapter + ':'
@@ -81,7 +89,25 @@ tag bookmarks-modal
 				current.title = titleRow(current.translation, current.book, current.chapter, current.verses)
 		return grouped
 
+	def readerBookmarksToApiShape r
+		let items = []
+		if !r or !r.verses or !r.bookmarks
+			return items
+		for b in r.bookmarks
+			const v = r.verses.find(do |verse| return verse.pk == b.verse)
+			if v
+				items.push({
+					verse: { pk: v.pk, translation: r.translation, book: r.book, chapter: r.chapter, verse: v.verse, text: v.text or '' }
+					date: b.date
+					color: b.color
+					collection: b.collection or ''
+					note: b.note or ''
+				})
+		return items
+
 	def loadBookmarks
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] loadBookmarks: start')
 		loading = yes
 		error = ''
 		let token = fetchToken + 1
@@ -96,6 +122,8 @@ tag bookmarks-modal
 					let batch = await API.getJson("/get-profile-bookmarks/{rangeFrom}/{rangeFrom + pageSize}/")
 					if token != fetchToken
 						return
+					if typeof console != 'undefined' and console.log
+						console.log('[HIGHLIGHTS] loadBookmarks: batch from API', { rangeFrom, count: batch.length })
 					data = data.concat(batch)
 					if batch.length < pageSize
 						keepLoading = no
@@ -107,6 +135,24 @@ tag bookmarks-modal
 				data = []
 			if token != fetchToken
 				return
+
+			# Merge current reader(s) highlights so list updates in real time
+			let existingPks = new Set()
+			for item in data
+				if item.verse and item.verse.pk != null
+					existingPks.add(item.verse.pk)
+			let mergedFromReader = 0
+			for r in [reader, parallelReader]
+				const fromReader = readerBookmarksToApiShape(r)
+				if typeof console != 'undefined' and console.log
+					console.log('[HIGHLIGHTS] loadBookmarks: merge check', { readerName: r.me or 'parallel', readerBookmarksLength: (r.bookmarks and r.bookmarks.length) or 0, readerVersesLength: (r.verses and r.verses.length) or 0, fromReaderCount: fromReader.length })
+				for item in fromReader
+					if item.verse and item.verse.pk != null and !existingPks.has(item.verse.pk)
+						data.push(item)
+						existingPks.add(item.verse.pk)
+						mergedFromReader += 1
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] loadBookmarks: after merge', { dataLength: data.length, mergedFromReader })
 
 			let normalized = []
 			for item in data
@@ -122,8 +168,7 @@ tag bookmarks-modal
 				const v = item.verse
 				if !v or v.verse == null
 					continue
-				# Include all verse bookmarks in highlights; use default color when none saved
-				const color = (item.color and item.color.trim!()) or defaultHighlightColor
+				const color = (item.color and String(item.color).trim()) or defaultHighlightColor
 				highlights.push({
 					date: item.date or 0
 					color: color
@@ -134,6 +179,41 @@ tag bookmarks-modal
 					text: v.text or ''
 				})
 			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+			_cachedHighlightEntries = highlightEntries
+			window.dispatchEvent(new CustomEvent('highlights-cache-updated'))
+			# Fallback: if we have 0 but reader has highlights (e.g. modal reopened before API had them), sync from reader
+			if highlightEntries.length === 0 and reader.bookmarks and reader.bookmarks.length > 0 and reader.verses and reader.verses.length > 0
+				if typeof console != 'undefined' and console.log
+					console.log('[HIGHLIGHTS] loadBookmarks: fallback merge from reader (had 0 but reader.bookmarks.length=', reader.bookmarks.length, ')')
+				let fallbackHighlights = []
+				for r in [reader, parallelReader]
+					for item in readerBookmarksToApiShape(r)
+						const v = item.verse
+						if !v or v.verse == null
+							continue
+						const defaultHighlightColor = '#eab308'
+						const color = (item.color and String(item.color).trim()) or defaultHighlightColor
+						fallbackHighlights.push({
+							date: item.date or 0
+							color: color
+							translation: v.translation
+							book: v.book
+							chapter: v.chapter
+							verse: v.verse
+							text: v.text or ''
+						})
+				if fallbackHighlights.length > 0
+					highlightEntries = fallbackHighlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+					_cachedHighlightEntries = highlightEntries
+					window.dispatchEvent(new CustomEvent('highlights-cache-updated'))
+					if typeof console != 'undefined' and console.log
+						console.log('[HIGHLIGHTS] loadBookmarks: fallback set highlightEntries.length=', highlightEntries.length)
+			if highlightFilter != 'all' and highlightEntries.length and !highlightEntries.some(do |e| return (e.color or '') == highlightFilter)
+				highlightFilter = 'all'
+			if typeof console != 'undefined' and console.log
+				const listLen = highlightEntries.length
+				console.log('[HIGHLIGHTS] loadBookmarks: done', { highlightEntriesLength: listLen, verses: highlightEntries.map(do |e| return e.chapter + ':' + (e.verse != null ? String(e.verse) : '?') ) })
+				console.log('[HIGHLIGHTS DEBUG] Counter = filteredHighlights.length =', listLen, '(when filter=all). List items =', listLen, '. Match:', true)
 		catch err
 			console.error(err)
 			if token != fetchToken
@@ -141,6 +221,7 @@ tag bookmarks-modal
 			error = 'Unable to load bookmarks'
 			groupedBookmarks = []
 			highlightEntries = []
+			_cachedHighlightEntries = []
 		finally
 			if token != fetchToken
 				return
@@ -171,17 +252,43 @@ tag bookmarks-modal
 			return combinedBookmarks.filter(do |e| return e.type == 'verse')
 		return combinedBookmarks
 
+	# Use cache when this instance has no highlights (e.g. parent re-created modal); cacheVersion forces re-read when cache updates
+	@computed get effectiveHighlightEntries
+		const _ = cacheVersion
+		if highlightEntries.length > 0
+			return highlightEntries
+		if _cachedHighlightEntries.length > 0
+			return _cachedHighlightEntries
+		return highlightEntries
+
 	@computed get highlightColors
 		const colors = new Set()
-		for entry in highlightEntries
+		for entry in effectiveHighlightEntries
 			if entry.color
 				colors.add(entry.color)
 		return Array.from(colors)
 
 	@computed get filteredHighlights
+		const base = effectiveHighlightEntries
 		if highlightFilter == 'all'
-			return highlightEntries
-		return highlightEntries.filter(do |entry| return entry.color == highlightFilter)
+			return base
+		return base.filter(do |entry| return entry.color == highlightFilter)
+
+	# Display list for Highlights pane: use instance state or fall back to module cache so UI is correct when computed lags
+	def getDisplayHighlights
+		const base = if highlightEntries.length > 0 then highlightEntries else _cachedHighlightEntries
+		if highlightFilter == 'all'
+			return base
+		return base.filter(do |entry| return entry.color == highlightFilter)
+
+	# Unique colors present in current highlights (including custom colors) — only show filters for colors that exist
+	def getDisplayHighlightColors
+		const list = getDisplayHighlights()
+		const colors = new Set()
+		for entry in list
+			if entry.color and String(entry.color).trim()
+				colors.add(entry.color)
+		return Array.from(colors)
 
 	def openBookBookmark entry
 		const translation = entry.translation
@@ -218,10 +325,73 @@ tag bookmarks-modal
 			return openBookBookmark(entry)
 		openVerseBookmark(entry)
 
-	def mount
+	def ensureHighlightsFromReader
+		if highlightEntries.length > 0 or loading
+			return
+		if !reader.bookmarks or reader.bookmarks.length === 0 or !reader.verses or reader.verses.length === 0
+			return
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] ensureHighlightsFromReader: had 0 but reader.bookmarks.length=', reader.bookmarks.length, ', syncing from reader')
+		let fallback = []
+		for r in [reader, parallelReader]
+			for item in readerBookmarksToApiShape(r)
+				const v = item.verse
+				if !v or v.verse == null
+					continue
+				const defaultColor = '#eab308'
+				const color = (item.color and String(item.color).trim()) or defaultColor
+				fallback.push({ date: item.date or 0, color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
+		if fallback.length > 0
+			highlightEntries = fallback.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+			_cachedHighlightEntries = highlightEntries
+			window.dispatchEvent(new CustomEvent('highlights-cache-updated'))
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] ensureHighlightsFromReader: set highlightEntries.length=', highlightEntries.length)
+			imba.commit!
+
+	def handleBookmarksUpdated
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] bookmarks-updated received, refetching')
 		loadBookmarks!
 
-	<self>
+	def handleHighlightsCacheClear
+		_cachedHighlightEntries = []
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] highlights-cache-clear received, cache cleared')
+
+	def handleHighlightsCacheUpdated
+		cacheVersion = Date.now()
+		imba.commit!
+
+	def mount
+		# Restore from cache so new instance shows last known highlights (parent may re-create modal on re-render)
+		if _cachedHighlightEntries.length > 0
+			highlightEntries = _cachedHighlightEntries.slice()
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] mount: restored highlightEntries from cache, length=', highlightEntries.length)
+		loadBookmarks!
+		_bookmarksUpdatedHandler = do
+			handleBookmarksUpdated!
+		window.addEventListener('bookmarks-updated', _bookmarksUpdatedHandler)
+		_highlightsCacheClearHandler = do
+			handleHighlightsCacheClear!
+		window.addEventListener('highlights-cache-clear', _highlightsCacheClearHandler)
+		_highlightsCacheUpdatedHandler = do
+			handleHighlightsCacheUpdated!
+		window.addEventListener('highlights-cache-updated', _highlightsCacheUpdatedHandler)
+
+	def unmount
+		if _bookmarksUpdatedHandler
+			window.removeEventListener('bookmarks-updated', _bookmarksUpdatedHandler)
+			_bookmarksUpdatedHandler = null
+		if _highlightsCacheClearHandler
+			window.removeEventListener('highlights-cache-clear', _highlightsCacheClearHandler)
+			_highlightsCacheClearHandler = null
+		if _highlightsCacheUpdatedHandler
+			window.removeEventListener('highlights-cache-updated', _highlightsCacheUpdatedHandler)
+			_highlightsCacheUpdatedHandler = null
+
+	<self.bookmarks-modal-root>
 		<header.header-with-close>
 			<button.close-btn @click=activities.cleanUp title=t.close>
 				<svg src=ICONS.X aria-hidden=yes>
@@ -236,7 +406,7 @@ tag bookmarks-modal
 			<button.toggle-btn .active=(activeTab == 'highlights') @click=(activeTab = 'highlights')>
 				<svg src=Highlighter aria-hidden=yes>
 				"Highlights"
-				<span.toggle-count> highlightEntries.length
+				<span.toggle-count> getDisplayHighlights().length
 
 		<div.bookmarks-content>
 			if activeTab == 'bookmarks'
@@ -284,19 +454,21 @@ tag bookmarks-modal
 										if entry.date
 											new Date(entry.date).toLocaleString()
 			else
-				if highlightEntries.length
+				if activeTab == 'highlights'
+					ensureHighlightsFromReader!
+				if getDisplayHighlights().length > 0
 					<div.highlight-filter>
 						<button .active=(highlightFilter == 'all') @click=(highlightFilter = 'all')> "All"
-						for color in highlightColors
+						for color in getDisplayHighlightColors()
 							<button .active=(highlightFilter == color) @click=(highlightFilter = color) title=color>
 								<span.color-swatch [bgc:{color}]>
 				if loading
 					<p.bookmarks-empty> "Loading highlights..."
-				elif !filteredHighlights.length
+				elif !getDisplayHighlights().length
 					<p.bookmarks-empty> "No highlights yet"
 				else
 					<div.bookmarks-list>
-						for entry in filteredHighlights
+						for entry in getDisplayHighlights()
 							<button.bookmark-item @click=openVerseBookmark(entry)>
 								<div.bookmark-icon>
 									<span.color-swatch [bgc:{entry.color or '#eab308'}]>
@@ -306,6 +478,13 @@ tag bookmarks-modal
 									<div.bookmark-snippet innerHTML=(entry.text or '')>
 
 	css
+		.bookmarks-modal-root
+			d:flex
+			fld:column
+			min-height:0
+			h:100%
+			max-height:100%
+
 		header
 			mb:0.5rem
 
@@ -417,14 +596,16 @@ tag bookmarks-modal
 			bd:1px solid $acc-bgc-hover
 			rd:0.75rem
 			p:0.75rem
+			overflow:hidden
 
 		.bookmarks-list
 			d:flex
 			fld:column
 			g:0.5rem
-			ofy:auto
+			overflow-y:auto
 			min-height:0
 			flex:1
+			-webkit-overflow-scrolling:touch
 
 		.bookmark-item
 			d:flex
