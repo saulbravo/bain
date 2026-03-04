@@ -215,14 +215,19 @@ tag bookmarks-modal
 					normalized.push(normalizedItem)
 
 			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-			groupedBookmarks = buildGroupedBookmarks(normalized)
+			# Bookmarks tab: only entries with no color (bookmark-only). Highlights must not appear here.
+			let bookmarkOnlyNormalized = normalized.filter(do |item| return !item.color or String(item.color).trim() == '')
+			groupedBookmarks = buildGroupedBookmarks(bookmarkOnlyNormalized)
+			# Highlights tab: only entries with a color. Bookmark-only entries must not appear here.
 			let highlights = []
 			const defaultHighlightColor = '#eab308'
 			for item in normalized
 				const v = item.verse
 				if !v or v.verse == null
 					continue
-				const color = (item.color and String(item.color).trim()) or defaultHighlightColor
+				const color = item.color and String(item.color).trim()
+				if !color
+					continue
 				highlights.push({
 					date: item.date or 0
 					color: color
@@ -262,8 +267,9 @@ tag bookmarks-modal
 						const v = item.verse
 						if !v or v.verse == null
 							continue
-						const defaultHighlightColor = '#eab308'
-						const color = (item.color and String(item.color).trim()) or defaultHighlightColor
+						const color = item.color and String(item.color).trim()
+						if !color
+							continue
 						fallbackHighlights.push({
 							date: item.date or 0
 							color: color
@@ -322,8 +328,46 @@ tag bookmarks-modal
 			}
 		)
 
+	# Reactive: verse bookmarks from current reader(s), bookmark-only (no color). Same logic as highlights — so list and counter update immediately.
+	@computed get readerVerseBookmarksForList
+		let data = []
+		for r in [reader, parallelReader]
+			for item in readerBookmarksToApiShape(r)
+				if item.verse and item.verse.pk != null
+					const color = item.color and String(item.color).trim()
+					if !color
+						data.push(item)
+		let normalized = []
+		for item in data
+			const n = normalizeBookmark(item)
+			if n
+				normalized.push(n)
+		if !normalized.length
+			return []
+		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+		return buildGroupedBookmarks(normalized)
+
+	# Merge loaded groupedBookmarks with reactive reader bookmarks (reader wins for same verse so list is immediate)
+	@computed get effectiveGroupedBookmarks
+		const fromReader = readerVerseBookmarksForList
+		const fromLoad = groupedBookmarks
+		const seenPks = new Set()
+		let merged = []
+		for entry in fromReader
+			for pk in (entry.pks or [])
+				seenPks.add(pk)
+			merged.push(entry)
+		for entry in fromLoad
+			const pks = entry.pks or []
+			const already = pks.some(do |pk| return seenPks.has(pk))
+			unless already
+				for pk in pks
+					seenPks.add(pk)
+				merged.push(entry)
+		return merged.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+
 	@computed get combinedBookmarks
-		let combined = bookBookmarkEntries.concat(groupedBookmarks)
+		let combined = bookBookmarkEntries.concat(effectiveGroupedBookmarks)
 		return combined.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
 	@computed get filteredBookmarks
@@ -434,9 +478,49 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] ensureHighlightsFromReader: set highlightEntries.length=', highlightEntries.length)
 			imba.commit!
 
+	# Sync verse bookmarks from reader into modal state immediately (so counter and list update without refresh)
+	def mergeReaderBookmarksIntoState
+		let data = []
+		for r in [reader, parallelReader]
+			for item in readerBookmarksToApiShape(r)
+				if item.verse and item.verse.pk != null
+					data.push(item)
+		let normalized = []
+		for item in data
+			const normalizedItem = normalizeBookmark(item)
+			if normalizedItem
+				normalized.push(normalizedItem)
+		if normalized.length
+			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+			# Bookmarks tab: only bookmark-only (no color). Highlights must not appear here.
+			let bookmarkOnlyNormalized = normalized.filter(do |item| return !item.color or String(item.color).trim() == '')
+			groupedBookmarks = buildGroupedBookmarks(bookmarkOnlyNormalized)
+			# Highlights tab: only entries with color. Bookmark-only must not appear here.
+			let highlights = []
+			for item in normalized
+				const v = item.verse
+				if !v or v.verse == null
+					continue
+				const color = item.color and String(item.color).trim()
+				if !color
+					continue
+				highlights.push({
+					date: item.date or 0
+					color: color
+					translation: v.translation
+					book: v.book
+					chapter: v.chapter
+					verse: v.verse
+					text: v.text or ''
+				})
+			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+			_cachedHighlightEntries = highlightEntries
+		imba.commit!
+
 	def handleBookmarksUpdated
 		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] bookmarks-updated received, refetching')
+			console.log('[HIGHLIGHTS] bookmarks-updated received, syncing and refetching')
+		mergeReaderBookmarksIntoState!
 		loadBookmarks!
 
 	def handleHighlightsCacheClear
@@ -454,6 +538,8 @@ tag bookmarks-modal
 			highlightEntries = _cachedHighlightEntries.slice()
 			if typeof console != 'undefined' and console.log
 				console.log('[HIGHLIGHTS] mount: restored highlightEntries from cache, length=', highlightEntries.length)
+		# Show reader bookmarks immediately so counter and list are correct before API fetch completes
+		mergeReaderBookmarksIntoState!
 		loadBookmarks!
 		_bookmarksUpdatedHandler = do
 			handleBookmarksUpdated!

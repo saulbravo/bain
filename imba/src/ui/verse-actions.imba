@@ -252,90 +252,21 @@ tag verse-actions < section
 										<svg src=Link aria-hidden=yes>
 										t.copy_with_link
 			<li>
-				<menu-popup bind=activities.show_bookmarks>
-					<button @click=activities.toggleBookmarks .applied=(activities.selectedCategories.length > 0) title=(t.bookmark or "Bookmark")>
-						<svg src=Bookmark aria-hidden=yes>
+				<button @click=(do
+					activities.selectedCategories = []
+					activities.note = ''
+					# Bookmark only (no highlight): empty color so no background is applied
+					activities.highlight_color = ''
+					if activities.selectedParallel == 'main'
+						reader.saveBookmark!
+					else
+						parallelReader.saveBookmark!
+					activities.cleanUp!
+				) title=(t.bookmark or "Bookmark")>
+					<svg src=Bookmark aria-hidden=yes>
 			<li>
 				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
 					<svg src=Trash2 aria-hidden=yes>
-					css
-						input
-							w:100% bg:transparent
-							font:inherit c:inherit
-							fs:1em lh:2rem
-							ol@focin:2px solid $acc-bgc
-							bd: 1px solid $acc-bgc
-							bdb@invalid:1px solid $acc-bgc
-							bxs:none rd:.5rem
-							py:.25rem
-							px:.75rem
-
-					if activities.show_bookmarks
-						<.popup-menu [r:0 @lt-sm:0.5rem top:unset b:calc(100% + 4px) y@off:2rem o@off:0 w:14rem] ease>
-							<header[d:vcc p:.5rem]>
-								t.saveto
-								if user.categories.length > 0
-									<input type="text" placeholder=t.search bind=self.categoriesSearch />
-							css
-								ol
-									mah: 50vh
-									overflow-y: auto
-									p:0 .3rem
-									d:flex flw:wrap gap:.25rem
-									li
-										p:0
-										button
-											bgc:$acc-bgc
-											miw:fit-content
-										.selected
-											bgc:$acc-hover @hover:$acc
-											c:$bgc
-
-							if user.categories.length > 0 or activities.selectedCategories.length > 0 then <ol>
-								for category in activities.selectedCategories when !user.categories.includes(category)
-									<li>
-										<button.selected @click=activities.addCategoryToSelected(category)>
-											category
-								for category in user.categories when category.toLowerCase().includes(categoriesSearch.toLowerCase())
-									<li>
-										<button
-											.selected=(activities.selectedCategories.includes(category))
-											@click=activities.addCategoryToSelected(category)>
-												category
-							<button[d:hcc p:0.5rem 1rem mt:.25rem] @click=showAddNewCategory>
-								<svg src=Plus aria-hidden=yes>
-								t.new_collection
-
-					<menu-popup bind=activities.show_add_bookmark>
-						if activities.show_add_bookmark
-							<form.popup-menu
-								[r:0 @lt-sm:0.5rem top:unset b:calc(100% + 4px) y@off:2rem o@off:0 w:14rem] ease
-								@submit.prevent.stop=activities.addNewCategory>
-								<[d:flex p:.5rem pos:relative]>
-									css
-										input
-											px:.75rem 2.25rem
-
-										button
-											size:2.5rem miw:2.5rem 
-											pos:absolute r:.5rem top:50% y:-50%
-
-									<input$newcategoryinput
-										type="text"
-										minLength=2
-										# should not have white space
-										pattern="^(?!.* \\| ).*"
-										required
-										placeholder=t.new_collection
-										bind=activities.newCategoryName />
-									<button
-										[p:0 jc:center bgc@hover:transparent]
-										type="button"
-										@click=activities.show_add_bookmark=no
-									>
-										<svg src=X aria-hidden=yes>
-								<button[jc:center]>
-									t.create_collection
 
 	css
 		pos:fixed b:0 l:0 r:0 zi:1100

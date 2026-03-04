@@ -16,6 +16,12 @@ services:
     - pgdata:/var/lib/postgresql/data
     networks:
       - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres_user -d postgres_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   django:
     build:
@@ -59,7 +65,8 @@ services:
       - internal
       - web
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/get-text/YLT/1/1/"]
       interval: 30s

@@ -108,19 +108,29 @@ class GenericReader
 		if user.username
 			return bookmarks.find(do |element| return element.verse == verseNumber)
 
+	# Bookmark-only (no highlight): used for showing the red bookmark icon on the verse. Highlights must not show the icon.
+	def getBookmarkOnly verseNumber\number
+		if !user.username
+			return null
+		let b = bookmarks.find(do |element| return element.verse == verseNumber)
+		if !b
+			return null
+		if b.color and String(b.color).trim() != ''
+			return null
+		return b
+
 	def getHighlight pk\number
 		# Don't return background for selected verses - they use text color instead
-		# if activities.selectedVersesPKs.length && activities.selectedVersesPKs.includes(pk)
-		# 	return "linear-gradient(var(--acc-hover) 0px, var(--acc-hover) 100%)"
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
-		if highlight
+		# Bookmark-only (no color) = no background; only highlighted verses get a background
+		if highlight and highlight.color and String(highlight.color).trim() != ''
 			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
-		else
-			return ''
+		return ''
 	
 	def getHighlightTextColor pk\number
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
-		if !highlight
+		# Bookmark-only (no color) = no text color override
+		if !highlight or !highlight.color or String(highlight.color).trim() == ''
 			return null
 		return 'black'
 	
@@ -554,14 +564,19 @@ class GenericReader
 		if activities.note == '<br>'
 			activities.note = ''
 
-		let collections = activities.selectedCategories.map(do(str) str.trim!).join(' | ')
+		# Capture selection and state before any await — button calls cleanUp! immediately so selection would be cleared
+		let selectedPKs = activities.selectedVersesPKs.slice()
+		let highlightColor = activities.highlight_color
+		let selectedCategories = activities.selectedCategories.slice()
+		let collections = selectedCategories.map(do(str) str.trim!).join(' | ')
+		let note = activities.note
 
 		let bookmarkToSave = {
-			verses: activities.selectedVersesPKs,
-			color: activities.highlight_color,
+			verses: selectedPKs,
+			color: highlightColor,
 			date: Date.now(),
 			collections: collections
-			note: activities.note
+			note: note
 		}
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] saveBookmark: saving to DB', { verses: bookmarkToSave.verses, color: bookmarkToSave.color })
@@ -581,25 +596,30 @@ class GenericReader
 				saveOffline!
 		else saveOffline!
 
-		# Update local bookmarks BEFORE dispatch so modal merge sees new highlights
-		for verse in activities.selectedVersesPKs
+		# Update local bookmarks using captured selection (cleanUp may have already cleared activities.selectedVersesPKs)
+		for verse in selectedPKs
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)
 			if existingBookmark
 				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
 			bookmarks.push({
 				verse: verse,
 				date: Date.now(),
-				color: activities.highlight_color,
+				color: highlightColor,
 				collection: collections
-				note: activities.note
+				note: note
 			})
-		user.saveUserBookmarkToMap translation, book, chapter, activities.highlight_color
-		for category in activities.selectedCategories
+		# Reassign so @observable triggers re-render (chapter + any listener) — same as highlights
+		bookmarks = bookmarks.slice()
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		user.saveUserBookmarkToMap translation, book, chapter, highlightColor
+		for category in selectedCategories
 			if !user.categories.includes(category)
 				user.categories.push(category)
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] saveBookmark: local updated, reader.bookmarks.length=', bookmarks.length, ', dispatching bookmarks-updated')
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		imba.commit!
 		activities.cleanUp!
 
 	def requestDeleteBookmark pks\number[]

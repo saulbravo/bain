@@ -459,7 +459,8 @@ tag chapter < section
 								@touchstart.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'bottom'; activities.copySelectReader = me)>
 					
 					for verse, verse_index in me.verses
-						let bookmark = me.getBookmark(verse.pk, 'bookmarks')
+						let bookmark = me.getBookmark(verse.pk)
+						let bookmarkOnly = me.getBookmarkOnly(verse.pk)
 						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
 						let verseText = getVerseText(verse)
 
@@ -472,10 +473,14 @@ tag chapter < section
 								if settings.verse_number
 									unless settings.verse_break
 										<span> ' '
-									<span.verse dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
-										if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
-										verse.verse
-										"\u2007"
+									<span.verse.eq_ck .bookmarked=bookmarkOnly dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
+										if bookmarkOnly
+											<svg.eq_cn.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
+												<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+										<span.verse-number-text>
+											if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
+											verse.verse
+											"\u2007"
 								else
 									unless settings.verse_break
 										<span> ' '
@@ -602,9 +607,11 @@ tag chapter < section
 		.header-bookmark
 			left: 30px
 			&.active
-				c: $acc-hover
+				c: #dc2626
 				svg
-					c: $acc-hover
+					c: #dc2626
+					fill: #dc2626
+					stroke: #dc2626
 		
 		.header-search
 			right: 30px
@@ -635,6 +642,25 @@ tag chapter < section
 			vertical-align: super
 			white-space: pre
 			border-radius: 0.25rem
+			&.bookmarked
+				padding: 0
+
+		.eq_cn.verse-bookmark-icon
+			position: absolute
+			left: 69%
+			top: 45%
+			transform: translate(-50%, -50%)
+			zi: 0
+			pointer-events: none
+			width: 2em
+			height: 2em
+
+		.verse-number-text
+			pos: relative
+			zi: 1
+
+		.verse.eq_ck.bookmarked
+			pos: relative
 
 		note-tooltip svg
 			c:$acc @hover:$acc-hover
