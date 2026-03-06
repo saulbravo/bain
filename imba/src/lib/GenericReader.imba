@@ -340,30 +340,29 @@ class GenericReader
 			console.log "Error saving freehand highlights:", error
 
 	def clearAllChapterHighlights
-		# Clear freehand highlights
+		# Update local state first so UI (verse icons + modal list) updates instantly
+		let pks = bookmarks.map(do |b| b.verse)
+		const deletedColors = new Set<string>()
+		for b in bookmarks
+			if b.color
+				deletedColors.add(b.color)
 		freehandHighlights = []
-		saveFreehandHighlights!
-		
-		# Clear regular highlights
-		if user.username
-			let pks = bookmarks.map(do |b| b.verse)
-			if pks.length > 0
-				const deletedColors = new Set<string>()
-				for b in bookmarks
-					if b.color
-						deletedColors.add(b.color)
-				if typeof console != 'undefined' and console.log
-					console.log('[HIGHLIGHTS] clearAllChapterHighlights: removing', { pks })
-				await requestDeleteBookmark(pks)
-				bookmarks = []
-				for color in deletedColors
-					user.deleteBookmarkFromUserMap translation, book, chapter, color
-				if activities and activities.cacheChapterState
-					activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
-				window.dispatchEvent(new CustomEvent('bookmarks-updated'))
-				window.dispatchEvent(new CustomEvent('highlights-cache-clear'))
+		bookmarks = []
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		for color in deletedColors
+			user.deleteBookmarkFromUserMap translation, book, chapter, color
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		window.dispatchEvent(new CustomEvent('highlights-cache-clear'))
 		activities.cleanUp!
 		imba.commit!
+
+		# Sync to API/vault in background (like add: UI first, then persist)
+		if pks.length > 0
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] clearAllChapterHighlights: removing', { pks })
+			requestDeleteBookmark(pks)
+		saveFreehandHighlights!
 
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs
@@ -652,29 +651,30 @@ class GenericReader
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] deleteBookmark: deleting', { pks })
 
+		# Capture colors before removing (for user map cleanup)
 		const deletedColors = new Set<string>()
 		for verse in activities.selectedVersesPKs
 			let bookmark = bookmarks.find(do |element| return element.verse == verse)
 			if bookmark
 				deletedColors.add(bookmark.color)
 
-		await requestDeleteBookmark(pks)
+		# Update local state first so UI (verse icons + modal list) updates instantly
 		for verse in pks
 			let existing = bookmarks.find(do |bookmark| return bookmark.verse == verse)
 			if existing
 				bookmarks.splice(bookmarks.indexOf(existing), 1)
-		# Reassign so @observable triggers re-render (same as saveBookmark)
 		bookmarks = bookmarks.slice()
 		if activities and activities.cacheChapterState
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		if bookmarks.length !== 0
 			for color in deletedColors when !bookmarks.find(do |bookmark| return bookmark.color == color)
 				user.deleteBookmarkFromUserMap translation, book, chapter, color
-		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] deleteBookmark: dispatching bookmarks-updated')
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		imba.commit!
 		activities.cleanUp!
+
+		# Sync to API/vault in background (like add: UI first, then persist)
+		requestDeleteBookmark(pks)
 
 	def nextVerseHasTheSameBookmark verse_index
 		let current_bookmark = getBookmark(verses[verse_index].pk)

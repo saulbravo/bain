@@ -300,6 +300,8 @@ tag bookmarks-modal
 				const listLen = highlightEntries.length
 				console.log('[HIGHLIGHTS] loadBookmarks: done', { highlightEntriesLength: listLen, verses: highlightEntries.map(do |e| return e.chapter + ':' + (e.verse != null ? String(e.verse) : '?') ) })
 				console.log('[HIGHLIGHTS DEBUG] Counter = filteredHighlights.length =', listLen, '(when filter=all). List items =', listLen, '. Match:', true)
+			# Re-apply reader state so current chapter reflects deletions (API may be stale)
+			mergeReaderBookmarksIntoState!
 		catch err
 			console.error(err)
 			if token != fetchToken
@@ -344,24 +346,19 @@ tag bookmarks-modal
 		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 		return buildGroupedBookmarks(normalized)
 
-	# Merge loaded groupedBookmarks with reactive reader bookmarks (reader wins for same verse so list is immediate)
+	# Current chapter(s) from reader only (reactive); other chapters from load. So delete is instant in list.
 	@computed get effectiveGroupedBookmarks
 		const fromReader = readerVerseBookmarksForList
-		const fromLoad = groupedBookmarks
-		const seenPks = new Set()
-		let merged = []
-		for entry in fromReader
-			for pk in (entry.pks or [])
-				seenPks.add(pk)
-			merged.push(entry)
-		for entry in fromLoad
-			const pks = entry.pks or []
-			const already = pks.some(do |pk| return seenPks.has(pk))
-			unless already
-				for pk in pks
-					seenPks.add(pk)
-				merged.push(entry)
-		return merged.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+		const readerKeys = new Set()
+		for r in [reader, parallelReader]
+			if r and r.translation != null and r.book != null and r.chapter != null
+				readerKeys.add("{r.translation}:{r.book}:{r.chapter}")
+		let fromLoadFiltered = []
+		for entry in groupedBookmarks
+			const key = "{entry.translation}:{entry.book}:{entry.chapter}"
+			unless readerKeys.has(key)
+				fromLoadFiltered.push(entry)
+		return fromLoadFiltered.concat(fromReader).sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
 	@computed get combinedBookmarks
 		let combined = bookBookmarkEntries.concat(effectiveGroupedBookmarks)
@@ -512,7 +509,7 @@ tag bookmarks-modal
 			unless readerKeys.has(key)
 				rest.push(entry)
 		groupedBookmarks = rest.concat(fromReader).sort(do |a, b| return (b.date or 0) - (a.date or 0))
-		# Update highlights cache from same reader data when we have any
+		# Update highlights cache: from reader when we have data, or remove current chapter when cleared (instant remove)
 		if normalized.length
 			let highlights = []
 			for item in normalized
@@ -532,6 +529,13 @@ tag bookmarks-modal
 					text: v.text or ''
 				})
 			highlightEntries = highlights.length ? highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0)) : highlightEntries
+			_cachedHighlightEntries = highlightEntries
+		else
+			# Reader has no highlights for current chapter(s) — remove those from list so clear-all is instant
+			highlightEntries = highlightEntries.filter(do |entry|
+				const key = "{entry.translation}:{entry.book}:{entry.chapter}"
+				return !readerKeys.has(key)
+			)
 			_cachedHighlightEntries = highlightEntries
 		imba.commit!
 
@@ -621,7 +625,7 @@ tag bookmarks-modal
 				elif !getFilteredBookmarks().length
 					<p.bookmarks-empty> "No bookmarks yet"
 				else
-					<div.bookmarks-list[key=bookmarkFilter]>
+					<div.bookmarks-list[key="{bookmarkFilter}:{getFilteredBookmarks().length}"]>
 						for entry in getFilteredBookmarks()
 							<button.bookmark-item .is-book=(entry.type == 'book') .is-verse=(entry.type == 'verse') @click=openBookmark(entry)>
 								<div.bookmark-icon.bookmark-icon-bookmarks>
