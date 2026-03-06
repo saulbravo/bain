@@ -1,11 +1,24 @@
 import json
+import os
 
 from .score_search import score_search
 
 
-BOOKS = []
-with open("/imba/src/data/translations_books.json") as json_file:
-    BOOKS = json.load(json_file)
+BOOKS = {}
+_paths = [
+    "/imba/src/data/translations_books.json",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "imba", "src", "data", "translations_books.json"),
+]
+for _path in _paths:
+    if os.path.isfile(_path):
+        try:
+            with open(_path) as _f:
+                BOOKS = json.load(_f)
+            break
+        except Exception:
+            pass
+if not BOOKS:
+    BOOKS = {}
 
 
 triple_shortcuts = {
@@ -170,6 +183,12 @@ def get_book_id(translation, book_slug):
         return twin_shortcuts[book_slug]
 
     book_slug = book_slug.lower()
+
+    if translation not in BOOKS:
+        raise ValueError(
+            f"Translation '{translation}' not found. "
+            "Please check translations_books.json is loaded."
+        )
 
     suggestions = []
     for b in BOOKS[translation]:

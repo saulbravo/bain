@@ -333,6 +333,7 @@ tag chapter < section
 					<bible-tabs scale=1>
 			<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
+				[key={(me.translation or '') + ':' + (me.book or 0) + ':' + (me.chapter or 0) + ':' + ((me.verses and me.verses.length) or 0) + ':' + ((me.bookmarks and me.bookmarks.length) or 0)}]
 				[mt: 30px]
 					[pl: 30px]
 					[pr: 30px]
@@ -356,19 +357,20 @@ tag chapter < section
 								@click.stop.prevent=(do
 									# Get selected verses
 									let selectedVerses = []
+									let versesArr = me.verses or []
 									# Use per-reader PKs
 									let readerType = me.me or ''
 									let startPK = readerType == 'main' ? activities.copySelectStartPKMain : activities.copySelectStartPKParallel
 									let endPK = readerType == 'main' ? activities.copySelectEndPKMain : activities.copySelectEndPKParallel
 									
-									let startIdx = me.verses.findIndex(do |v| return v.pk == startPK)
-									let endIdx = me.verses.findIndex(do |v| return v.pk == endPK)
+									let startIdx = versesArr.findIndex(do |v| return v.pk == startPK)
+									let endIdx = versesArr.findIndex(do |v| return v.pk == endPK)
 									if startIdx != -1 and endIdx != -1
 										let minIdx = Math.min(startIdx, endIdx)
 										let maxIdx = Math.max(startIdx, endIdx)
 										for i in [minIdx .. maxIdx]
-											if me.verses[i]
-												let verse = me.verses[i]
+											if versesArr[i]
+												let verse = versesArr[i]
 												let reference = "{me.nameOfCurrentBook} {me.chapter}:{verse.verse}"
 												selectedVerses.push({
 													reference: reference,
@@ -458,7 +460,7 @@ tag chapter < section
 								@mousedown.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'bottom'; activities.copySelectReader = me)
 								@touchstart.prevent.stop=(do activities.copySelectDragging = yes; activities.copySelectDragHandle = 'bottom'; activities.copySelectReader = me)>
 					
-					for verse, verse_index in me.verses
+					for verse, verse_index in (me.verses or [])
 						let bookmark = me.getBookmark(verse.pk)
 						let bookmarkOnly = me.getBookmarkOnly(verse.pk)
 						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
@@ -548,7 +550,7 @@ tag chapter < section
 						<h2[margin:0 auto lh:1]> t.choose_verse
 						<button[c@hover:red4 size:2rem p:.25rem] @click=(me.show_verse_picker=no) title=t.close>
 							<svg src=ICONS.X aria-hidden=yes>
-					for verse in me.verses
+					for verse in (me.verses or [])
 						<a href="#{versePrefix}{verse.verse}"> verse.verse
 
 

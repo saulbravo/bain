@@ -301,12 +301,14 @@ class GenericReader
 			catch error
 				pass
 
-		if vault.available
+		if vault.available and Array.isArray(verses) and verses.length > 0
 			offline_bookmarks = await vault.getChapterBookmarks(verses.map(do |verse| return verse.pk))
 
 		bookmarks = offline_bookmarks.concat(server_bookmarks)
 		if activities and activities.cacheChapterState
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		# So bookmark list modal shows items on load without needing another action
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		imba.commit!
 
 	def getFreehandHighlights
@@ -356,9 +358,10 @@ class GenericReader
 				bookmarks = []
 				for color in deletedColors
 					user.deleteBookmarkFromUserMap translation, book, chapter, color
+				if activities and activities.cacheChapterState
+					activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 				window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 				window.dispatchEvent(new CustomEvent('highlights-cache-clear'))
-        
 		activities.cleanUp!
 		imba.commit!
 
@@ -656,16 +659,21 @@ class GenericReader
 				deletedColors.add(bookmark.color)
 
 		await requestDeleteBookmark(pks)
-		for verse in activities.selectedVersesPKs
-			if bookmarks.find(do |bookmark| return bookmark.verse == verse)
-				bookmarks.splice(bookmarks.indexOf(bookmarks.find(do |bookmark| return bookmark.verse == verse)), 1)
-
+		for verse in pks
+			let existing = bookmarks.find(do |bookmark| return bookmark.verse == verse)
+			if existing
+				bookmarks.splice(bookmarks.indexOf(existing), 1)
+		# Reassign so @observable triggers re-render (same as saveBookmark)
+		bookmarks = bookmarks.slice()
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		if bookmarks.length !== 0
 			for color in deletedColors when !bookmarks.find(do |bookmark| return bookmark.color == color)
 				user.deleteBookmarkFromUserMap translation, book, chapter, color
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] deleteBookmark: dispatching bookmarks-updated')
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		imba.commit!
 		activities.cleanUp!
 
 	def nextVerseHasTheSameBookmark verse_index

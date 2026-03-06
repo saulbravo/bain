@@ -78,7 +78,7 @@ class ParallelReader < GenericReader
 				let fetched = await API.getJson("/get-chapter/{translation}/{book}/{chapter}/")
 				if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
 					return
-				verses = fetched
+				verses = Array.isArray(fetched) ? fetched : []
 		catch error
 			console.error(error)
 			notifications.push('error')

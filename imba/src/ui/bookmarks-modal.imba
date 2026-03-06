@@ -215,9 +215,8 @@ tag bookmarks-modal
 					normalized.push(normalizedItem)
 
 			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-			# Bookmarks tab: only entries with no color (bookmark-only). Highlights must not appear here.
-			let bookmarkOnlyNormalized = normalized.filter(do |item| return !item.color or String(item.color).trim() == '')
-			groupedBookmarks = buildGroupedBookmarks(bookmarkOnlyNormalized)
+			# Bookmarks tab: all verse bookmarks (with or without color) so adding a highlight doesn't remove from list
+			groupedBookmarks = buildGroupedBookmarks(normalized)
 			# Highlights tab: only entries with a color. Bookmark-only entries must not appear here.
 			let highlights = []
 			const defaultHighlightColor = '#eab308'
@@ -328,15 +327,13 @@ tag bookmarks-modal
 			}
 		)
 
-	# Reactive: verse bookmarks from current reader(s), bookmark-only (no color). Same logic as highlights — so list and counter update immediately.
+	# Reactive: all verse bookmarks from current reader(s) (with or without highlight) so list and counter update immediately. Keeps bookmarked verses in list when highlights are added.
 	@computed get readerVerseBookmarksForList
 		let data = []
 		for r in [reader, parallelReader]
 			for item in readerBookmarksToApiShape(r)
 				if item.verse and item.verse.pk != null
-					const color = item.color and String(item.color).trim()
-					if !color
-						data.push(item)
+					data.push(item)
 		let normalized = []
 		for item in data
 			const n = normalizeBookmark(item)
@@ -370,12 +367,20 @@ tag bookmarks-modal
 		let combined = bookBookmarkEntries.concat(effectiveGroupedBookmarks)
 		return combined.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
-	@computed get filteredBookmarks
+	def getFilteredBookmarks
+		const combined = combinedBookmarks
+		# Book filter: only book-level bookmarks (e.g. bookmarked chapter in top-left), not verses
 		if bookmarkFilter == 'book'
-			return combinedBookmarks.filter(do |e| return e.type == 'book')
+			return combined.filter(do |e| return e and e.type == 'book')
+		# Verse filter: only verse-level bookmarks, not book/chapter entries
 		if bookmarkFilter == 'verse'
-			return combinedBookmarks.filter(do |e| return e.type == 'verse')
-		return combinedBookmarks
+			return combined.filter(do |e| return e and e.type == 'verse')
+		# Recent / All: show everything (book + verse), sorted by date
+		return combined
+
+	def setBookmarkFilter filter\string
+		bookmarkFilter = filter
+		imba.commit!
 
 	# Use cache when this instance has no highlights (e.g. parent re-created modal); cacheVersion forces re-read when cache updates
 	@computed get effectiveHighlightEntries
@@ -465,8 +470,10 @@ tag bookmarks-modal
 				const v = item.verse
 				if !v or v.verse == null
 					continue
-				const defaultColor = '#eab308'
-				const color = (item.color and String(item.color).trim()) or defaultColor
+				# Only add entries that have a color (real highlights). Bookmark-only must not appear in Highlights.
+				const color = item.color and String(item.color).trim()
+				if !color
+					continue
 				fallback.push({ date: item.date or 0, color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
 			for entry in readerFreehandToHighlightEntries(r)
 				fallback.push({ date: entry.date, color: entry.color, translation: entry.translation, book: entry.book, chapter: entry.chapter, verse: entry.verse, text: entry.text or '' })
@@ -478,8 +485,10 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] ensureHighlightsFromReader: set highlightEntries.length=', highlightEntries.length)
 			imba.commit!
 
-	# Sync verse bookmarks from reader into modal state immediately (so counter and list update without refresh)
+	# Sync verse bookmarks from reader into modal state immediately (so counter and list update without refresh).
+	# Patch groupedBookmarks: replace current chapter(s) with reader state so add/remove is instant; keep other chapters from existing load.
 	def mergeReaderBookmarksIntoState
+		# Current chapter entries from reader(s) — source of truth for instant add/remove
 		let data = []
 		for r in [reader, parallelReader]
 			for item in readerBookmarksToApiShape(r)
@@ -490,12 +499,21 @@ tag bookmarks-modal
 			const normalizedItem = normalizeBookmark(item)
 			if normalizedItem
 				normalized.push(normalizedItem)
+		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+		let fromReader = buildGroupedBookmarks(normalized)
+		# Keep loaded entries that are NOT for the current reader chapter(s), then add reader's current chapter
+		const readerKeys = new Set()
+		for r in [reader, parallelReader]
+			if r and r.translation != null and r.book != null and r.chapter != null
+				readerKeys.add("{r.translation}:{r.book}:{r.chapter}")
+		let rest = []
+		for entry in groupedBookmarks
+			const key = "{entry.translation}:{entry.book}:{entry.chapter}"
+			unless readerKeys.has(key)
+				rest.push(entry)
+		groupedBookmarks = rest.concat(fromReader).sort(do |a, b| return (b.date or 0) - (a.date or 0))
+		# Update highlights cache from same reader data when we have any
 		if normalized.length
-			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-			# Bookmarks tab: only bookmark-only (no color). Highlights must not appear here.
-			let bookmarkOnlyNormalized = normalized.filter(do |item| return !item.color or String(item.color).trim() == '')
-			groupedBookmarks = buildGroupedBookmarks(bookmarkOnlyNormalized)
-			# Highlights tab: only entries with color. Bookmark-only must not appear here.
 			let highlights = []
 			for item in normalized
 				const v = item.verse
@@ -513,15 +531,16 @@ tag bookmarks-modal
 					verse: v.verse
 					text: v.text or ''
 				})
-			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+			highlightEntries = highlights.length ? highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0)) : highlightEntries
 			_cachedHighlightEntries = highlightEntries
 		imba.commit!
 
 	def handleBookmarksUpdated
 		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] bookmarks-updated received, syncing and refetching')
+			console.log('[HIGHLIGHTS] bookmarks-updated received, syncing from reader')
+		# Update list from reader immediately (don't refetch — API can be stale and would overwrite e.g. after delete)
 		mergeReaderBookmarksIntoState!
-		loadBookmarks!
+		imba.commit!
 
 	def handleHighlightsCacheClear
 		_cachedHighlightEntries = []
@@ -583,29 +602,29 @@ tag bookmarks-modal
 			if activeTab == 'bookmarks'
 				if combinedBookmarks.length
 					<div.bookmark-filter>
-						<button.filter-btn .active=(bookmarkFilter == 'recent') @click=(bookmarkFilter = 'recent') title="Recent">
+						<button.filter-btn .active=(bookmarkFilter == 'recent') @click=setBookmarkFilter('recent') title="Recent">
 							<svg src=Clock aria-hidden=yes>
 							"Recent"
-						<button.filter-btn .active=(bookmarkFilter == 'book') @click=(bookmarkFilter = 'book') title="Books only">
+						<button.filter-btn .active=(bookmarkFilter == 'book') @click=setBookmarkFilter('book') title="Books only">
 							<svg src=BookOpen aria-hidden=yes>
 							"Book"
-						<button.filter-btn .active=(bookmarkFilter == 'verse') @click=(bookmarkFilter = 'verse') title="Verse bookmarks only">
+						<button.filter-btn .active=(bookmarkFilter == 'verse') @click=setBookmarkFilter('verse') title="Verse bookmarks only">
 							<svg src=BookmarkIcon aria-hidden=yes>
 							"Verse"
-						<button.filter-btn .active=(bookmarkFilter == 'all') @click=(bookmarkFilter = 'all') title="All bookmarks">
+						<button.filter-btn .active=(bookmarkFilter == 'all') @click=setBookmarkFilter('all') title="All bookmarks">
 							<svg src=List aria-hidden=yes>
 							"All"
 				if loading
 					<p.bookmarks-empty> "Loading bookmarks..."
 				elif error
 					<p.bookmarks-empty> error
-				elif !filteredBookmarks.length
+				elif !getFilteredBookmarks().length
 					<p.bookmarks-empty> "No bookmarks yet"
 				else
-					<div.bookmarks-list>
-						for entry in filteredBookmarks
-							<button.bookmark-item @click=openBookmark(entry)>
-								<div.bookmark-icon>
+					<div.bookmarks-list[key=bookmarkFilter]>
+						for entry in getFilteredBookmarks()
+							<button.bookmark-item .is-book=(entry.type == 'book') .is-verse=(entry.type == 'verse') @click=openBookmark(entry)>
+								<div.bookmark-icon.bookmark-icon-bookmarks>
 									if entry.type == 'book'
 										<svg src=BookOpen aria-hidden=yes>
 									else
@@ -800,6 +819,12 @@ tag bookmarks-modal
 			jc:center
 			size:1.75rem
 			flex-shrink:0
+
+		.bookmark-icon-bookmarks
+			# Bookmarks list: always show bookmark icon (not color swatch) so bookmarks are not confused with highlights
+			svg
+				fill: currentColor
+				stroke: none
 
 		.bookmark-text
 			d:flex

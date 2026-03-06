@@ -105,12 +105,23 @@ def get_text(_, translation, book, chapter):
 
 
 def get_chapter_with_comments(_, translation, book, chapter):
+    import traceback
     try:
         bookid = get_book_id(translation, book)
+    except ValueError as e:
+        if os.environ.get("DEBUG"):
+            traceback.print_exc()
+        return cross_origin(JsonResponse({"error": str(e)}, status=404))
 
+    try:
         all_verses = Verses.objects.filter(book=bookid, chapter=chapter, translation=translation).order_by("verse")
-
-        all_commentaries = Commentary.objects.filter(book=bookid, chapter=chapter, translation=translation).order_by("verse")
+        all_commentaries = []
+        try:
+            all_commentaries = list(
+                Commentary.objects.filter(book=bookid, chapter=chapter, translation=translation).order_by("verse")
+            )
+        except Exception:
+            pass
 
         d = []
         for obj in all_verses:
@@ -127,8 +138,9 @@ def get_chapter_with_comments(_, translation, book, chapter):
         return cross_origin(JsonResponse(d, safe=False))
 
     except Exception as e:
-        print(e)
-        return cross_origin(JsonResponse({"error": "The verses were not found"}, status=404))
+        traceback.print_exc()
+        # Valid chapter but DB error or missing data: return empty list so UI shows empty state, not error
+        return cross_origin(JsonResponse([], safe=False))
 
 
 def find(translation, piece, book, match_case, match_whole, page=1, limit=1024):
@@ -322,32 +334,34 @@ def edit_account(request):
 
 
 def get_bookmarks(request, translation, book, chapter):
-    if not request.user.is_authenticated:
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse([], safe=False)
+        user_bookmarks = request.user.bookmarks_set.filter(verse__translation=translation, verse__book=book, verse__chapter=chapter)
+
+        if len(user_bookmarks) == 0:
+            return JsonResponse([], safe=False)
+
+        d = []
+        for bookmark in user_bookmarks:
+            note = ""
+            if bookmark.note is not None:
+                note = bookmark.note.text
+            d.append(
+                {
+                    "verse": bookmark.verse.pk,
+                    "date": bookmark.date,
+                    "color": bookmark.color,
+                    "collection": bookmark.collection,
+                    "note": note,
+                }
+            )
+
+        return JsonResponse(d, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse([], safe=False)
-    user_bookmarks = request.user.bookmarks_set.filter(verse__translation=translation, verse__book=book, verse__chapter=chapter)
-
-    if len(user_bookmarks) == 0:
-        return JsonResponse([], safe=False)
-
-    d = []
-    for bookmark in user_bookmarks:
-        note = ""
-        if bookmark.note is not None:
-            note = bookmark.note.text
-        d.append(
-            {
-                "verse": bookmark.verse.pk,
-                "date": bookmark.date,
-                "color": bookmark.color,
-                "collection": bookmark.collection,
-                "note": note,
-            }
-        )
-
-    return JsonResponse(
-        d,
-        safe=False,
-    )
 
 
 def map_bookmarks(bookmarks_list):
@@ -645,54 +659,58 @@ def get_user_history(user):
 
 @require_http_methods(["POST", "DELETE", "PUT", "GET"])
 def history(request):
-    if request.user.is_authenticated:
-        user = request.user
+    try:
+        if request.user.is_authenticated:
+            user = request.user
 
-        if request.method == "PUT":
-            received_json_data = json.loads(request.body)
-            try:
-                obj = user.history_set.get(user=user)
-                obj.history = received_json_data["history"]
-                obj.save()
+            if request.method == "PUT":
+                received_json_data = json.loads(request.body)
+                try:
+                    obj = user.history_set.get(user=user)
+                    obj.history = received_json_data["history"]
+                    obj.save()
 
-            except History.DoesNotExist:
-                user.history_set.create(history=received_json_data["history"])
+                except History.DoesNotExist:
+                    user.history_set.create(history=received_json_data["history"])
 
-            except History.MultipleObjectsReturned:
-                user.history_set.all().delete()
-                user.history_set.create(history=received_json_data["history"])
+                except History.MultipleObjectsReturned:
+                    user.history_set.all().delete()
+                    user.history_set.create(history=received_json_data["history"])
 
-            return HttpResponse(status=200)
+                return HttpResponse(status=200)
 
-        elif request.method == "DELETE":
-            received_json_data = json.loads(request.body)
-            try:
-                obj = user.history_set.get(user=user)
-                obj.history = received_json_data["history"]
-                obj.purge_date = received_json_data["purge_date"]
-                obj.save()
+            elif request.method == "DELETE":
+                received_json_data = json.loads(request.body)
+                try:
+                    obj = user.history_set.get(user=user)
+                    obj.history = received_json_data["history"]
+                    obj.purge_date = received_json_data["purge_date"]
+                    obj.save()
 
-            except History.DoesNotExist:
-                user.history_set.create(history=received_json_data["history"])
+                except History.DoesNotExist:
+                    user.history_set.create(history=received_json_data["history"])
 
-            except History.MultipleObjectsReturned:
-                user.history_set.all().delete()
-                user.history_set.create(history=received_json_data["history"])
+                except History.MultipleObjectsReturned:
+                    user.history_set.all().delete()
+                    user.history_set.create(history=received_json_data["history"])
 
-            except Exception as e:
-                print(e)
-                return HttpResponse(status=400)
+                except Exception as e:
+                    print(e)
+                    return HttpResponse(status=400)
 
-            return HttpResponse(status=200)
+                return HttpResponse(status=200)
+
+            else:
+                return JsonResponse(get_user_history(request.user), safe=False)
 
         else:
-            return JsonResponse(get_user_history(request.user), safe=False)
-
-    else:
-        if request.method == "POST":
-            return HttpResponse(status=405)
-        else:
+            if request.method == "POST":
+                return HttpResponse(status=405)
             return JsonResponse([], safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse([], safe=False)
 
 
 def get_user_bookmarks_map(request):
@@ -723,25 +741,31 @@ def get_user_bookmarks_map(request):
 
 
 def get_me_if_am_logged_in(request):
-    if request.user.is_authenticated:
-        all_bookmarks = request.user.bookmarks_set.values("collection").annotate(dcount=Count("collection")).order_by("-date")
-        fresh_categories = [b for b in all_bookmarks]
-        categories = []
-        for categories_dict in fresh_categories:
-            for collection in categories_dict["collection"].split(" | "):
-                if collection not in categories and len(collection):
-                    categories.append(collection)
+    try:
+        if request.user.is_authenticated:
+            all_bookmarks = request.user.bookmarks_set.values("collection").annotate(dcount=Count("collection")).order_by("-date")
+            fresh_categories = [b for b in all_bookmarks]
+            categories = []
+            for categories_dict in fresh_categories:
+                coll = (categories_dict.get("collection") or "") or ""
+                for collection in coll.split(" | "):
+                    if collection and collection not in categories:
+                        categories.append(collection)
 
-        return JsonResponse(
-            {
-                "username": request.user.username,
-                "name": request.user.first_name,
-                "is_password_usable": is_password_usable(request.user.password),
-                "bookmarksMap": get_user_bookmarks_map(request),
-                "categories": categories,
-            },
-            safe=False,
-        )
+            return JsonResponse(
+                {
+                    "username": request.user.username,
+                    "name": request.user.first_name or "",
+                    "is_password_usable": is_password_usable(request.user.password),
+                    "bookmarksMap": get_user_bookmarks_map(request),
+                    "categories": categories,
+                },
+                safe=False,
+            )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"username": ""}, safe=False)
     return JsonResponse({"username": ""}, safe=False)
 
 
@@ -750,19 +774,25 @@ def api(request):
 
 
 def get_freehand_highlights(request, translation, book, chapter):
-    if not request.user.is_authenticated:
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse([], safe=False)
+
+        highlights = FreehandHighlight.objects.filter(
+            user=request.user, translation=translation, book=book, chapter=chapter
+        )
+
+        if not highlights.exists():
+            return JsonResponse([], safe=False)
+
+        first = highlights.first()
+        if not first or not first.highlights:
+            return JsonResponse([], safe=False)
+        return JsonResponse(json.loads(first.highlights), safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse([], safe=False)
-
-    highlights = FreehandHighlight.objects.filter(
-        user=request.user, translation=translation, book=book, chapter=chapter
-    )
-
-    if not highlights.exists():
-        return JsonResponse([], safe=False)
-
-    # We expect only one record per user/chapter for now, but if there are multiple, we merge them
-    # Actually, let's just return the highlights from the first one for simplicity
-    return JsonResponse(json.loads(highlights.first().highlights), safe=False)
 
 
 @require_POST

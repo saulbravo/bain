@@ -5,7 +5,15 @@ class API
 	def getJson pathname\string|URL
 		const url = baseUrl + pathname
 		const response = await window.fetch(url, { credentials: 'include' })
-		return response.json()
+		let data
+		try
+			data = await response.json()
+		catch
+			data = null
+		if !response.ok
+			const msg = (data and typeof data == 'object' and data.error != null) ? String(data.error) : "Request failed"
+			throw new Error(msg)
+		return data != null ? data : {}
 
 	def fetch pathname\string, method\string, data\object = undefined
 		if method == 'GET'

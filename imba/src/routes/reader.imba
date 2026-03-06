@@ -535,6 +535,7 @@ tag reader
 			<main id="main"
 				.parallel_text=parallelReader.enabled .hide-comments=!settings.verse_commentary .parallels=parallelReader.enabled
 				[pos:{parallelReader.enabled ? 'relative' : 'static'} ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight} ta:{theme.align} fl:1]
+				[data-bm={((reader.bookmarks and reader.bookmarks.length) or 0) + '-' + (parallelReader.enabled ? ((parallelReader.bookmarks and parallelReader.bookmarks.length) or 0) : 0)}]
 				>
 				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!}] />
 				if parallelReader.enabled

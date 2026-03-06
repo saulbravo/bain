@@ -256,6 +256,15 @@ tag books-modal
 				verseCount = chapterVerses.verses.length
 			else
 				verseCount = 0
+			# If chapter returned no verses, try verse-counts API (e.g. chapter not fetched but counts exist)
+			if verseCount == 0 and window.navigator.onLine
+				try
+					const countsMap = await API.getJson("/get-verse-counts/{translation}/")
+					if countsMap and countsMap[bookid] and typeof countsMap[bookid][chapter] == 'number'
+						verseCount = countsMap[bookid][chapter]
+				catch
+					# ignore
+			# Only show verse list when we have real data — avoid offering verses for chapters that don't exist (would show "chapter doesn't exist")
 			verseCountCache[cacheKey] = verseCount
 		catch error
 			console.error(error)
@@ -662,7 +671,9 @@ tag books-modal
 								<button.bible-verse-btn .active=isSelected @click=goToVerse(book.bookid, selectedChapterNumber, i)>
 									i
 					else
-						<div[ta:center p:1rem]> "No verses"
+						<div[ta:center p:1rem].bible-no-verses>
+							<div> "No verses"
+							<div[fs:0.875rem mt:0.25rem opacity:0.85]> "This chapter is not available in this translation."
 
 	css
 		.bible-top-buttons
