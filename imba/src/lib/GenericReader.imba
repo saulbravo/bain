@@ -608,54 +608,8 @@ class GenericReader
 		let selectedCategories = activities.selectedCategories.slice()
 		let collections = selectedCategories.map(do(str) str.trim!).join(' | ')
 		let note = activities.note
-		let fallbackColor = ''
-		let fallbackCollections = ''
-		let fallbackNote = ''
-		let preserveBookmarkFlag = no
-		for verse in selectedPKs
-			let existing = bookmarks.find(do |bookmark| return bookmark.verse == verse)
-			if existing
-				if !fallbackColor and existing.color and String(existing.color).trim() != ''
-					fallbackColor = existing.color
-				if !fallbackCollections and stripBookmarkMarker(existing.collection) and String(stripBookmarkMarker(existing.collection)).trim() != ''
-					fallbackCollections = stripBookmarkMarker(existing.collection)
-				if !fallbackNote and existing.note and String(existing.note).trim() != ''
-					fallbackNote = existing.note
-				if isExplicitBookmarkEntry(existing)
-					preserveBookmarkFlag = yes
-		# Bookmark action on a highlighted verse should preserve the highlight color.
-		if requestedBookmarkOnly and (!highlightColor or String(highlightColor).trim() == '') and fallbackColor
-			highlightColor = fallbackColor
-		if (!collections or String(collections).trim() == '') and fallbackCollections
-			collections = fallbackCollections
-		if (!note or String(note).trim() == '') and fallbackNote
-			note = fallbackNote
-		collections = mergeBookmarkMarker(collections, requestedBookmarkOnly or preserveBookmarkFlag)
-
-		let bookmarkToSave = {
-			verses: selectedPKs,
-			color: highlightColor,
-			date: Date.now(),
-			collections: collections
-			note: note
-		}
-		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] saveBookmark: saving to DB', { verses: bookmarkToSave.verses, color: bookmarkToSave.color })
-
-		def saveOffline
-			if vault.available
-				vault.saveBookmarksToStorageUntilOnline(bookmarkToSave)
-
-		if window.navigator.onLine
-			try
-				await API.post("/save-bookmarks/", bookmarkToSave)
-				notifications.push('saved')
-			catch e
-				notifications.push('error')
-				if typeof console != 'undefined' and console.error
-					console.error('[HIGHLIGHTS] saveBookmark: API error', e)
-				saveOffline!
-		else saveOffline!
+		const now = Date.now()
+		let payloads = []
 
 		# Update local bookmarks using captured selection (cleanUp may have already cleared activities.selectedVersesPKs)
 		for verse in selectedPKs
@@ -666,21 +620,33 @@ class GenericReader
 			let shouldKeepBookmark = requestedBookmarkOnly
 			if existingBookmark and isExplicitBookmarkEntry(existingBookmark)
 				shouldKeepBookmark = yes
-			let finalCollection = mergeBookmarkMarker(collections, shouldKeepBookmark)
+			let finalCollectionBase = collections
+			if (!finalCollectionBase or String(finalCollectionBase).trim() == '') and existingBookmark
+				finalCollectionBase = stripBookmarkMarker(existingBookmark.collection)
+			let finalCollection = mergeBookmarkMarker(finalCollectionBase, shouldKeepBookmark)
 			let finalNote = note
+			if (!finalNote or String(finalNote).trim() == '') and existingBookmark and existingBookmark.note
+				finalNote = existingBookmark.note
 			if existingBookmark
-				existingBookmark.date = Date.now()
+				existingBookmark.date = now
 				existingBookmark.color = finalColor
 				existingBookmark.collection = finalCollection
 				existingBookmark.note = finalNote
 			else
 				bookmarks.push({
 					verse: verse,
-					date: Date.now(),
+					date: now,
 					color: finalColor,
 					collection: finalCollection
 					note: finalNote
 				})
+			payloads.push({
+				verses: [verse],
+				color: finalColor or '',
+				date: now,
+				collections: finalCollection or '',
+				note: finalNote or ''
+			})
 		# Reassign so @observable triggers re-render (chapter + any listener) — same as highlights
 		bookmarks = bookmarks.slice()
 		if activities and activities.cacheChapterState
@@ -694,6 +660,26 @@ class GenericReader
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		imba.commit!
 		activities.cleanUp!
+
+		# Persist per-verse to DB so highlight actions don't accidentally mark all selected verses as bookmarks.
+		if typeof console != 'undefined' and console.log
+			console.log('[HIGHLIGHTS] saveBookmark: saving payloads to DB count=', payloads.length)
+		if window.navigator.onLine
+			try
+				for payload in payloads
+					await API.post("/save-bookmarks/", payload)
+				notifications.push('saved')
+			catch e
+				notifications.push('error')
+				if typeof console != 'undefined' and console.error
+					console.error('[HIGHLIGHTS] saveBookmark: API error', e)
+				if vault.available
+					for payload in payloads
+						vault.saveBookmarksToStorageUntilOnline(payload)
+		else
+			if vault.available
+				for payload in payloads
+					vault.saveBookmarksToStorageUntilOnline(payload)
 
 	def requestDeleteBookmark pks\number[]
 		if typeof console != 'undefined' and console.log

@@ -73,35 +73,24 @@ tag bookmarks-modal
 
 	def buildGroupedBookmarks items
 		let grouped = []
-		let currentKey = ''
-		let current = null
 		for item in items
 			const verse = item.verse
 			if !verse
 				continue
-			const key = "{item.date}:{verse.translation}:{verse.book}:{verse.chapter}"
-			if key != currentKey
-				currentKey = key
-				current = {
-					type: 'verse'
-					date: item.date or 0
-					color: item.color or ''
-					collection: item.collection or ''
-					note: item.note or ''
-					translation: verse.translation
-					book: verse.book
-					chapter: verse.chapter
-					verses: [verse.verse]
-					pks: [verse.pk]
-					text: [verse.text]
-					title: titleRow(verse.translation, verse.book, verse.chapter, [verse.verse])
-				}
-				grouped.push(current)
-			else
-				current.verses.push(verse.verse)
-				current.pks.push(verse.pk)
-				current.text.push(verse.text)
-				current.title = titleRow(current.translation, current.book, current.chapter, current.verses)
+			grouped.push({
+				type: 'verse'
+				date: item.date or 0
+				color: item.color or ''
+				collection: item.collection or ''
+				note: item.note or ''
+				translation: verse.translation
+				book: verse.book
+				chapter: verse.chapter
+				verses: [verse.verse]
+				pks: [verse.pk]
+				text: [verse.text]
+				title: titleRow(verse.translation, verse.book, verse.chapter, [verse.verse])
+			})
 		return grouped
 
 	def readerBookmarksToApiShape r
@@ -401,11 +390,81 @@ tag bookmarks-modal
 		return base.filter(do |entry| return entry.color == highlightFilter)
 
 	# Display list for Highlights pane: use instance state or fall back to module cache so UI is correct when computed lags
+	def groupContinuousHighlights entries
+		let buckets = {}
+		for entry in entries
+			if !entry or entry.verse == null
+				continue
+			const key = "{entry.translation}:{entry.book}:{entry.chapter}:{entry.color or ''}"
+			unless buckets[key]
+				buckets[key] = []
+			buckets[key].push(entry)
+		let grouped = []
+		for own key, items of buckets
+			const sorted = items.slice().sort(do |a, b| return (a.verse or 0) - (b.verse or 0))
+			let run = null
+			for item in sorted
+				const verseNum = item.verse
+				if run == null
+					run = {
+						date: item.date or 0
+						color: item.color
+						translation: item.translation
+						book: item.book
+						chapter: item.chapter
+						verse: verseNum
+						endVerse: verseNum
+						_texts: [item.text or '']
+					}
+				elif verseNum == (run.endVerse + 1)
+					run.endVerse = verseNum
+					run.date = Math.max(run.date or 0, item.date or 0)
+					if item.text
+						run._texts.push(item.text)
+				else
+					grouped.push({
+						date: run.date
+						color: run.color
+						translation: run.translation
+						book: run.book
+						chapter: run.chapter
+						verse: run.verse
+						endVerse: run.endVerse
+						text: run._texts.join(' ')
+					})
+					run = {
+						date: item.date or 0
+						color: item.color
+						translation: item.translation
+						book: item.book
+						chapter: item.chapter
+						verse: verseNum
+						endVerse: verseNum
+						_texts: [item.text or '']
+					}
+			if run != null
+				grouped.push({
+					date: run.date
+					color: run.color
+					translation: run.translation
+					book: run.book
+					chapter: run.chapter
+					verse: run.verse
+					endVerse: run.endVerse
+					text: run._texts.join(' ')
+				})
+		return grouped.sort(do |a, b| return (b.date or 0) - (a.date or 0))
+
 	def getDisplayHighlights
 		const base = if highlightEntries.length > 0 then highlightEntries else _cachedHighlightEntries
-		if highlightFilter == 'all'
-			return base
-		return base.filter(do |entry| return entry.color == highlightFilter)
+		const filtered = if highlightFilter == 'all' then base else base.filter(do |entry| return entry.color == highlightFilter)
+		return groupContinuousHighlights(filtered)
+
+	def highlightTitle entry
+		let versesPart = String(entry.verse)
+		if entry.endVerse and entry.endVerse != entry.verse
+			versesPart = "{entry.verse}-{entry.endVerse}"
+		return "{getBookName(entry.translation, entry.book)} {entry.chapter}:{versesPart}"
 
 	# Unique colors present in current highlights (including custom colors) — only show filters for colors that exist
 	def getDisplayHighlightColors
@@ -610,7 +669,7 @@ tag bookmarks-modal
 								<div.bookmark-icon>
 									<span.color-swatch [bgc:{entry.color or '#eab308'}]>
 								<div.bookmark-text>
-									<div.bookmark-title> "{getBookName(entry.translation, entry.book)} {entry.chapter}:{entry.verse}"
+									<div.bookmark-title> highlightTitle(entry)
 									<div.bookmark-meta> entry.translation
 									<div.bookmark-snippet innerHTML=(entry.text or '')>
 
