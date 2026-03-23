@@ -101,6 +101,7 @@ class Activities
 	@observable tabs = []
 	@observable activeTabIndex = 0
 	@observable isSwitchingTab = no
+	tabsHydrated = no
 	# Track pending switch to avoid overwriting tabs mid-sync
 	switchSyncTimer = null
 	switchSyncAttempts = 0
@@ -198,6 +199,7 @@ class Activities
 		return chapterCache[key]
 
 	def loadTabs
+		tabsHydrated = no
 		let savedTabs = getValue('tabs')
 		tabs = Array.isArray(savedTabs) ? savedTabs : []
 		
@@ -220,6 +222,16 @@ class Activities
 		# Ensure index is valid
 		if activeTabIndex >= tabs.length
 			activeTabIndex = 0
+		if activeTabIndex < 0
+			activeTabIndex = 0
+		# On startup, tabs are source of truth. Sync reader from active tab before autoruns update tab names.
+		const activeTab = tabs[activeTabIndex]
+		if activeTab and activeTab.translation != undefined and activeTab.book != undefined and activeTab.chapter != undefined
+			reader.translation = activeTab.translation
+			reader.book = activeTab.book
+			reader.chapter = activeTab.chapter
+		tabUpdateTargetIndex = null
+		tabsHydrated = yes
 
 	def saveTabs
 		setValue('tabs', tabs)
@@ -227,6 +239,8 @@ class Activities
 
 	def addTab
 		const current = reader
+		# Any previous targeted update is stale once we create a new active tab.
+		tabUpdateTargetIndex = null
 		logTabDebug 'addTab', {
 			activeTabIndex,
 			reader: readerSummary
@@ -243,6 +257,8 @@ class Activities
 
 	def switchTab index
 		if index >= 0 and index < tabs.length
+			# Switching tabs should always update the destination active tab only.
+			tabUpdateTargetIndex = null
 			const tab = tabs[index]
 			unless tab
 				return
@@ -268,6 +284,8 @@ class Activities
 
 	def closeTab index
 		if tabs.length > 1
+			# Closing tabs invalidates any pending targeted index.
+			tabUpdateTargetIndex = null
 			logTabDebug 'closeTab start', {
 				index,
 				activeTabIndex,
@@ -298,6 +316,12 @@ class Activities
 			imba.commit!
 
 	@autorun def updateCurrentTabName
+		if !tabsHydrated
+			logTabDebug 'updateCurrentTabName skipped (tabs not hydrated)', {
+				activeTabIndex,
+				tabUpdateTargetIndex
+			}
+			return
 		if isSwitchingTab
 			logTabDebug 'updateCurrentTabName skipped (switching)', {
 				activeTabIndex,
@@ -305,6 +329,14 @@ class Activities
 				reader: readerSummary
 			}
 			return
+		# If a stale target points to another tab while no modal flow is active,
+		# clear it so normal navigation updates only the active tab.
+		if tabUpdateTargetIndex != null and tabUpdateTargetIndex != activeTabIndex and activeModal == ''
+			logTabDebug 'updateCurrentTabName clear stale target', {
+				activeTabIndex,
+				tabUpdateTargetIndex
+			}
+			tabUpdateTargetIndex = null
 		const index = tabUpdateTargetIndex != null ? tabUpdateTargetIndex : activeTabIndex
 		const tab = tabs[index]
 		unless tab and reader..nameOfCurrentBook

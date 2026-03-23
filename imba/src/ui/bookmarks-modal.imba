@@ -625,7 +625,7 @@ tag bookmarks-modal
 				elif !getFilteredBookmarks().length
 					<p.bookmarks-empty> "No bookmarks yet"
 				else
-					<div.bookmarks-list[key="{bookmarkFilter}:{getFilteredBookmarks().length}"]>
+					<div.bookmarks-list[key={(bookmarkFilter + ':' + getFilteredBookmarks().length)}]>
 						for entry in getFilteredBookmarks()
 							<button.bookmark-item .is-book=(entry.type == 'book') .is-verse=(entry.type == 'verse') @click=openBookmark(entry)>
 								<div.bookmark-icon.bookmark-icon-bookmarks>
