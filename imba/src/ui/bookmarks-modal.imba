@@ -172,14 +172,14 @@ tag bookmarks-modal
 
 	def loadBookmarks
 		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] loadBookmarks: start')
+			console.log('[HIGHLIGHTS] loadBookmarks: start', { online: window.navigator.onLine, username: user.username })
 		loading = yes
 		error = ''
 		let token = fetchToken + 1
 		fetchToken = token
 		try
 			let data = []
-			if window.navigator.onLine and user.username
+			if window.navigator.onLine
 				const pageSize = 200
 				let rangeFrom = 0
 				let keepLoading = yes
@@ -187,8 +187,24 @@ tag bookmarks-modal
 					let batch = await API.getJson("/get-profile-bookmarks/{rangeFrom}/{rangeFrom + pageSize}/")
 					if token != fetchToken
 						return
+					unless Array.isArray(batch)
+						if batch and Array.isArray(batch.bookmarks)
+							batch = batch.bookmarks
+						elif batch and Array.isArray(batch.results)
+							batch = batch.results
+						else
+						if typeof console != 'undefined' and console.warn
+								console.warn('[HIGHLIGHTS] loadBookmarks: non-array profile response, stopping pagination', { rangeFrom, batch })
+							break
 					if typeof console != 'undefined' and console.log
-						console.log('[HIGHLIGHTS] loadBookmarks: batch from API', { rangeFrom, count: batch.length })
+						let sample = batch.length > 0 ? batch[0] : null
+						console.log('[HIGHLIGHTS] loadBookmarks: batch from API', {
+							rangeFrom,
+							count: batch.length,
+							sampleHasVerse: sample and sample.verse ? yes : no,
+							sampleVersePk: sample and sample.verse ? sample.verse.pk : null,
+							sampleTranslation: sample and sample.verse ? sample.verse.translation : null
+						})
 					data = data.concat(batch)
 					if batch.length < pageSize
 						keepLoading = no
@@ -200,34 +216,34 @@ tag bookmarks-modal
 				data = []
 			if token != fetchToken
 				return
-
-			# Merge current reader(s) highlights so list updates in real time
-			let existingPks = new Set()
-			for item in data
-				if item.verse and item.verse.pk != null
-					existingPks.add(item.verse.pk)
-			let mergedFromReader = 0
-			for r in [reader, parallelReader]
-				const fromReader = readerBookmarksToApiShape(r)
-				if typeof console != 'undefined' and console.log
-					console.log('[HIGHLIGHTS] loadBookmarks: merge check', { readerName: r.me or 'parallel', readerBookmarksLength: (r.bookmarks and r.bookmarks.length) or 0, readerVersesLength: (r.verses and r.verses.length) or 0, fromReaderCount: fromReader.length })
-				for item in fromReader
-					if item.verse and item.verse.pk != null and !existingPks.has(item.verse.pk)
-						data.push(item)
-						existingPks.add(item.verse.pk)
-						mergedFromReader += 1
 			if typeof console != 'undefined' and console.log
-				console.log('[HIGHLIGHTS] loadBookmarks: after merge', { dataLength: data.length, mergedFromReader })
+				console.log('[HIGHLIGHTS] loadBookmarks: raw data total', {
+					count: data.length,
+					withVerse: data.filter(do |i| return i and i.verse).length
+				})
 
 			let normalized = []
+			let dropped = 0
 			for item in data
 				const normalizedItem = normalizeBookmark(item)
 				if normalizedItem
 					normalized.push(normalizedItem)
+				else
+					dropped += 1
 
 			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-			# Bookmarks tab: only explicit bookmarks (bookmark-only or highlight+bookmark).
-			groupedBookmarks = buildGroupedBookmarks(normalized.filter(do |item| return item.isBookmarked))
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] loadBookmarks: normalized', {
+					count: normalized.length,
+					dropped,
+					sample: normalized.slice(0, 5).map(do |n| return n and n.verse ? "{n.verse.translation} {n.verse.book}:{n.verse.chapter}:{n.verse.verse}" : 'invalid')
+				})
+			# Bookmarks tab: show all verse rows returned by profile DB.
+			# This avoids dropping legacy rows that don't carry newer marker metadata.
+			groupedBookmarks = buildGroupedBookmarks(normalized)
+			if typeof console != 'undefined' and console.log
+				console.log('[HIGHLIGHTS] groupedBookmarks count =', groupedBookmarks.length)
+				console.log('[HIGHLIGHTS] groupedBookmarks sample =', groupedBookmarks.slice(0, 5).map(do |g| return g.title).join(' | '))
 			# Highlights tab: only entries with a color. Bookmark-only entries must not appear here.
 			let highlights = []
 			const defaultHighlightColor = '#eab308'
@@ -309,10 +325,8 @@ tag bookmarks-modal
 				highlightFilter = 'all'
 			if typeof console != 'undefined' and console.log
 				const listLen = highlightEntries.length
-				console.log('[HIGHLIGHTS] loadBookmarks: done', { highlightEntriesLength: listLen, verses: highlightEntries.map(do |e| return e.chapter + ':' + (e.verse != null ? String(e.verse) : '?') ) })
-				console.log('[HIGHLIGHTS DEBUG] Counter = filteredHighlights.length =', listLen, '(when filter=all). List items =', listLen, '. Match:', true)
-			# Re-apply reader state so current chapter reflects deletions (API may be stale)
-			mergeReaderBookmarksIntoState!
+				console.log('[HIGHLIGHTS] loadBookmarks done; highlights count =', listLen)
+				console.log('[HIGHLIGHTS] combined count =', combinedBookmarksList().length, '; filtered count =', getFilteredBookmarks().length, '; tab =', activeTab, '; filter =', bookmarkFilter)
 		catch err
 			console.error(err)
 			if token != fetchToken
@@ -340,43 +354,12 @@ tag bookmarks-modal
 			}
 		)
 
-	# Reactive: explicit verse bookmarks from current reader(s) only.
-	@computed get readerVerseBookmarksForList
-		let data = []
-		for r in [reader, parallelReader]
-			for item in readerBookmarksToApiShape(r)
-				if item.verse and item.verse.pk != null
-					data.push(item)
-		let normalized = []
-		for item in data
-			const n = normalizeBookmark(item)
-			if n
-				normalized.push(n)
-		if !normalized.length
-			return []
-		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-		return buildGroupedBookmarks(normalized.filter(do |item| return item.isBookmarked))
-
-	# Current chapter(s) from reader only (reactive); other chapters from load. So delete is instant in list.
-	@computed get effectiveGroupedBookmarks
-		const fromReader = readerVerseBookmarksForList
-		const readerKeys = new Set()
-		for r in [reader, parallelReader]
-			if r and r.translation != null and r.book != null and r.chapter != null
-				readerKeys.add("{r.translation}:{r.book}:{r.chapter}")
-		let fromLoadFiltered = []
-		for entry in groupedBookmarks
-			const key = "{entry.translation}:{entry.book}:{entry.chapter}"
-			unless readerKeys.has(key)
-				fromLoadFiltered.push(entry)
-		return fromLoadFiltered.concat(fromReader).sort(do |a, b| return (b.date or 0) - (a.date or 0))
-
-	@computed get combinedBookmarks
-		let combined = bookBookmarkEntries.concat(effectiveGroupedBookmarks)
+	def combinedBookmarksList
+		let combined = bookBookmarkEntries.concat(groupedBookmarks)
 		return combined.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
 	def getFilteredBookmarks
-		const combined = combinedBookmarks
+		const combined = combinedBookmarksList()
 		# Book filter: only book-level bookmarks (e.g. bookmarked chapter in top-left), not verses
 		if bookmarkFilter == 'book'
 			return combined.filter(do |e| return e and e.type == 'book')
@@ -493,69 +476,10 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] ensureHighlightsFromReader: set highlightEntries.length=', highlightEntries.length)
 			imba.commit!
 
-	# Sync verse bookmarks from reader into modal state immediately (so counter and list update without refresh).
-	# Patch groupedBookmarks: replace current chapter(s) with reader state so add/remove is instant; keep other chapters from existing load.
-	def mergeReaderBookmarksIntoState
-		# Current chapter entries from reader(s) — source of truth for instant add/remove
-		let data = []
-		for r in [reader, parallelReader]
-			for item in readerBookmarksToApiShape(r)
-				if item.verse and item.verse.pk != null
-					data.push(item)
-		let normalized = []
-		for item in data
-			const normalizedItem = normalizeBookmark(item)
-			if normalizedItem
-				normalized.push(normalizedItem)
-		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-		let fromReader = buildGroupedBookmarks(normalized)
-		# Keep loaded entries that are NOT for the current reader chapter(s), then add reader's current chapter
-		const readerKeys = new Set()
-		for r in [reader, parallelReader]
-			if r and r.translation != null and r.book != null and r.chapter != null
-				readerKeys.add("{r.translation}:{r.book}:{r.chapter}")
-		let rest = []
-		for entry in groupedBookmarks
-			const key = "{entry.translation}:{entry.book}:{entry.chapter}"
-			unless readerKeys.has(key)
-				rest.push(entry)
-		groupedBookmarks = rest.concat(fromReader).sort(do |a, b| return (b.date or 0) - (a.date or 0))
-		# Update highlights cache: from reader when we have data, or remove current chapter when cleared (instant remove)
-		if normalized.length
-			let highlights = []
-			for item in normalized
-				const v = item.verse
-				if !v or v.verse == null
-					continue
-				const color = item.color and String(item.color).trim()
-				if !color
-					continue
-				highlights.push({
-					date: item.date or 0
-					color: color
-					translation: v.translation
-					book: v.book
-					chapter: v.chapter
-					verse: v.verse
-					text: v.text or ''
-				})
-			highlightEntries = highlights.length ? highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0)) : highlightEntries
-			_cachedHighlightEntries = highlightEntries
-		else
-			# Reader has no highlights for current chapter(s) — remove those from list so clear-all is instant
-			highlightEntries = highlightEntries.filter(do |entry|
-				const key = "{entry.translation}:{entry.book}:{entry.chapter}"
-				return !readerKeys.has(key)
-			)
-			_cachedHighlightEntries = highlightEntries
-		imba.commit!
-
 	def handleBookmarksUpdated
 		if typeof console != 'undefined' and console.log
-			console.log('[HIGHLIGHTS] bookmarks-updated received, syncing from reader')
-		# Update list from reader immediately (don't refetch — API can be stale and would overwrite e.g. after delete)
-		mergeReaderBookmarksIntoState!
-		imba.commit!
+			console.log('[HIGHLIGHTS] bookmarks-updated received, reloading from profile DB')
+		loadBookmarks!
 
 	def handleHighlightsCacheClear
 		_cachedHighlightEntries = []
@@ -572,9 +496,12 @@ tag bookmarks-modal
 			highlightEntries = _cachedHighlightEntries.slice()
 			if typeof console != 'undefined' and console.log
 				console.log('[HIGHLIGHTS] mount: restored highlightEntries from cache, length=', highlightEntries.length)
-		# Show reader bookmarks immediately so counter and list are correct before API fetch completes
-		mergeReaderBookmarksIntoState!
+		# DB-driven list only: clear local list and always fetch full profile bookmarks.
+		groupedBookmarks = []
 		loadBookmarks!
+		# One delayed refresh helps when auth/session initializes shortly after mount.
+		setTimeout(&, 500) do
+			loadBookmarks!
 		_bookmarksUpdatedHandler = do
 			handleBookmarksUpdated!
 		window.addEventListener('bookmarks-updated', _bookmarksUpdatedHandler)
@@ -607,7 +534,7 @@ tag bookmarks-modal
 			<button.toggle-btn .active=(activeTab == 'bookmarks') @click=(activeTab = 'bookmarks')>
 				<svg src=BookmarkIcon aria-hidden=yes>
 				"Bookmarks"
-				<span.toggle-count> combinedBookmarks.length
+				<span.toggle-count> combinedBookmarksList().length
 			<button.toggle-btn .active=(activeTab == 'highlights') @click=(activeTab = 'highlights')>
 				<svg src=Highlighter aria-hidden=yes>
 				"Highlights"
@@ -615,7 +542,7 @@ tag bookmarks-modal
 
 		<div.bookmarks-content>
 			if activeTab == 'bookmarks'
-				if combinedBookmarks.length
+				if combinedBookmarksList().length
 					<div.bookmark-filter>
 						<button.filter-btn .active=(bookmarkFilter == 'recent') @click=setBookmarkFilter('recent') title="Recent">
 							<svg src=Clock aria-hidden=yes>
