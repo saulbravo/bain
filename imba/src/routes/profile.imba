@@ -43,6 +43,7 @@ let taken_usernames = []
 let loading = no
 let importing = no
 let deleteMeErrorMessage = ''
+const BOOKMARK_MARKER = '__bolls_bookmark__'
 
 tag profile
 	bookmarks = []
@@ -92,6 +93,15 @@ tag profile
 				!key ? (row += id) : (row += ',' + id)
 		return row
 
+	def stripBookmarkMarker collection\string
+		if !collection
+			return ''
+		return String(collection)
+			.split(' | ')
+			.map(do |piece| return piece.trim!)
+			.filter(do |piece| return piece != '' and piece != BOOKMARK_MARKER)
+			.join(' | ')
+
 	def parseBookmarks bookmarksdata\ProfileBookmark[], bookmarkstype\string
 		let newItem\({
 				verse: number[],
@@ -113,7 +123,7 @@ tag profile
 		for item, key in bookmarksdata
 			newItem.date = new Date(item.date)
 			newItem.color = item.color
-			newItem.collection = item.collection
+			newItem.collection = stripBookmarkMarker(item.collection)
 			newItem.note = await marked.parse(DOMPurify.sanitize(item.note))
 			newItem.translation = item.verse.translation
 			newItem.book = item.verse.book

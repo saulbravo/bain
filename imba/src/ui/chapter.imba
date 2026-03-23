@@ -498,10 +498,11 @@ tag chapter < section
 									@keydown.enter=me.saveBookmark
 									[scroll-margin-top: 1.4rem]
 								>
-							if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (bookmark.collection || bookmark.note)
+							let displayCollection = bookmark ? me.stripBookmarkMarker(bookmark.collection) : ''
+							if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (displayCollection || bookmark.note)
 								<note-tooltip style=superStyle bookmark=bookmark>
 									<svg src=Bookmark>
-										<title> bookmark.collection + ': ' + bookmark.note
+										<title> displayCollection + ': ' + bookmark.note
 
 							if verse.comment and settings.verse_commentary
 								<note-tooltip style=superStyle bookmark=verse.comment>

@@ -258,9 +258,9 @@ tag verse-actions < section
 					# Bookmark only (no highlight): empty color so no background is applied
 					activities.highlight_color = ''
 					if activities.selectedParallel == 'main'
-						reader.saveBookmark!
+						reader.saveBookmark(yes)
 					else
-						parallelReader.saveBookmark!
+						parallelReader.saveBookmark(yes)
 					activities.cleanUp!
 				) title=(t.bookmark or "Bookmark")>
 					<svg src=Bookmark aria-hidden=yes>

@@ -15,6 +15,7 @@ import * as ICONS from 'imba-phosphor-icons'
 
 # Shared cache so highlights persist when parent re-renders and creates a new modal instance
 let _cachedHighlightEntries = []
+const BOOKMARK_MARKER = '__bolls_bookmark__'
 
 tag bookmarks-modal
 	loading = yes
@@ -48,12 +49,22 @@ tag bookmarks-modal
 	def normalizeBookmark item
 		if !item or !item.verse
 			return null
+		const rawColor = item.color or ''
+		const rawCollection = item.collection or item.collections or ''
+		const hasColor = String(rawColor).trim() != ''
+		const hasMarker = String(rawCollection).split(' | ').includes(BOOKMARK_MARKER)
+		const cleanCollection = String(rawCollection)
+			.split(' | ')
+			.map(do |piece| return piece.trim!)
+			.filter(do |piece| return piece != '' and piece != BOOKMARK_MARKER)
+			.join(' | ')
 		return {
 			verse: item.verse
 			date: item.date or 0
-			color: item.color or ''
-			collection: item.collection or item.collections or ''
+			color: rawColor
+			collection: cleanCollection
 			note: item.note or ''
+			isBookmarked: !hasColor or hasMarker
 		}
 
 	def buildGroupedBookmarks items
@@ -215,8 +226,8 @@ tag bookmarks-modal
 					normalized.push(normalizedItem)
 
 			normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-			# Bookmarks tab: all verse bookmarks (with or without color) so adding a highlight doesn't remove from list
-			groupedBookmarks = buildGroupedBookmarks(normalized)
+			# Bookmarks tab: only explicit bookmarks (bookmark-only or highlight+bookmark).
+			groupedBookmarks = buildGroupedBookmarks(normalized.filter(do |item| return item.isBookmarked))
 			# Highlights tab: only entries with a color. Bookmark-only entries must not appear here.
 			let highlights = []
 			const defaultHighlightColor = '#eab308'
@@ -329,7 +340,7 @@ tag bookmarks-modal
 			}
 		)
 
-	# Reactive: all verse bookmarks from current reader(s) (with or without highlight) so list and counter update immediately. Keeps bookmarked verses in list when highlights are added.
+	# Reactive: explicit verse bookmarks from current reader(s) only.
 	@computed get readerVerseBookmarksForList
 		let data = []
 		for r in [reader, parallelReader]
@@ -344,7 +355,7 @@ tag bookmarks-modal
 		if !normalized.length
 			return []
 		normalized = normalized.sort(do |a, b| return (b.date or 0) - (a.date or 0))
-		return buildGroupedBookmarks(normalized)
+		return buildGroupedBookmarks(normalized.filter(do |item| return item.isBookmarked))
 
 	# Current chapter(s) from reader only (reactive); other chapters from load. So delete is instant in list.
 	@computed get effectiveGroupedBookmarks

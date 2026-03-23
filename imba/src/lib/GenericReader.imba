@@ -15,6 +15,8 @@ import parallelReader from './ParallelReader'
 
 import type { Verse, Bookmark } from './types'
 
+const BOOKMARK_MARKER = '__bolls_bookmark__'
+
 class GenericReader
 	@observable translation\string
 	@observable book\number
@@ -27,6 +29,38 @@ class GenericReader
 	verse\number|string = 0
 
 	me = '' # constant to indicate the main reader versus the parallel reader
+	def hasBookmarkMarker collection\string
+		if !collection
+			return no
+		return String(collection).split(' | ').includes(BOOKMARK_MARKER)
+
+	def stripBookmarkMarker collection\string
+		if !collection
+			return ''
+		return String(collection)
+			.split(' | ')
+			.map(do |piece| return piece.trim!)
+			.filter(do |piece| return piece != '' and piece != BOOKMARK_MARKER)
+			.join(' | ')
+
+	def mergeBookmarkMarker collection\string, bookmarked\boolean
+		let parts = []
+		if collection
+			parts = String(collection)
+				.split(' | ')
+				.map(do |piece| return piece.trim!)
+				.filter(do |piece| return piece != '' and piece != BOOKMARK_MARKER)
+		if bookmarked
+			parts.push(BOOKMARK_MARKER)
+		return parts.join(' | ')
+
+	def isExplicitBookmarkEntry item
+		if !item
+			return no
+		const color = item.color and String(item.color).trim()
+		if !color
+			return yes
+		return hasBookmarkMarker(item.collection or '')
 
 	@computed get books
 		unless ALL_BOOKS[translation]
@@ -115,7 +149,8 @@ class GenericReader
 		let b = bookmarks.find(do |element| return element.verse == verseNumber)
 		if !b
 			return null
-		if b.color and String(b.color).trim() != ''
+		# Highlight-only entries are not bookmarks unless explicitly marked.
+		if !isExplicitBookmarkEntry(b)
 			return null
 		return b
 
@@ -144,19 +179,19 @@ class GenericReader
 			return
 		
 		for pk in pks
-			# Remove existing bookmark for this verse (if any)
+			# Merge highlight preview into existing entry so bookmark state is preserved.
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == pk)
 			if existingBookmark
-				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
-			
-			# Add new preview bookmark
-			bookmarks.push({
-				verse: pk,
-				date: Date.now(),
-				color: color,
-				collection: '',
-				note: ''
-			})
+				existingBookmark.date = Date.now()
+				existingBookmark.color = color
+			else
+				bookmarks.push({
+					verse: pk,
+					date: Date.now(),
+					color: color,
+					collection: '',
+					note: ''
+				})
 		
 		imba.commit!
 	
@@ -373,7 +408,7 @@ class GenericReader
 	def getCollectionOfChosen verseNumber\number
 		let highlight = bookmarks.find(do |element| return element.verse == verseNumber)
 		if highlight
-			return highlight.collection
+			return stripBookmarkMarker(highlight.collection)
 		else ''
 
 	def pushCollectionIfExist pk\number
@@ -558,7 +593,7 @@ class GenericReader
 				range.selectNodeContents(verseNode)
 				selection.addRange(range)
 
-	def saveBookmark
+	def saveBookmark bookmarkOnly\boolean = no
 		unless user.username
 			window.location.pathname = "/signup/"
 			return
@@ -569,9 +604,33 @@ class GenericReader
 		# Capture selection and state before any await — button calls cleanUp! immediately so selection would be cleared
 		let selectedPKs = activities.selectedVersesPKs.slice()
 		let highlightColor = activities.highlight_color
+		const requestedBookmarkOnly = bookmarkOnly or !highlightColor or String(highlightColor).trim() == ''
 		let selectedCategories = activities.selectedCategories.slice()
 		let collections = selectedCategories.map(do(str) str.trim!).join(' | ')
 		let note = activities.note
+		let fallbackColor = ''
+		let fallbackCollections = ''
+		let fallbackNote = ''
+		let preserveBookmarkFlag = no
+		for verse in selectedPKs
+			let existing = bookmarks.find(do |bookmark| return bookmark.verse == verse)
+			if existing
+				if !fallbackColor and existing.color and String(existing.color).trim() != ''
+					fallbackColor = existing.color
+				if !fallbackCollections and stripBookmarkMarker(existing.collection) and String(stripBookmarkMarker(existing.collection)).trim() != ''
+					fallbackCollections = stripBookmarkMarker(existing.collection)
+				if !fallbackNote and existing.note and String(existing.note).trim() != ''
+					fallbackNote = existing.note
+				if isExplicitBookmarkEntry(existing)
+					preserveBookmarkFlag = yes
+		# Bookmark action on a highlighted verse should preserve the highlight color.
+		if requestedBookmarkOnly and (!highlightColor or String(highlightColor).trim() == '') and fallbackColor
+			highlightColor = fallbackColor
+		if (!collections or String(collections).trim() == '') and fallbackCollections
+			collections = fallbackCollections
+		if (!note or String(note).trim() == '') and fallbackNote
+			note = fallbackNote
+		collections = mergeBookmarkMarker(collections, requestedBookmarkOnly or preserveBookmarkFlag)
 
 		let bookmarkToSave = {
 			verses: selectedPKs,
@@ -601,15 +660,27 @@ class GenericReader
 		# Update local bookmarks using captured selection (cleanUp may have already cleared activities.selectedVersesPKs)
 		for verse in selectedPKs
 			let existingBookmark = bookmarks.find(do |bookmark| return bookmark.verse == verse)
+			let finalColor = highlightColor
+			if requestedBookmarkOnly and (!finalColor or String(finalColor).trim() == '') and existingBookmark and existingBookmark.color and String(existingBookmark.color).trim() != ''
+				finalColor = existingBookmark.color
+			let shouldKeepBookmark = requestedBookmarkOnly
+			if existingBookmark and isExplicitBookmarkEntry(existingBookmark)
+				shouldKeepBookmark = yes
+			let finalCollection = mergeBookmarkMarker(collections, shouldKeepBookmark)
+			let finalNote = note
 			if existingBookmark
-				bookmarks.splice(bookmarks.indexOf(existingBookmark), 1)
-			bookmarks.push({
-				verse: verse,
-				date: Date.now(),
-				color: highlightColor,
-				collection: collections
-				note: note
-			})
+				existingBookmark.date = Date.now()
+				existingBookmark.color = finalColor
+				existingBookmark.collection = finalCollection
+				existingBookmark.note = finalNote
+			else
+				bookmarks.push({
+					verse: verse,
+					date: Date.now(),
+					color: finalColor,
+					collection: finalCollection
+					note: finalNote
+				})
 		# Reassign so @observable triggers re-render (chapter + any listener) — same as highlights
 		bookmarks = bookmarks.slice()
 		if activities and activities.cacheChapterState

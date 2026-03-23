@@ -2,6 +2,8 @@ import API from './Api'
 
 import { setValue, getValue, deleteValue } from '../utils'
 
+const BOOKMARK_MARKER = '__bolls_bookmark__'
+
 class User
 	@observable username\string = getValue('username')
 	is_password_usable = getValue('is_password_usable')
@@ -58,7 +60,7 @@ class User
 					if userdata.bookmarksMap
 						bookmarksMap = userdata.bookmarksMap
 					if userdata.categories
-						categories = userdata.categories
+						categories = userdata.categories.filter(do |c| return c != BOOKMARK_MARKER)
 				else
 					bookmarksMap = {}
 					username = ''
