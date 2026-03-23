@@ -51,6 +51,7 @@ tag bookmarks-modal
 			return null
 		const rawColor = item.color or ''
 		const rawCollection = item.collection or item.collections or ''
+		const rawNote = item.note or ''
 		const hasColor = String(rawColor).trim() != ''
 		const hasMarker = String(rawCollection).split(' | ').includes(BOOKMARK_MARKER)
 		const cleanCollection = String(rawCollection)
@@ -58,13 +59,16 @@ tag bookmarks-modal
 			.map(do |piece| return piece.trim!)
 			.filter(do |piece| return piece != '' and piece != BOOKMARK_MARKER)
 			.join(' | ')
+		const hasBookmarkMetadata = String(cleanCollection).trim() != '' or String(rawNote).trim() != ''
 		return {
 			verse: item.verse
 			date: item.date or 0
 			color: rawColor
 			collection: cleanCollection
-			note: item.note or ''
-			isBookmarked: !hasColor or hasMarker
+			note: rawNote
+			# Bookmarks tab should exclude highlight-only rows.
+			# Treat as bookmark if: explicit marker, legacy no-color row, or has bookmark metadata.
+			isBookmarked: hasMarker or !hasColor or hasBookmarkMetadata
 		}
 
 	def buildGroupedBookmarks items
@@ -238,9 +242,8 @@ tag bookmarks-modal
 					dropped,
 					sample: normalized.slice(0, 5).map(do |n| return n and n.verse ? "{n.verse.translation} {n.verse.book}:{n.verse.chapter}:{n.verse.verse}" : 'invalid')
 				})
-			# Bookmarks tab: show all verse rows returned by profile DB.
-			# This avoids dropping legacy rows that don't carry newer marker metadata.
-			groupedBookmarks = buildGroupedBookmarks(normalized)
+			# Bookmarks tab: only explicit bookmarks (exclude highlight-only rows).
+			groupedBookmarks = buildGroupedBookmarks(normalized.filter(do |item| return item.isBookmarked))
 			if typeof console != 'undefined' and console.log
 				console.log('[HIGHLIGHTS] groupedBookmarks count =', groupedBookmarks.length)
 				console.log('[HIGHLIGHTS] groupedBookmarks sample =', groupedBookmarks.slice(0, 5).map(do |g| return g.title).join(' | '))
