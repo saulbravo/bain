@@ -315,8 +315,8 @@ tag chapter < section
 						title=translationFullName(me.translation)>
 
 						<button.header-action.header-bookmark
-							.active=activities.isBookBookmarked(me.translation, me.book)
-							@click.stop.prevent=activities.toggleBookBookmark(me.translation, me.book)
+							.active=activities.isBookBookmarked(me.translation, me.book, me.chapter)
+							@click.stop.prevent=activities.toggleBookBookmark(me.translation, me.book, me.chapter)
 							title="Bookmark book">
 							<svg src=Bookmark aria-hidden=yes>
 

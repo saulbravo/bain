@@ -30,16 +30,39 @@ class Activities
 	]
 	@observable bookBookmarks = Array.isArray(getValue('book-bookmarks')) ? getValue('book-bookmarks') : []
 
-	def bookBookmarkKey translation\string, book\number
+	def bookBookmarkKey translation\string, book\number, chapter\number
+		return "{translation}:{book}:{chapter}"
+
+	def legacyBookBookmarkKey translation\string, book\number
 		return "{translation}:{book}"
 
-	def isBookBookmarked translation\string, book\number
-		const key = bookBookmarkKey(translation, book)
-		return bookBookmarks.some(do |entry| return entry and entry.key == key)
+	def isBookBookmarked translation\string, book\number, chapter\number
+		const key = bookBookmarkKey(translation, book, chapter)
+		const legacyKey = legacyBookBookmarkKey(translation, book)
+		return bookBookmarks.some(do |entry|
+			if !entry
+				return no
+			if entry.key == key
+				return yes
+			# Backward compatibility with old saved keys that didn't include chapter.
+			if entry.key == legacyKey and (entry.chapter == undefined or entry.chapter == null)
+				return yes
+			return no
+		)
 
-	def toggleBookBookmark translation\string, book\number
-		const key = bookBookmarkKey(translation, book)
-		const index = bookBookmarks.findIndex(do |entry| return entry and entry.key == key)
+	def toggleBookBookmark translation\string, book\number, chapter\number
+		const key = bookBookmarkKey(translation, book, chapter)
+		const legacyKey = legacyBookBookmarkKey(translation, book)
+		const index = bookBookmarks.findIndex(do |entry|
+			if !entry
+				return no
+			if entry.key == key
+				return yes
+			# Remove old book-level bookmark when upgrading to chapter-aware bookmarks.
+			if entry.key == legacyKey and (entry.chapter == undefined or entry.chapter == null)
+				return yes
+			return no
+		)
 		if index >= 0
 			bookBookmarks.splice(index, 1)
 		else
@@ -47,6 +70,7 @@ class Activities
 				key: key
 				translation: translation
 				book: book
+				chapter: chapter
 				name: getBookName(translation, book)
 				date: Date.now()
 			})

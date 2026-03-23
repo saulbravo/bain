@@ -345,12 +345,14 @@ tag bookmarks-modal
 		return activities.bookBookmarks.map(do |entry|
 			const translation = entry.translation
 			const book = entry.book
+			const chapter = entry.chapter or 1
 			return {
 				type: 'book'
 				date: entry.date or 0
 				translation: translation
 				book: book
-				name: entry.name or getBookName(translation, book)
+				chapter: chapter
+				name: "{entry.name or getBookName(translation, book)} {chapter}"
 			}
 		)
 
