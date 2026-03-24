@@ -109,20 +109,27 @@ tag bookmarks-modal
 				})
 		return items
 
-	# Extract the actual highlighted text for a freehand range (single or multi-verse), then wrap as "...snippet..."
-	def getFreehandHighlightSnippet r, h
+	def getVerseText r, verseNumber\number
+		const verseObj = r.verses.find(do |v| return v.verse == verseNumber)
+		return verseObj and verseObj.text ? verseObj.text : ''
+
+	# Extract freehand snippet and add ellipses only when selection starts/ends mid-verse.
+	def getFreehandHighlightSnippetData r, h
 		if !r or !r.verses or !r.verses.length
-			return '...'
+			return { text: '', ellipsisStart: yes, ellipsisEnd: yes }
 		const startVerse = h.startVerse != null ? h.startVerse : h.endVerse
 		const endVerse = h.endVerse != null ? h.endVerse : startVerse
 		const startOffset = Math.max(0, h.startOffset != null ? h.startOffset : 0)
 		const endOffset = h.endOffset != null ? h.endOffset : 0
 		let snippet = ''
+		let ellipsisStart = no
+		let ellipsisEnd = no
 		if startVerse == endVerse
-			const verseObj = r.verses.find(do |v| return v.verse == startVerse)
-			const text = verseObj and verseObj.text ? verseObj.text : ''
+			const text = getVerseText(r, startVerse)
 			const end = Math.min(text.length, endOffset)
 			snippet = text.slice(startOffset, end).trim()
+			ellipsisStart = startOffset > 0
+			ellipsisEnd = end < text.length
 		else
 			# Span multiple verses: start verse from startOffset, full middle verses, end verse to endOffset
 			const versesSorted = r.verses.slice().sort(do |a, b| return a.verse - b.verse)
@@ -137,20 +144,40 @@ tag bookmarks-modal
 				else
 					snippet += t
 			snippet = snippet.trim()
+			ellipsisStart = startOffset > 0
+			const endText = getVerseText(r, endVerse)
+			ellipsisEnd = Math.min(endText.length, endOffset) < endText.length
 		if !snippet
-			return '...'
-		return '...' + snippet + '...'
+			return { text: '...', ellipsisStart: yes, ellipsisEnd: yes }
+		const rendered = (ellipsisStart ? '...' : '') + snippet + (ellipsisEnd ? '...' : '')
+		return { text: rendered, ellipsisStart, ellipsisEnd }
 
 	# Convert reader freehand highlights to same shape as verse highlight entries (so they appear in the list and filters)
 	def readerFreehandToHighlightEntries r
 		let entries = []
 		if !r or !r.freehandHighlights or !r.freehandHighlights.length or !r.verses or !r.verses.length
 			return entries
-		const defaultColor = '#eab308'
 		for h in r.freehandHighlights
-			const color = (h.color and String(h.color).trim()) or defaultColor
-			const startVerse = h.startVerse != null ? h.startVerse : h.endVerse
-			const text = getFreehandHighlightSnippet(r, h)
+			if !h
+				continue
+			const color = (h.color and String(h.color).trim()) or '#eab308'
+			let startVerse = h.startVerse != null ? h.startVerse : h.endVerse
+			let endVerse = h.endVerse != null ? h.endVerse : startVerse
+			let startOffset = Math.max(0, h.startOffset != null ? h.startOffset : 0)
+			let endOffset = Math.max(0, h.endOffset != null ? h.endOffset : 0)
+			if startVerse > endVerse
+				const tmpVerse = startVerse
+				startVerse = endVerse
+				endVerse = tmpVerse
+				const tmpOffset = startOffset
+				startOffset = endOffset
+				endOffset = tmpOffset
+			const textData = getFreehandHighlightSnippetData(r, {
+				startVerse: startVerse
+				startOffset: startOffset
+				endVerse: endVerse
+				endOffset: endOffset
+			})
 			entries.push({
 				date: 0
 				color: color
@@ -158,8 +185,11 @@ tag bookmarks-modal
 				book: r.book
 				chapter: r.chapter
 				verse: startVerse
-				text: text
-				_freehandKey: "f:{r.translation}:{r.book}:{r.chapter}:{h.startVerse}:{h.startOffset}:{h.endVerse}:{h.endOffset}"
+				endVerse: endVerse
+				startOffset: startOffset
+				endOffset: endOffset
+				text: textData.text
+				_freehandKey: "f:{r.translation}:{r.book}:{r.chapter}:{startVerse}:{startOffset}:{endVerse}:{endOffset}:{color}"
 			})
 		return entries
 
@@ -268,6 +298,9 @@ tag bookmarks-modal
 							book: entry.book
 							chapter: entry.chapter
 							verse: entry.verse
+							endVerse: entry.endVerse
+							startOffset: entry.startOffset
+							endOffset: entry.endOffset
 							text: entry.text or ''
 						})
 			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
@@ -305,6 +338,9 @@ tag bookmarks-modal
 							book: entry.book
 							chapter: entry.chapter
 							verse: entry.verse
+							endVerse: entry.endVerse
+							startOffset: entry.startOffset
+							endOffset: entry.endOffset
 							text: entry.text or ''
 						})
 				if fallbackHighlights.length > 0
@@ -401,10 +437,21 @@ tag bookmarks-modal
 			buckets[key].push(entry)
 		let grouped = []
 		for own key, items of buckets
-			const sorted = items.slice().sort(do |a, b| return (a.verse or 0) - (b.verse or 0))
+			const sorted = items.slice().sort(do |a, b|
+				const aStartVerse = a.verse or 0
+				const bStartVerse = b.verse or 0
+				if aStartVerse != bStartVerse
+					return aStartVerse - bStartVerse
+				const aStartOffset = a.startOffset != null ? a.startOffset : 0
+				const bStartOffset = b.startOffset != null ? b.startOffset : 0
+				return aStartOffset - bStartOffset
+			)
 			let run = null
 			for item in sorted
-				const verseNum = item.verse
+				const startVerse = item.verse
+				const endVerse = item.endVerse != null ? item.endVerse : startVerse
+				const startOffset = item.startOffset != null ? item.startOffset : 0
+				const endOffset = item.endOffset != null ? item.endOffset : 999999
 				if run == null
 					run = {
 						date: item.date or 0
@@ -412,36 +459,52 @@ tag bookmarks-modal
 						translation: item.translation
 						book: item.book
 						chapter: item.chapter
-						verse: verseNum
-						endVerse: verseNum
+						verse: startVerse
+						startOffset: startOffset
+						endVerse: endVerse
+						endOffset: endOffset
 						_texts: [item.text or '']
 					}
-				elif verseNum == (run.endVerse + 1)
-					run.endVerse = verseNum
-					run.date = Math.max(run.date or 0, item.date or 0)
-					if item.text
-						run._texts.push(item.text)
 				else
-					grouped.push({
-						date: run.date
-						color: run.color
-						translation: run.translation
-						book: run.book
-						chapter: run.chapter
-						verse: run.verse
-						endVerse: run.endVerse
-						text: run._texts.join(' ')
-					})
-					run = {
-						date: item.date or 0
-						color: item.color
-						translation: item.translation
-						book: item.book
-						chapter: item.chapter
-						verse: verseNum
-						endVerse: verseNum
-						_texts: [item.text or '']
-					}
+					let canMerge = no
+					if startVerse < run.endVerse
+						canMerge = yes
+					elif startVerse == run.endVerse and startOffset <= (run.endOffset + 1)
+						canMerge = yes
+					elif startVerse == (run.endVerse + 1) and run.endOffset >= 999999 and startOffset <= 0
+						canMerge = yes
+					if canMerge
+						if endVerse > run.endVerse or (endVerse == run.endVerse and endOffset > run.endOffset)
+							run.endVerse = endVerse
+							run.endOffset = endOffset
+					else
+						grouped.push({
+							date: run.date
+							color: run.color
+							translation: run.translation
+							book: run.book
+							chapter: run.chapter
+							verse: run.verse
+							startOffset: run.startOffset
+							endVerse: run.endVerse
+							endOffset: run.endOffset
+							text: run._texts.join(' ')
+						})
+						run = {
+							date: item.date or 0
+							color: item.color
+							translation: item.translation
+							book: item.book
+							chapter: item.chapter
+							verse: startVerse
+							startOffset: startOffset
+							endVerse: endVerse
+							endOffset: endOffset
+							_texts: [item.text or '']
+						}
+					run.date = Math.max(run.date or 0, item.date or 0)
+					if item.text and !run._texts.includes(item.text)
+						run._texts.push(item.text)
 			if run != null
 				grouped.push({
 					date: run.date
@@ -450,7 +513,9 @@ tag bookmarks-modal
 					book: run.book
 					chapter: run.chapter
 					verse: run.verse
+					startOffset: run.startOffset
 					endVerse: run.endVerse
+					endOffset: run.endOffset
 					text: run._texts.join(' ')
 				})
 		return grouped.sort(do |a, b| return (b.date or 0) - (a.date or 0))
@@ -531,7 +596,18 @@ tag bookmarks-modal
 					continue
 				fallback.push({ date: item.date or 0, color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
 			for entry in readerFreehandToHighlightEntries(r)
-				fallback.push({ date: entry.date, color: entry.color, translation: entry.translation, book: entry.book, chapter: entry.chapter, verse: entry.verse, text: entry.text or '' })
+				fallback.push({
+					date: entry.date
+					color: entry.color
+					translation: entry.translation
+					book: entry.book
+					chapter: entry.chapter
+					verse: entry.verse
+					endVerse: entry.endVerse
+					startOffset: entry.startOffset
+					endOffset: entry.endOffset
+					text: entry.text or ''
+				})
 		if fallback.length > 0
 			highlightEntries = fallback.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 			_cachedHighlightEntries = highlightEntries
