@@ -16,6 +16,7 @@ import * as ICONS from 'imba-phosphor-icons'
 # Shared cache so highlights persist when parent re-renders and creates a new modal instance
 let _cachedHighlightEntries = []
 const BOOKMARK_MARKER = '__bolls_bookmark__'
+const TEST_PAGE_SIZE = 10
 
 tag bookmarks-modal
 	loading = yes
@@ -28,6 +29,8 @@ tag bookmarks-modal
 	activeTab = 'bookmarks'
 	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
 	bookmarkFilter = 'recent'
+	bookmarkVisibleCount = TEST_PAGE_SIZE
+	highlightVisibleCount = TEST_PAGE_SIZE
 	_bookmarksUpdatedHandler = null
 	_highlightsCacheClearHandler = null
 	_highlightsCacheUpdatedHandler = null
@@ -401,6 +404,7 @@ tag bookmarks-modal
 
 	def setBookmarkFilter filter\string
 		bookmarkFilter = filter
+		bookmarkVisibleCount = TEST_PAGE_SIZE
 		imba.commit!
 
 	# Use cache when this instance has no highlights (e.g. parent re-created modal); cacheVersion forces re-read when cache updates
@@ -525,6 +529,41 @@ tag bookmarks-modal
 		const filtered = if highlightFilter == 'all' then base else base.filter(do |entry| return entry.color == highlightFilter)
 		return groupContinuousHighlights(filtered)
 
+	def visibleBookmarks
+		return getFilteredBookmarks().slice(0, bookmarkVisibleCount)
+
+	def canLoadMoreBookmarks
+		return getFilteredBookmarks().length > bookmarkVisibleCount
+
+	def loadMoreBookmarks
+		bookmarkVisibleCount += TEST_PAGE_SIZE
+		imba.commit!
+
+	def visibleHighlights
+		return getDisplayHighlights().slice(0, highlightVisibleCount)
+
+	def canLoadMoreHighlights
+		return getDisplayHighlights().length > highlightVisibleCount
+
+	def loadMoreHighlights
+		highlightVisibleCount += TEST_PAGE_SIZE
+		imba.commit!
+
+	def switchToBookmarksTab
+		activeTab = 'bookmarks'
+		bookmarkVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
+	def switchToHighlightsTab
+		activeTab = 'highlights'
+		highlightVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
+	def setHighlightFilter filter\string
+		highlightFilter = filter
+		highlightVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
 	def highlightTitle entry
 		let versesPart = String(entry.verse)
 		if entry.endVerse and entry.endVerse != entry.verse
@@ -638,6 +677,8 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] mount: restored highlightEntries from cache, length=', highlightEntries.length)
 		# DB-driven list only: clear local list and always fetch full profile bookmarks.
 		groupedBookmarks = []
+		bookmarkVisibleCount = TEST_PAGE_SIZE
+		highlightVisibleCount = TEST_PAGE_SIZE
 		loadBookmarks!
 		# One delayed refresh helps when auth/session initializes shortly after mount.
 		setTimeout(&, 500) do
@@ -671,11 +712,11 @@ tag bookmarks-modal
 			<span.header-spacer>
 
 		<div.toggle-row>
-			<button.toggle-btn .active=(activeTab == 'bookmarks') @click=(activeTab = 'bookmarks')>
+			<button.toggle-btn .active=(activeTab == 'bookmarks') @click=switchToBookmarksTab>
 				<svg src=BookmarkIcon aria-hidden=yes>
 				"Bookmarks"
 				<span.toggle-count> combinedBookmarksList().length
-			<button.toggle-btn .active=(activeTab == 'highlights') @click=(activeTab = 'highlights')>
+			<button.toggle-btn .active=(activeTab == 'highlights') @click=switchToHighlightsTab>
 				<svg src=Highlighter aria-hidden=yes>
 				"Highlights"
 				<span.toggle-count> getDisplayHighlights().length
@@ -704,7 +745,7 @@ tag bookmarks-modal
 					<p.bookmarks-empty> "No bookmarks yet"
 				else
 					<div.bookmarks-list[key={(bookmarkFilter + ':' + getFilteredBookmarks().length)}]>
-						for entry in getFilteredBookmarks()
+						for entry in visibleBookmarks()
 							<button.bookmark-item .is-book=(entry.type == 'book') .is-verse=(entry.type == 'verse') @click=openBookmark(entry)>
 								<div.bookmark-icon.bookmark-icon-bookmarks>
 									if entry.type == 'book'
@@ -725,14 +766,16 @@ tag bookmarks-modal
 									<div.bookmark-date>
 										if entry.date
 											new Date(entry.date).toLocaleString()
+					if canLoadMoreBookmarks()
+						<button.load-more-btn @click=loadMoreBookmarks> "Load More"
 			else
 				if activeTab == 'highlights'
 					ensureHighlightsFromReader!
 				if getDisplayHighlights().length > 0
 					<div.highlight-filter>
-						<button .active=(highlightFilter == 'all') @click=(highlightFilter = 'all')> "All"
+						<button .active=(highlightFilter == 'all') @click=setHighlightFilter('all')> "All"
 						for color in getDisplayHighlightColors()
-							<button .active=(highlightFilter == color) @click=(highlightFilter = color) title=color>
+							<button .active=(highlightFilter == color) @click=setHighlightFilter(color) title=color>
 								<span.color-swatch [bgc:{color}]>
 				if loading
 					<p.bookmarks-empty> "Loading highlights..."
@@ -740,7 +783,7 @@ tag bookmarks-modal
 					<p.bookmarks-empty> "No highlights yet"
 				else
 					<div.bookmarks-list>
-						for entry in getDisplayHighlights()
+						for entry in visibleHighlights()
 							<button.bookmark-item @click=openVerseBookmark(entry)>
 								<div.bookmark-icon>
 									<span.color-swatch [bgc:{entry.color or '#eab308'}]>
@@ -748,6 +791,8 @@ tag bookmarks-modal
 									<div.bookmark-title> highlightTitle(entry)
 									<div.bookmark-meta> entry.translation
 									<div.bookmark-snippet innerHTML=(entry.text or '')>
+					if canLoadMoreHighlights()
+						<button.load-more-btn @click=loadMoreHighlights> "Load More"
 
 	css
 		.bookmarks-modal-root
@@ -942,6 +987,21 @@ tag bookmarks-modal
 			ta:center
 			o:0.6
 			p:1rem 0
+
+		.load-more-btn
+			mt:0.5rem
+			align-self:center
+			bgc:$acc-bgc
+			c:inherit
+			font:inherit
+			fw:400
+			p:0.4rem 0.9rem
+			rd:0.5rem
+			cursor:pointer
+			bd:1px solid $acc-bgc-hover
+
+		.load-more-btn@hover
+			bgc:$acc-bgc-hover
 
 		.highlight-filter
 			d:flex
