@@ -185,6 +185,7 @@ tag modal < section
 				pos:relative
 				d:flex fld:column
 				max-height:{(activities.activeModal == 'books' or activities.activeModal == 'bookmarks') ? '85vh' : '72vh'} @lt-sm:100vh
+				h:{activities.activeModal == 'bookmarks' ? '85vh' : 'auto'} @lt-sm:100vh
 				block-size@lt-sm:100vh
 				max-width:{(activities.activeModal == 'books' or activities.activeModal == 'bookmarks') ? '75em' : '64em'} @lt-sm:100%
 				w:82% @lt-sm:100%
@@ -192,9 +193,9 @@ tag modal < section
 				bxs: 0 0 0 1px $acc-bgc, 0 1px 6px $acc-bgc, 0 3px 36px $acc-bgc, 0 9px 12.5rem -4rem $acc-bgc @lt-sm:none
 				rd:1rem @lt-sm:0
 				p:1.5rem @lt-sm:0.75rem
-				# For the books modal we want the container to be the scroller (no nested scrollbars),
-				# while keeping the modal pinned to the top.
-				overflow-y:{(activities.activeModal == 'books' or activities.activeModal == 'bookmarks') ? 'auto' : 'visible'}
+				# Books modal uses container-level scroll.
+				# Bookmarks modal handles scroll inside its own .bookmarks-content area.
+				overflow-y:{(activities.activeModal == 'books') ? 'auto' : ((activities.activeModal == 'bookmarks') ? 'hidden' : 'visible')}
 				margin:0
 				scale@off:0.95] @click.stop>
 

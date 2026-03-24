@@ -721,22 +721,30 @@ tag bookmarks-modal
 				"Highlights"
 				<span.toggle-count> getDisplayHighlights().length
 
-		<div.bookmarks-content>
+		if activeTab == 'bookmarks' and combinedBookmarksList().length
+			<div.bookmark-filter>
+				<button.filter-btn .active=(bookmarkFilter == 'recent') @click=setBookmarkFilter('recent') title="Recent">
+					<svg src=Clock aria-hidden=yes>
+					"Recent"
+				<button.filter-btn .active=(bookmarkFilter == 'book') @click=setBookmarkFilter('book') title="Books only">
+					<svg src=BookOpen aria-hidden=yes>
+					"Book"
+				<button.filter-btn .active=(bookmarkFilter == 'verse') @click=setBookmarkFilter('verse') title="Verse bookmarks only">
+					<svg src=BookmarkIcon aria-hidden=yes>
+					"Verse"
+				<button.filter-btn .active=(bookmarkFilter == 'all') @click=setBookmarkFilter('all') title="All bookmarks">
+					<svg src=List aria-hidden=yes>
+					"All"
+
+		if activeTab == 'highlights' and getDisplayHighlights().length > 0
+			<div.highlight-filter>
+				<button .active=(highlightFilter == 'all') @click=setHighlightFilter('all')> "All"
+				for color in getDisplayHighlightColors()
+					<button .active=(highlightFilter == color) @click=setHighlightFilter(color) title=color>
+						<span.color-swatch [bgc:{color}]>
+
+		<div.bookmarks-content @wheel.stop @touchmove.stop>
 			if activeTab == 'bookmarks'
-				if combinedBookmarksList().length
-					<div.bookmark-filter>
-						<button.filter-btn .active=(bookmarkFilter == 'recent') @click=setBookmarkFilter('recent') title="Recent">
-							<svg src=Clock aria-hidden=yes>
-							"Recent"
-						<button.filter-btn .active=(bookmarkFilter == 'book') @click=setBookmarkFilter('book') title="Books only">
-							<svg src=BookOpen aria-hidden=yes>
-							"Book"
-						<button.filter-btn .active=(bookmarkFilter == 'verse') @click=setBookmarkFilter('verse') title="Verse bookmarks only">
-							<svg src=BookmarkIcon aria-hidden=yes>
-							"Verse"
-						<button.filter-btn .active=(bookmarkFilter == 'all') @click=setBookmarkFilter('all') title="All bookmarks">
-							<svg src=List aria-hidden=yes>
-							"All"
 				if loading
 					<p.bookmarks-empty> "Loading bookmarks..."
 				elif error
@@ -771,12 +779,6 @@ tag bookmarks-modal
 			else
 				if activeTab == 'highlights'
 					ensureHighlightsFromReader!
-				if getDisplayHighlights().length > 0
-					<div.highlight-filter>
-						<button .active=(highlightFilter == 'all') @click=setHighlightFilter('all')> "All"
-						for color in getDisplayHighlightColors()
-							<button .active=(highlightFilter == color) @click=setHighlightFilter(color) title=color>
-								<span.color-swatch [bgc:{color}]>
 				if loading
 					<p.bookmarks-empty> "Loading highlights..."
 				elif !getDisplayHighlights().length
@@ -798,9 +800,13 @@ tag bookmarks-modal
 		.bookmarks-modal-root
 			d:flex
 			fld:column
+			flex:1
 			min-height:0
 			h:100%
 			max-height:100%
+			pos:relative
+			overflow:hidden
+			overscroll-behavior: contain
 
 		header
 			mb:0.5rem
@@ -842,6 +848,9 @@ tag bookmarks-modal
 			g:0.5rem
 			flw:wrap
 			mb:0.5rem
+			bgc:$bgc
+			zi:10
+			pos:relative
 
 		.filter-btn
 			d:flex
@@ -870,8 +879,11 @@ tag bookmarks-modal
 		.toggle-row
 			d:flex
 			g:0.5rem
-			mb:1rem
+			mb:0.5rem
 			w:100%
+			bgc:$bgc
+			zi:11
+			pos:relative
 
 		.toggle-btn
 			d:flex
@@ -906,23 +918,45 @@ tag bookmarks-modal
 		.bookmarks-content
 			d:flex
 			fld:column
+			# Keep scroll area physically inside modal bounds.
+			pos:absolute
+			top:9.5rem
+			left:1.5rem
+			right:1.5rem
+			bottom:1.5rem
 			min-height:0
-			flex:1
-			w:100%
 			bgc:$bgc
 			bd:1px solid $acc-bgc-hover
 			rd:0.75rem
 			p:0.75rem
-			overflow:hidden
+			overflow-y:scroll
+			overflow-x:hidden
+			-webkit-overflow-scrolling:touch
+			overscroll-behavior: contain
+			pointer-events:auto
+			touch-action:pan-y
+
+		.bookmark-filter + .bookmarks-content
+			top:10rem
+
+		.highlight-filter + .bookmarks-content
+			top:10rem
+
+		@lt-sm
+			.bookmarks-content
+				top:10rem
+			.bookmark-filter + .bookmarks-content
+				top:12.5rem
+			.highlight-filter + .bookmarks-content
+				top:11.25rem
 
 		.bookmarks-list
 			d:flex
 			fld:column
 			g:0.5rem
-			overflow-y:auto
+			overflow:visible
 			min-height:0
-			flex:1
-			-webkit-overflow-scrolling:touch
+			flex:0 0 auto
 
 		.bookmark-item
 			d:flex
@@ -1008,6 +1042,9 @@ tag bookmarks-modal
 			g:0.5rem
 			flw:wrap
 			mb:0.5rem
+			bgc:$bgc
+			zi:10
+			pos:relative
 
 			button
 				bgc:$acc-bgc
