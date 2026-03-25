@@ -11,6 +11,7 @@ import BookOpen from 'lucide-static/icons/book-open.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import List from 'lucide-static/icons/list.svg'
+import Search from 'lucide-static/icons/search.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 # Shared cache so highlights persist when parent re-renders and creates a new modal instance
@@ -29,6 +30,10 @@ tag bookmarks-modal
 	activeTab = 'bookmarks'
 	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
 	bookmarkFilter = 'recent'
+	bookmarkSearchOpen = no
+	bookmarkSearchQuery = ''
+	highlightSearchOpen = no
+	highlightSearchQuery = ''
 	bookmarkVisibleCount = TEST_PAGE_SIZE
 	highlightVisibleCount = TEST_PAGE_SIZE
 	_bookmarksUpdatedHandler = null
@@ -417,6 +422,13 @@ tag bookmarks-modal
 		bookmarkVisibleCount = TEST_PAGE_SIZE
 		imba.commit!
 
+	def toggleBookmarkSearch
+		bookmarkSearchOpen = !bookmarkSearchOpen
+		if !bookmarkSearchOpen
+			bookmarkSearchQuery = ''
+		bookmarkVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
 	# Use cache when this instance has no highlights (e.g. parent re-created modal); cacheVersion forces re-read when cache updates
 	@computed get effectiveHighlightEntries
 		const _ = cacheVersion
@@ -540,20 +552,20 @@ tag bookmarks-modal
 		return groupContinuousHighlights(filtered)
 
 	def visibleBookmarks
-		return getFilteredBookmarks().slice(0, bookmarkVisibleCount)
+		return searchedBookmarks().slice(0, bookmarkVisibleCount)
 
 	def canLoadMoreBookmarks
-		return getFilteredBookmarks().length > bookmarkVisibleCount
+		return searchedBookmarks().length > bookmarkVisibleCount
 
 	def loadMoreBookmarks
 		bookmarkVisibleCount += TEST_PAGE_SIZE
 		imba.commit!
 
 	def visibleHighlights
-		return getDisplayHighlights().slice(0, highlightVisibleCount)
+		return searchedHighlights().slice(0, highlightVisibleCount)
 
 	def canLoadMoreHighlights
-		return getDisplayHighlights().length > highlightVisibleCount
+		return searchedHighlights().length > highlightVisibleCount
 
 	def loadMoreHighlights
 		highlightVisibleCount += TEST_PAGE_SIZE
@@ -573,6 +585,38 @@ tag bookmarks-modal
 		highlightFilter = filter
 		highlightVisibleCount = TEST_PAGE_SIZE
 		imba.commit!
+
+	def toggleHighlightSearch
+		highlightSearchOpen = !highlightSearchOpen
+		if !highlightSearchOpen
+			highlightSearchQuery = ''
+		highlightVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
+	def normalizeSearch value
+		return String(value or '').toLowerCase().trim()
+
+	def searchedBookmarks
+		const list = getFilteredBookmarks()
+		const q = normalizeSearch(bookmarkSearchQuery)
+		if !q
+			return list
+		return list.filter(do |entry|
+			const title = entry.type == 'book' ? (entry.name or '') : (entry.title or '')
+			const text = Array.isArray(entry.text) ? entry.text.join(' ') : (entry.text or '')
+			const haystack = [title, entry.translation or '', entry.collection or '', entry.note or '', text].join(' ').toLowerCase()
+			return haystack.includes(q)
+		)
+
+	def searchedHighlights
+		const list = getDisplayHighlights()
+		const q = normalizeSearch(highlightSearchQuery)
+		if !q
+			return list
+		return list.filter(do |entry|
+			const haystack = [highlightTitle(entry), entry.translation or '', entry.text or ''].join(' ').toLowerCase()
+			return haystack.includes(q)
+		)
 
 	def highlightTitle entry
 		let versesPart = String(entry.verse)
@@ -745,6 +789,13 @@ tag bookmarks-modal
 				<button.filter-btn .active=(bookmarkFilter == 'all') @click=setBookmarkFilter('all') title="All bookmarks">
 					<svg src=List aria-hidden=yes>
 					"All"
+				<div.search-expand .open=bookmarkSearchOpen>
+					<button.filter-btn.search-toggle-btn .active=bookmarkSearchOpen @click=toggleBookmarkSearch title="Search bookmarks">
+						<svg src=Search aria-hidden=yes>
+					<input.filter-search-input
+						type='text'
+						placeholder='Search bookmarks'
+						bind=bookmarkSearchQuery>
 
 		if activeTab == 'highlights' and getDisplayHighlights().length > 0
 			<div.highlight-filter>
@@ -752,6 +803,13 @@ tag bookmarks-modal
 				for color in getDisplayHighlightColors()
 					<button .active=(highlightFilter == color) @click=setHighlightFilter(color) title=color>
 						<span.color-swatch [bgc:{color}]>
+				<div.search-expand .open=highlightSearchOpen>
+					<button.search-toggle-btn .active=highlightSearchOpen @click=toggleHighlightSearch title="Search highlights">
+						<svg src=Search aria-hidden=yes>
+					<input.filter-search-input
+						type='text'
+						placeholder='Search highlights'
+						bind=highlightSearchQuery>
 
 		<div.bookmarks-content @wheel.stop @touchmove.stop>
 			if activeTab == 'bookmarks'
@@ -759,10 +817,10 @@ tag bookmarks-modal
 					<p.bookmarks-empty> "Loading bookmarks..."
 				elif error
 					<p.bookmarks-empty> error
-				elif !getFilteredBookmarks().length
-					<p.bookmarks-empty> "No bookmarks yet"
+				elif !searchedBookmarks().length
+					<p.bookmarks-empty> (normalizeSearch(bookmarkSearchQuery) ? "No matching bookmarks" : "No bookmarks yet")
 				else
-					<div.bookmarks-list[key={(bookmarkFilter + ':' + getFilteredBookmarks().length)}]>
+					<div.bookmarks-list[key={(bookmarkFilter + ':' + searchedBookmarks().length + ':' + normalizeSearch(bookmarkSearchQuery))}]>
 						for entry in visibleBookmarks()
 							<button.bookmark-item .is-book=(entry.type == 'book') .is-verse=(entry.type == 'verse') @click=openBookmark(entry)>
 								<div.bookmark-icon.bookmark-icon-bookmarks>
@@ -791,8 +849,8 @@ tag bookmarks-modal
 					ensureHighlightsFromReader!
 				if loading
 					<p.bookmarks-empty> "Loading highlights..."
-				elif !getDisplayHighlights().length
-					<p.bookmarks-empty> "No highlights yet"
+				elif !searchedHighlights().length
+					<p.bookmarks-empty> (normalizeSearch(highlightSearchQuery) ? "No matching highlights" : "No highlights yet")
 				else
 					<div.bookmarks-list>
 						for entry in visibleHighlights()
@@ -865,11 +923,14 @@ tag bookmarks-modal
 		.filter-btn
 			d:flex
 			ai:center
+			jc:center
 			g:0.35rem
 			bgc:$acc-bgc
 			c:inherit
 			rd:999px
 			p:0.25rem 0.6rem
+			h:1.9rem
+			min-height:1.9rem
 			fs:0.8rem
 			cursor:pointer
 			bd:1px solid transparent
@@ -885,6 +946,18 @@ tag bookmarks-modal
 		.filter-btn svg
 			size:1rem
 			fls:0
+
+		.bookmark-filter svg
+			size:1rem
+
+		.highlight-filter svg
+			size:1rem
+
+		.bookmark-filter .color-swatch
+			size:1rem
+
+		.highlight-filter .color-swatch
+			size:1rem
 
 		.toggle-row
 			d:flex
@@ -1057,16 +1130,65 @@ tag bookmarks-modal
 			pos:relative
 
 			button
+				d:flex
+				ai:center
+				jc:center
 				bgc:$acc-bgc
 				c:inherit
 				rd:999px
-				p:0.2rem 0.6rem
-				fs:0.75rem
+				p:0.25rem 0.6rem
+				h:1.9rem
+				min-height:1.9rem
+				fs:0.8rem
 				cursor:pointer
 
 			button.active
 				bgc:$acc-bgc-hover
 				c:$acc-hover
+
+		.search-toggle-btn
+			d:flex
+			ai:center
+			jc:center
+			w:2rem
+			min-width:2rem
+			h:1.9rem
+			min-height:1.9rem
+			p:0
+
+			svg
+				size:1rem
+
+		.search-expand
+			d:flex
+			ai:center
+			g:0.35rem
+
+		.search-expand .filter-search-input
+			w:0
+			min-width:0
+			max-width:0
+			h:1.9rem
+			p:0
+			rd:999px
+			bd:1px solid transparent
+			bgc:$bgc
+			c:inherit
+			fs:0.8rem
+			o:0
+			pointer-events:none
+			transition:max-width 140ms ease, min-width 140ms ease, padding 140ms ease, opacity 120ms ease
+
+		.search-expand.open .filter-search-input
+			min-width:10rem
+			max-width:14rem
+			p:0.2rem 0.55rem
+			bd:1px solid $acc-bgc-hover
+			o:1
+			pointer-events:auto
+
+		.filter-search-input
+			outline:none
 
 		.color-swatch
 			d:inline-block
