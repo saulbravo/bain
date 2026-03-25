@@ -408,6 +408,91 @@ def get_profile_bookmarks(request, range_from, range_to):
     return JsonResponse(bookmarks, safe=False)
 
 
+def get_profile_freehand_highlights(request):
+    if not request.user.is_authenticated:
+        return JsonResponse([], safe=False)
+
+    try:
+        rows = FreehandHighlight.objects.filter(user=request.user).order_by("-id")
+        highlights = []
+        for row in rows:
+            if not row.highlights:
+                continue
+            chapter_verses = (
+                Verses.objects.filter(
+                    translation=row.translation, book=row.book, chapter=row.chapter
+                )
+                .order_by("verse")
+                .values("verse", "text")
+            )
+            verse_text_map = {v["verse"]: (v["text"] or "") for v in chapter_verses}
+
+            def build_snippet(start_verse, start_offset, end_verse, end_offset):
+                start_offset = max(0, int(start_offset or 0))
+                end_offset = max(0, int(end_offset or 0))
+                if start_verse == end_verse:
+                    text = verse_text_map.get(start_verse, "")
+                    end = min(len(text), end_offset)
+                    snippet = text[start_offset:end].strip()
+                    ellipsis_start = start_offset > 0
+                    ellipsis_end = end < len(text)
+                else:
+                    parts = []
+                    for verse_no in sorted(verse_text_map.keys()):
+                        if verse_no < start_verse or verse_no > end_verse:
+                            continue
+                        text = verse_text_map.get(verse_no, "")
+                        if verse_no == start_verse:
+                            parts.append(text[start_offset:])
+                        elif verse_no == end_verse:
+                            parts.append(text[: min(len(text), end_offset)])
+                        else:
+                            parts.append(text)
+                    snippet = "".join(parts).strip()
+                    ellipsis_start = start_offset > 0
+                    end_text = verse_text_map.get(end_verse, "")
+                    ellipsis_end = min(len(end_text), end_offset) < len(end_text)
+                if not snippet:
+                    return "..."
+                return ("..." if ellipsis_start else "") + snippet + ("..." if ellipsis_end else "")
+
+            try:
+                parsed = json.loads(row.highlights)
+            except Exception:
+                parsed = []
+            if not isinstance(parsed, list):
+                continue
+            for item in parsed:
+                if not isinstance(item, dict):
+                    continue
+                start_verse = item.get("startVerse", item.get("endVerse"))
+                end_verse = item.get("endVerse", start_verse)
+                if start_verse is None or end_verse is None:
+                    continue
+                start_offset = item.get("startOffset", 0)
+                end_offset = item.get("endOffset", 0)
+                highlights.append(
+                    {
+                        "translation": row.translation,
+                        "book": row.book,
+                        "chapter": row.chapter,
+                        "startVerse": start_verse,
+                        "startOffset": start_offset,
+                        "endVerse": end_verse,
+                        "endOffset": end_offset,
+                        "color": item.get("color", "#eab308"),
+                        "date": 0,
+                        "text": build_snippet(start_verse, start_offset, end_verse, end_offset),
+                    }
+                )
+        return JsonResponse(highlights, safe=False)
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        return JsonResponse([], safe=False)
+
+
 def search_profile_bookmarks(request, query, range_from, range_to):
     user = request.user
     bookmarks = (map_bookmarks(user.bookmarks_set.all().filter(collection__icontains=query).order_by("-date", "verse")[range_from:range_to]),)

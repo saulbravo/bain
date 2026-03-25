@@ -50,6 +50,7 @@ urlpatterns = [
         "get-profile-bookmarks/<int:range_from>/<int:range_to>/",
         views.get_profile_bookmarks,
     ),
+    path("get-profile-freehand-highlights/", views.get_profile_freehand_highlights),
     path("get-verse-counts/<slug:translation>/", views.get_verse_counts),
     path("get-random-verse/<slug:translation>/", views.get_random_verse),
     path("get-freehand-highlights/<slug:translation>/<int:book>/<int:chapter>/", views.get_freehand_highlights),

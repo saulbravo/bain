@@ -271,7 +271,6 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] groupedBookmarks sample =', groupedBookmarks.slice(0, 5).map(do |g| return g.title).join(' | '))
 			# Highlights tab: only entries with a color. Bookmark-only entries must not appear here.
 			let highlights = []
-			const defaultHighlightColor = '#eab308'
 			for item in normalized
 				const v = item.verse
 				if !v or v.verse == null
@@ -288,24 +287,35 @@ tag bookmarks-modal
 					verse: v.verse
 					text: v.text or ''
 				})
-			# Merge freehand highlights from current reader(s) so they appear in list and color filters
-			let freehandKeys = new Set()
-			for r in [reader, parallelReader]
-				for entry in readerFreehandToHighlightEntries(r)
-					if entry._freehandKey and !freehandKeys.has(entry._freehandKey)
-						freehandKeys.add(entry._freehandKey)
+			# Merge freehand highlights from profile DB (all books/chapters), not only current reader chapter.
+			if window.navigator.onLine
+				try
+					let profileFreehand = await API.getJson('/get-profile-freehand-highlights/')
+					unless Array.isArray(profileFreehand)
+						profileFreehand = []
+					for entry in profileFreehand
+						if !entry
+							continue
+						const color = (entry.color and String(entry.color).trim()) or '#eab308'
+						const startVerse = entry.startVerse != null ? entry.startVerse : entry.endVerse
+						const endVerse = entry.endVerse != null ? entry.endVerse : startVerse
+						if startVerse == null or endVerse == null
+							continue
 						highlights.push({
-							date: entry.date
-							color: entry.color
+							date: entry.date or 0
+							color: color
 							translation: entry.translation
 							book: entry.book
 							chapter: entry.chapter
-							verse: entry.verse
-							endVerse: entry.endVerse
-							startOffset: entry.startOffset
-							endOffset: entry.endOffset
+							verse: startVerse
+							endVerse: endVerse
+							startOffset: entry.startOffset != null ? entry.startOffset : 0
+							endOffset: entry.endOffset != null ? entry.endOffset : 0
 							text: entry.text or ''
 						})
+				catch err
+					if typeof console != 'undefined' and console.warn
+						console.warn('[HIGHLIGHTS] loadBookmarks: unable to load profile freehand highlights', err)
 			highlightEntries = highlights.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 			_cachedHighlightEntries = highlightEntries
 			window.dispatchEvent(new CustomEvent('highlights-cache-updated'))
