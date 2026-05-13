@@ -25,6 +25,8 @@ class GenericReader
 	loading\boolean = no
 	@observable bookmarks\Bookmark[] = []
 	@observable freehandHighlights = []
+	freehandSaveInFlight = no
+	freehandPendingSaveRequest = null
 	show_verse_picker\boolean = no
 	verse\number|string = 0
 
@@ -362,28 +364,58 @@ class GenericReader
 		if !user.username or !window.navigator.onLine
 			return
 
-		try
-			const now = Date.now()
-			freehandHighlights = (freehandHighlights or []).map(do |item|
+		const now = Date.now()
+		freehandHighlights = (freehandHighlights or []).map(do |item|
+			return {
+				startVerse: item.startVerse
+				startOffset: item.startOffset
+				endVerse: item.endVerse
+				endOffset: item.endOffset
+				color: item.color
+				date: item.date or now
+			}
+		)
+		# Keep only the newest pending payload; this prevents out-of-order API writes
+		# from dropping recently drawn strokes when users draw quickly.
+		freehandPendingSaveRequest = {
+			translation: translation
+			book: book
+			chapter: chapter
+			highlights: freehandHighlights.map(do |item|
 				return {
 					startVerse: item.startVerse
 					startOffset: item.startOffset
 					endVerse: item.endVerse
 					endOffset: item.endOffset
 					color: item.color
-					date: item.date or now
+					date: item.date
 				}
 			)
+		}
+		flushFreehandSaveQueue!
+
+	def flushFreehandSaveQueue
+		if freehandSaveInFlight or !freehandPendingSaveRequest
+			return
+		freehandSaveInFlight = yes
+		const request = freehandPendingSaveRequest
+		freehandPendingSaveRequest = null
+		try
 			await API.post("/save-freehand-highlights/", {
-				translation: translation,
-				book: book,
-				chapter: chapter,
-				highlights: freehandHighlights
+				translation: request.translation
+				book: request.book
+				chapter: request.chapter
+				highlights: request.highlights
 			})
 			# So Highlights and Bookmarks modal refreshes and shows new freehand
 			window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		catch error
 			console.log "Error saving freehand highlights:", error
+		finally
+			freehandSaveInFlight = no
+			# If new strokes arrived while save was in flight, persist latest snapshot now.
+			if freehandPendingSaveRequest
+				flushFreehandSaveQueue!
 
 	def clearAllChapterHighlights
 		# Update local state first so UI (verse icons + modal list) updates instantly

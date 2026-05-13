@@ -80,11 +80,48 @@ tag chapter < section
 	freehandStrokeCtx = null
 	freehandStrokeDrawing = no
 	freehandStrokePoints = []
+	freehandStrokeStartedAt = 0
+	freehandMoveDebugCount = 0
+	globalPointerUpHandler = null
+	globalPointerCancelHandler = null
+	globalMouseUpHandler = null
+	globalTouchEndHandler = null
+	globalTouchCancelHandler = null
+
+	def getRawPointerSnapshot e
+		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
+		return {
+			type: e and e.type ? e.type : null
+			clientX: touch ? touch.clientX : (e and typeof e.clientX == 'number' ? e.clientX : null)
+			clientY: touch ? touch.clientY : (e and typeof e.clientY == 'number' ? e.clientY : null)
+			x: e and typeof e.x == 'number' ? e.x : null
+			y: e and typeof e.y == 'number' ? e.y : null
+			pageX: e and typeof e.pageX == 'number' ? e.pageX : null
+			pageY: e and typeof e.pageY == 'number' ? e.pageY : null
+			scrollTop: self ? self.scrollTop : null
+			scrollLeft: self ? self.scrollLeft : null
+		}
 
 	def getPointerCoords e
 		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
-		let clientX = touch ? touch.clientX : (e && typeof e.clientX == 'number' ? e.clientX : 0)
-		let clientY = touch ? touch.clientY : (e && typeof e.clientY == 'number' ? e.clientY : 0)
+		let clientX = null
+		let clientY = null
+		if touch
+			clientX = touch.clientX
+			clientY = touch.clientY
+		else
+			if e && typeof e.clientX == 'number' and typeof e.clientY == 'number'
+				clientX = e.clientX
+				clientY = e.clientY
+			elif e && typeof e.x == 'number' and typeof e.y == 'number'
+				clientX = e.x
+				clientY = e.y
+			elif e && typeof e.pageX == 'number' and typeof e.pageY == 'number'
+				clientX = e.pageX - (window.scrollX or 0)
+				clientY = e.pageY - (window.scrollY or 0)
+		if clientX == null or clientY == null
+			console.log('[FREEHAND DEBUG] missing pointer coords', getRawPointerSnapshot(e))
+			return null
 		let rect = self.getBoundingClientRect()
 		return {
 			x: Math.max(0, clientX - rect.left + self.scrollLeft)
@@ -97,6 +134,8 @@ tag chapter < section
 		let width = Math.max(self.scrollWidth, self.clientWidth, 1)
 		let height = Math.max(self.scrollHeight, self.clientHeight, 1)
 		let ratio = window.devicePixelRatio or 1
+		canvas.style.top = "0px"
+		canvas.style.left = "0px"
 		canvas.style.width = "{width}px"
 		canvas.style.height = "{height}px"
 		canvas.width = Math.floor(width * ratio)
@@ -142,17 +181,64 @@ tag chapter < section
 		ensureFreehandStrokeCanvas!
 		return unless freehandStrokeCtx
 		let p = getPointerCoords(e)
+		return unless p
 		freehandStrokePoints = [p]
 		freehandStrokeDrawing = yes
+		freehandStrokeStartedAt = Date.now()
+		freehandMoveDebugCount = 0
+		const canvasW = freehandStrokeCanvas ? freehandStrokeCanvas.width : 0
+		const canvasH = freehandStrokeCanvas ? freehandStrokeCanvas.height : 0
+		const canvasTop = freehandStrokeCanvas ? freehandStrokeCanvas.style.top : 'n/a'
+		const canvasLeft = freehandStrokeCanvas ? freehandStrokeCanvas.style.left : 'n/a'
+		console.log("[FREEHAND DEBUG] stroke start x={Math.round(p.x)} y={Math.round(p.y)} canvasW={canvasW} canvasH={canvasH} top={canvasTop} left={canvasLeft}")
+		if p.x < 30 or p.y < 30
+			console.log('[FREEHAND DEBUG] stroke starts near top-left', {
+				point: p,
+				raw: getRawPointerSnapshot(e)
+			})
 		redrawFreehandStrokePreview!
 
 	def drawFreehandStroke e
 		return unless freehandStrokeDrawing and freehandStrokeCtx
 		let p = getPointerCoords(e)
+		return unless p
+		const prev = freehandStrokePoints.length ? freehandStrokePoints[freehandStrokePoints.length - 1] : null
+		if freehandStrokePoints.length == 1
+			console.log("[FREEHAND DEBUG] first move x={Math.round(p.x)} y={Math.round(p.y)}")
+		if prev
+			const dx = Math.abs(p.x - prev.x)
+			const dy = Math.abs(p.y - prev.y)
+			# Log suspicious jumps that look like "fly-in from corner" behavior.
+			if (dx > 260 or dy > 260) and freehandMoveDebugCount < 6
+				console.log('[FREEHAND DEBUG] suspicious jump', {
+					dx, dy,
+					from: prev,
+					to: p,
+					raw: getRawPointerSnapshot(e),
+					points: freehandStrokePoints.length
+				})
+				freehandMoveDebugCount++
 		freehandStrokePoints.push(p)
 		redrawFreehandStrokePreview!
 
 	def endFreehandStroke
+		if freehandStrokeStartedAt
+			console.log("[FREEHAND DEBUG] stroke end durationMs={Date.now() - freehandStrokeStartedAt} points={freehandStrokePoints.length}")
+		freehandStrokeStartedAt = 0
+		clearFreehandStrokeCanvas!
+
+	def finalizeFreehandStroke
+		return unless dragging
+		dragging = no
+		endFreehandStroke!
+		handleFreehandHighlight(yes)
+		window.getSelection().removeAllRanges()
+		imba.commit!
+
+	@autorun def resetFreehandCanvasOnChapterChange
+		const _t = me.translation
+		const _b = me.book
+		const _c = me.chapter
 		clearFreehandStrokeCanvas!
 
 	def handlePointerDown e
@@ -162,16 +248,40 @@ tag chapter < section
 			beginFreehandStroke(e)
 
 	def handlePointerUp e
-		if dragging
-			dragging = no
-			endFreehandStroke!
-			handleFreehandHighlight(yes)
-			window.getSelection().removeAllRanges()
-			imba.commit!
+		finalizeFreehandStroke!
 
 	def handlePointerMove e
 		if dragging and activities.freehandHighlightMode
 			drawFreehandStroke(e)
+
+	def mount
+		globalPointerUpHandler = do finalizeFreehandStroke!
+		globalPointerCancelHandler = do finalizeFreehandStroke!
+		globalMouseUpHandler = do finalizeFreehandStroke!
+		globalTouchEndHandler = do finalizeFreehandStroke!
+		globalTouchCancelHandler = do finalizeFreehandStroke!
+		window.addEventListener('pointerup', globalPointerUpHandler)
+		window.addEventListener('pointercancel', globalPointerCancelHandler)
+		window.addEventListener('mouseup', globalMouseUpHandler)
+		window.addEventListener('touchend', globalTouchEndHandler)
+		window.addEventListener('touchcancel', globalTouchCancelHandler)
+
+	def unmount
+		if globalPointerUpHandler
+			window.removeEventListener('pointerup', globalPointerUpHandler)
+			globalPointerUpHandler = null
+		if globalPointerCancelHandler
+			window.removeEventListener('pointercancel', globalPointerCancelHandler)
+			globalPointerCancelHandler = null
+		if globalMouseUpHandler
+			window.removeEventListener('mouseup', globalMouseUpHandler)
+			globalMouseUpHandler = null
+		if globalTouchEndHandler
+			window.removeEventListener('touchend', globalTouchEndHandler)
+			globalTouchEndHandler = null
+		if globalTouchCancelHandler
+			window.removeEventListener('touchcancel', globalTouchCancelHandler)
+			globalTouchCancelHandler = null
 		
 	def handleFreehandHighlight isFinal = no
 		return unless activities.freehandHighlightMode
@@ -392,7 +502,7 @@ tag chapter < section
 			<>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
-				<canvas.freehand-stroke-canvas .active=(dragging and activities.freehandHighlightMode)>
+				<canvas.freehand-stroke-canvas>
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
@@ -575,6 +685,9 @@ tag chapter < section
 								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
 									@click.wait(200ms)=(do
+										if activities.freehandHighlightMode
+											# During freehand drag, suppress normal verse click selection side effects.
+											return
 										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
 										me.selectVerse(verse.pk, verse.verse)
 									)
@@ -899,7 +1012,5 @@ tag chapter < section
 			pointer-events: none
 			# Keep preview behind verse glyphs so text remains readable.
 			z-index: 0
-			opacity: 0
-			transition: opacity 80ms linear
-			&.active
-				opacity: 1
+			opacity: 1
+			transition: none
