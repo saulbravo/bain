@@ -70,7 +70,7 @@ tag bookmarks-modal
 		const hasBookmarkMetadata = String(cleanCollection).trim() != '' or String(rawNote).trim() != ''
 		return {
 			verse: item.verse
-			date: item.date or 0
+			date: toDateMs(item.date)
 			color: rawColor
 			collection: cleanCollection
 			note: rawNote
@@ -78,6 +78,21 @@ tag bookmarks-modal
 			# Treat as bookmark if: explicit marker, legacy no-color row, or has bookmark metadata.
 			isBookmarked: hasMarker or !hasColor or hasBookmarkMetadata
 		}
+
+	def toDateMs value
+		if typeof value == 'number'
+			return value
+		if value and typeof value.getTime == 'function'
+			const ms = value.getTime()
+			return Number.isFinite(ms) ? ms : 0
+		if typeof value == 'string'
+			const asNumber = Number(value)
+			if Number.isFinite(asNumber) and asNumber > 0
+				return asNumber
+			const parsed = Date.parse(value)
+			if !Number.isNaN(parsed)
+				return parsed
+		return 0
 
 	def buildGroupedBookmarks items
 		let grouped = []
@@ -284,7 +299,7 @@ tag bookmarks-modal
 				if !color
 					continue
 				highlights.push({
-					date: item.date or 0
+					date: toDateMs(item.date)
 					color: color
 					translation: v.translation
 					book: v.book
@@ -307,7 +322,7 @@ tag bookmarks-modal
 						if startVerse == null or endVerse == null
 							continue
 						highlights.push({
-							date: entry.date or 0
+							date: toDateMs(entry.date)
 							color: color
 							translation: entry.translation
 							book: entry.book
@@ -340,7 +355,7 @@ tag bookmarks-modal
 						if !color
 							continue
 						fallbackHighlights.push({
-							date: item.date or 0
+							date: toDateMs(item.date)
 							color: color
 							translation: v.translation
 							book: v.book
@@ -480,7 +495,7 @@ tag bookmarks-modal
 				const endOffset = item.endOffset != null ? item.endOffset : 999999
 				if run == null
 					run = {
-						date: item.date or 0
+						date: toDateMs(item.date)
 						color: item.color
 						translation: item.translation
 						book: item.book
@@ -517,7 +532,7 @@ tag bookmarks-modal
 							text: run._texts.join(' ')
 						})
 						run = {
-							date: item.date or 0
+							date: toDateMs(item.date)
 							color: item.color
 							translation: item.translation
 							book: item.book
@@ -687,7 +702,7 @@ tag bookmarks-modal
 				const color = item.color and String(item.color).trim()
 				if !color
 					continue
-				fallback.push({ date: item.date or 0, color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
+				fallback.push({ date: toDateMs(item.date), color: color, translation: v.translation, book: v.book, chapter: v.chapter, verse: v.verse, text: v.text or '' })
 			for entry in readerFreehandToHighlightEntries(r)
 				fallback.push({
 					date: entry.date

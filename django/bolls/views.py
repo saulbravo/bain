@@ -481,7 +481,7 @@ def get_profile_freehand_highlights(request):
                         "endVerse": end_verse,
                         "endOffset": end_offset,
                         "color": item.get("color", "#eab308"),
-                        "date": 0,
+                        "date": item.get("date", 0),
                         "text": build_snippet(start_verse, start_offset, end_verse, end_offset),
                     }
                 )

@@ -363,6 +363,17 @@ class GenericReader
 			return
 
 		try
+			const now = Date.now()
+			freehandHighlights = (freehandHighlights or []).map(do |item|
+				return {
+					startVerse: item.startVerse
+					startOffset: item.startOffset
+					endVerse: item.endVerse
+					endOffset: item.endOffset
+					color: item.color
+					date: item.date or now
+				}
+			)
 			await API.post("/save-freehand-highlights/", {
 				translation: translation,
 				book: book,

@@ -237,6 +237,7 @@ tag chapter < section
 						endVerse: Math.floor(sStart / 1000000)
 						endOffset: sStart % 1000000
 						color: h.color
+						date: h.date or Date.now()
 					})
 				
 				# Part of highlight after selection
@@ -247,6 +248,7 @@ tag chapter < section
 						endVerse: h.endVerse
 						endOffset: h.endOffset
 						color: h.color
+						date: h.date or Date.now()
 					})
 			
 			if changed
@@ -254,12 +256,14 @@ tag chapter < section
 				if isFinal
 					me.saveFreehandHighlights!
 		else
+			const now = Date.now()
 			let highlight = {
 				startVerse: startVerse
 				startOffset: startOffset
 				endVerse: endVerse
 				endOffset: endOffset
 				color: activities.freehandHighlightColor or '#eab308'
+				date: now
 			}
 			
 			if currentDragHighlight
