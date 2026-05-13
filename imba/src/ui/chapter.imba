@@ -76,22 +76,102 @@ tag chapter < section
 	
 	@observable dragging = no
 	currentDragHighlight = null
+	freehandStrokeCanvas = null
+	freehandStrokeCtx = null
+	freehandStrokeDrawing = no
+	freehandStrokePoints = []
+
+	def getPointerCoords e
+		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
+		let clientX = touch ? touch.clientX : (e && typeof e.clientX == 'number' ? e.clientX : 0)
+		let clientY = touch ? touch.clientY : (e && typeof e.clientY == 'number' ? e.clientY : 0)
+		let rect = self.getBoundingClientRect()
+		return {
+			x: Math.max(0, clientX - rect.left + self.scrollLeft)
+			y: Math.max(0, clientY - rect.top + self.scrollTop)
+		}
+
+	def ensureFreehandStrokeCanvas
+		let canvas = freehandStrokeCanvas or self.querySelector('.freehand-stroke-canvas')
+		return unless canvas
+		let width = Math.max(self.scrollWidth, self.clientWidth, 1)
+		let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+		let ratio = window.devicePixelRatio or 1
+		canvas.style.width = "{width}px"
+		canvas.style.height = "{height}px"
+		canvas.width = Math.floor(width * ratio)
+		canvas.height = Math.floor(height * ratio)
+		let ctx = canvas.getContext('2d')
+		return unless ctx
+		ctx.setTransform(1, 0, 0, 1, 0, 0)
+		ctx.scale(ratio, ratio)
+		ctx.lineJoin = 'round'
+		ctx.lineCap = 'round'
+		# Keep preview stroke visually close to final applied block size.
+		ctx.lineWidth = 24
+		ctx.strokeStyle = activities.freehandHighlightColor or '#eab308'
+		# Keep preview color identical to applied color.
+		ctx.globalAlpha = 1
+		freehandStrokeCanvas = canvas
+		freehandStrokeCtx = ctx
+
+	def clearFreehandStrokeCanvas
+		if freehandStrokeCtx and freehandStrokeCanvas
+			let width = Math.max(self.scrollWidth, self.clientWidth, 1)
+			let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+			freehandStrokeCtx.clearRect(0, 0, width, height)
+		freehandStrokeDrawing = no
+		freehandStrokePoints = []
+
+	def redrawFreehandStrokePreview
+		return unless freehandStrokeCtx and freehandStrokeCanvas
+		let width = Math.max(self.scrollWidth, self.clientWidth, 1)
+		let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+		freehandStrokeCtx.clearRect(0, 0, width, height)
+		return unless freehandStrokePoints.length
+		freehandStrokeCtx.beginPath!
+		freehandStrokeCtx.moveTo(freehandStrokePoints[0].x, freehandStrokePoints[0].y)
+		for point, index in freehandStrokePoints
+			if index == 0
+				continue
+			freehandStrokeCtx.lineTo(point.x, point.y)
+		freehandStrokeCtx.stroke!
+
+	def beginFreehandStroke e
+		return unless activities.freehandHighlightMode
+		ensureFreehandStrokeCanvas!
+		return unless freehandStrokeCtx
+		let p = getPointerCoords(e)
+		freehandStrokePoints = [p]
+		freehandStrokeDrawing = yes
+		redrawFreehandStrokePreview!
+
+	def drawFreehandStroke e
+		return unless freehandStrokeDrawing and freehandStrokeCtx
+		let p = getPointerCoords(e)
+		freehandStrokePoints.push(p)
+		redrawFreehandStrokePreview!
+
+	def endFreehandStroke
+		clearFreehandStrokeCanvas!
 
 	def handlePointerDown e
 		if activities.freehandHighlightMode
 			dragging = yes
 			currentDragHighlight = null
+			beginFreehandStroke(e)
 
 	def handlePointerUp e
 		if dragging
 			dragging = no
+			endFreehandStroke!
 			handleFreehandHighlight(yes)
 			window.getSelection().removeAllRanges()
 			imba.commit!
 
 	def handlePointerMove e
-		# Don't update highlights during drag to avoid DOM re-renders destroying selection
-		pass
+		if dragging and activities.freehandHighlightMode
+			drawFreehandStroke(e)
 		
 	def handleFreehandHighlight isFinal = no
 		return unless activities.freehandHighlightMode
@@ -308,6 +388,7 @@ tag chapter < section
 			<>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
+				<canvas.freehand-stroke-canvas .active=(dragging and activities.freehandHighlightMode)>
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
@@ -806,3 +887,15 @@ tag chapter < section
 		.in-offline
 			padding: 2rem
 			text-align: center
+
+		.freehand-stroke-canvas
+			position: absolute
+			top: 0
+			left: 0
+			pointer-events: none
+			# Keep preview behind verse glyphs so text remains readable.
+			z-index: 0
+			opacity: 0
+			transition: opacity 80ms linear
+			&.active
+				opacity: 1
