@@ -88,6 +88,11 @@ tag verse-actions < section
 		else
 			parallelReader.deleteBookmark activities.selectedVersesPKs
 
+	get selectionHasBookmark
+		if activities.selectedParallel == 'main'
+			return reader.selectionHasBookmark
+		return parallelReader.selectionHasBookmark
+
 	def clearAllHighlights
 		if window.confirm("Clear all highlights in this chapter?")
 			if activities.selectedParallel == 'main'
@@ -252,7 +257,10 @@ tag verse-actions < section
 										<svg src=Link aria-hidden=yes>
 										t.copy_with_link
 			<li>
-				<button @click=(do
+				<button.bookmark-toggle .applied=selectionHasBookmark @click=(do
+					if selectionHasBookmark
+						deleteBookmark!
+						return
 					activities.selectedCategories = []
 					activities.note = ''
 					# Bookmark only (no highlight): empty color so no background is applied
@@ -262,7 +270,7 @@ tag verse-actions < section
 					else
 						parallelReader.saveBookmark(yes)
 					activities.cleanUp!
-				) title=(t.bookmark or "Bookmark")>
+				) title=(selectionHasBookmark ? (t.delete or "Remove bookmark") : (t.bookmark or "Bookmark"))>
 					<svg src=Bookmark aria-hidden=yes>
 			<li>
 				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
@@ -380,7 +388,12 @@ tag verse-actions < section
 			d:inline-block
 		
 		.applied
-			c@important:$acc
+			c@important:$acc-hover
+		
+		.bookmark-toggle.applied
+			svg
+				fill: currentColor
+				stroke: currentColor
 		
 		.copy-select-active
 			c@important: #a855f7
