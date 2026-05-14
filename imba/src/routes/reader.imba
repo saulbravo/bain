@@ -14,9 +14,9 @@ import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
 import SettingsIcon from 'lucide-static/icons/settings.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
+import Pen from 'lucide-static/icons/pen.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
-import ParallelReading from '../icons/parallel-reading.svg'
 import ListIcon from 'lucide-static/icons/list.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
@@ -710,8 +710,8 @@ tag reader
 							<svg src=Obsidian aria-hidden=yes>
 						<button .freehand-highlight-active=(activities.freehandHighlightMode) @click=(activities.toggleFreehandHighlightMode!) title="Freehand Highlight">
 							<svg src=Highlighter aria-hidden=yes>
-						<button .parallel-active=parallelReader.enabled @click=(parallelReader.enable = !parallelReader.enabled) title=t.parallel>
-							<svg src=ParallelReading aria-hidden=yes>
+						<button .pen-tool-active=(activities.penToolMode) @click=(activities.togglePenToolMode!) title="Pen Tool">
+							<svg src=Pen aria-hidden=yes>
 						<button @click=activities.showBookmarksModal title=(t.bookmarks or "Bookmarks")>
 							<svg src=ListIcon aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
@@ -736,10 +736,10 @@ tag reader
 			svg
 				c: var(--freehand-color, GoldenRod)
 		
-		.parallel-active
-			c: $acc-hover
+		.pen-tool-active
+			c: var(--freehand-color, GoldenRod)
 			svg
-				c: $acc-hover
+				c: var(--freehand-color, GoldenRod)
 		
 		nav, aside
 			h: 100vh

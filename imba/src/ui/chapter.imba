@@ -73,6 +73,12 @@ tag chapter < section
 	def isMyRect matchId\string
 		if activities.activeModal != ''
 			return no
+		if !matchId
+			return no
+		if versePrefix == ''
+			# Main reader verse ids are numeric-only.
+			return !matchId.match(/[a-zA-Z]/)
+		return matchId.startsWith(versePrefix)
 	
 	@observable dragging = no
 	currentDragHighlight = null
@@ -82,6 +88,8 @@ tag chapter < section
 	freehandStrokePoints = []
 	freehandStrokeStartedAt = 0
 	freehandMoveDebugCount = 0
+	penDrawing = no
+	currentPenStroke = null
 	globalPointerUpHandler = null
 	globalPointerCancelHandler = null
 	globalMouseUpHandler = null
@@ -128,11 +136,133 @@ tag chapter < section
 			y: Math.max(0, clientY - rect.top + self.scrollTop)
 		}
 
+	def getClientPoint e
+		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
+		if touch
+			return { x: touch.clientX, y: touch.clientY }
+		if e && typeof e.clientX == 'number' and typeof e.clientY == 'number'
+			return { x: e.clientX, y: e.clientY }
+		return null
+
+	def getVerseAnchorElementFromEvent e
+		const point = getClientPoint(e)
+		let el = null
+		if point
+			el = document.elementFromPoint(point.x, point.y)
+		if !el and e and e.target
+			el = e.target
+		while el
+			if el.id and (el.id.match(/^\d+$/) or el.id.match(/^p\d+$/))
+				return el
+			el = el.parentElement
+		let fallback = null
+		let minDistance = 999999
+		for verseEl in self.querySelectorAll('span[id]')
+			const r = verseEl.getBoundingClientRect()
+			const centerY = r.top + r.height / 2
+			const d = point ? Math.abs(centerY - point.y) : 0
+			if d < minDistance
+				minDistance = d
+				fallback = verseEl
+		return fallback
+
+	def getElementCoordsInSelf el
+		if !el
+			return { x: 0, y: 0 }
+		const rect = el.getBoundingClientRect()
+		const selfRect = self.getBoundingClientRect()
+		return {
+			x: rect.left - selfRect.left + self.scrollLeft
+			y: rect.top - selfRect.top + self.scrollTop
+		}
+
+	def getPenStrokeBase stroke
+		if !stroke
+			return { x: 0, y: 0 }
+		const anchorEl = stroke.anchorId ? document.getElementById(stroke.anchorId) : null
+		if anchorEl
+			const anchorPos = getElementCoordsInSelf(anchorEl)
+			return {
+				x: anchorPos.x + (stroke.anchorDx or 0)
+				y: anchorPos.y + (stroke.anchorDy or 0)
+			}
+		return {
+			x: stroke.fallbackBaseX or 0
+			y: stroke.fallbackBaseY or 0
+		}
+
+	def getDrawingSurfaceWidth
+		# Keep drawing surface width tied to viewport width to avoid recursive scroll growth.
+		const width = Math.max(self.clientWidth or 0, 1)
+		return Math.min(width, 8192)
+
+	def getDrawingSurfaceHeight
+		const article = self.querySelector('article')
+		const articleHeight = article ? article.scrollHeight : 0
+		const height = Math.max(articleHeight + 120, self.clientHeight or 0, 1)
+		return Math.min(height, 32768)
+
+	def pointToSegmentDistance px, py, x1, y1, x2, y2
+		const dx = x2 - x1
+		const dy = y2 - y1
+		if dx == 0 and dy == 0
+			const ddx = px - x1
+			const ddy = py - y1
+			return Math.sqrt(ddx * ddx + ddy * ddy)
+		let t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+		t = Math.max(0, Math.min(1, t))
+		const projX = x1 + t * dx
+		const projY = y1 + t * dy
+		const ddx = px - projX
+		const ddy = py - projY
+		return Math.sqrt(ddx * ddx + ddy * ddy)
+
+	def strokeIntersectsPoint stroke, point, radius\number
+		if !stroke or !stroke.points or stroke.points.length == 0
+			return no
+		const base = getPenStrokeBase(stroke)
+		const widthRadius = Math.max(2, (stroke.width or 6) / 2)
+		const hitRadius = radius + widthRadius
+		if stroke.points.length == 1
+			const x = base.x + stroke.points[0].x
+			const y = base.y + stroke.points[0].y
+			const dx = point.x - x
+			const dy = point.y - y
+			return Math.sqrt(dx * dx + dy * dy) <= hitRadius
+		for pointItem, index in stroke.points
+			if index == 0
+				continue
+			const prev = stroke.points[index - 1]
+			const x1 = base.x + prev.x
+			const y1 = base.y + prev.y
+			const x2 = base.x + pointItem.x
+			const y2 = base.y + pointItem.y
+			if pointToSegmentDistance(point.x, point.y, x1, y1, x2, y2) <= hitRadius
+				return yes
+		return no
+
+	def erasePenAtPoint e
+		let p = getPointerCoords(e)
+		return unless p
+		const existing = activities.getPenSketchesFor(me.translation, me.book, me.chapter)
+		if !existing or existing.length == 0
+			return
+		const keep = existing.filter(do |stroke|
+			return !strokeIntersectsPoint(stroke, p, 14)
+		)
+		if keep.length != existing.length
+			console.log('[PEN DEBUG] erased strokes', {
+				before: existing.length,
+				after: keep.length,
+				removed: existing.length - keep.length
+			})
+			activities.setPenSketchesFor(me.translation, me.book, me.chapter, keep)
+
 	def ensureFreehandStrokeCanvas
 		let canvas = freehandStrokeCanvas or self.querySelector('.freehand-stroke-canvas')
 		return unless canvas
-		let width = Math.max(self.scrollWidth, self.clientWidth, 1)
-		let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+		let width = getDrawingSurfaceWidth!
+		let height = getDrawingSurfaceHeight!
 		let ratio = window.devicePixelRatio or 1
 		canvas.style.top = "0px"
 		canvas.style.left = "0px"
@@ -156,16 +286,16 @@ tag chapter < section
 
 	def clearFreehandStrokeCanvas
 		if freehandStrokeCtx and freehandStrokeCanvas
-			let width = Math.max(self.scrollWidth, self.clientWidth, 1)
-			let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+			let width = getDrawingSurfaceWidth!
+			let height = getDrawingSurfaceHeight!
 			freehandStrokeCtx.clearRect(0, 0, width, height)
 		freehandStrokeDrawing = no
 		freehandStrokePoints = []
 
 	def redrawFreehandStrokePreview
 		return unless freehandStrokeCtx and freehandStrokeCanvas
-		let width = Math.max(self.scrollWidth, self.clientWidth, 1)
-		let height = Math.max(self.scrollHeight, self.clientHeight, 1)
+		let width = getDrawingSurfaceWidth!
+		let height = getDrawingSurfaceHeight!
 		freehandStrokeCtx.clearRect(0, 0, width, height)
 		return unless freehandStrokePoints.length
 		freehandStrokeCtx.beginPath!
@@ -227,7 +357,71 @@ tag chapter < section
 		freehandStrokeStartedAt = 0
 		clearFreehandStrokeCanvas!
 
+	def beginPenStroke e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if activities.penEraserMode
+			penDrawing = yes
+			currentPenStroke = null
+			erasePenAtPoint(e)
+			return
+		let p = getPointerCoords(e)
+		return unless p
+		const anchorEl = getVerseAnchorElementFromEvent(e)
+		const anchorId = anchorEl ? anchorEl.id : null
+		const anchorPos = getElementCoordsInSelf(anchorEl)
+		currentPenStroke = {
+			id: "pen-{Date.now()}-{Math.floor(Math.random() * 100000)}"
+			color: activities.freehandHighlightColor or '#000000'
+			width: activities.penLineWidth or 6
+			anchorId: anchorId
+			anchorDx: p.x - anchorPos.x
+			anchorDy: p.y - anchorPos.y
+			fallbackBaseX: p.x
+			fallbackBaseY: p.y
+			points: [{ x: 0, y: 0 }]
+			date: Date.now()
+		}
+		penDrawing = yes
+		imba.commit!
+
+	def drawPenStroke e
+		return unless penDrawing
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if activities.penEraserMode
+			erasePenAtPoint(e)
+			return
+		return unless currentPenStroke
+		let p = getPointerCoords(e)
+		return unless p
+		const base = getPenStrokeBase(currentPenStroke)
+		currentPenStroke.points.push({
+			x: p.x - base.x
+			y: p.y - base.y
+		})
+		imba.commit!
+
+	def endPenStroke
+		return unless penDrawing
+		penDrawing = no
+		if activities.penEraserMode
+			currentPenStroke = null
+			return
+		const stroke = currentPenStroke
+		currentPenStroke = null
+		if stroke and stroke.points and stroke.points.length > 1
+			activities.addPenSketch(me.translation, me.book, me.chapter, stroke)
+		imba.commit!
+
 	def finalizeFreehandStroke
+		if penDrawing
+			endPenStroke!
+			return
 		return unless dragging
 		dragging = no
 		endFreehandStroke!
@@ -242,7 +436,9 @@ tag chapter < section
 		clearFreehandStrokeCanvas!
 
 	def handlePointerDown e
-		if activities.freehandHighlightMode
+		if activities.penToolMode
+			beginPenStroke(e)
+		elif activities.freehandHighlightMode
 			dragging = yes
 			currentDragHighlight = null
 			beginFreehandStroke(e)
@@ -251,7 +447,9 @@ tag chapter < section
 		finalizeFreehandStroke!
 
 	def handlePointerMove e
-		if dragging and activities.freehandHighlightMode
+		if penDrawing and activities.penToolMode
+			drawPenStroke(e)
+		elif dragging and activities.freehandHighlightMode
 			drawFreehandStroke(e)
 
 	def mount
@@ -293,14 +491,17 @@ tag chapter < section
 			return
 		
 		let range = selection.getRangeAt(0)
+		let startParent = range.startContainer and range.startContainer.nodeType == 1 ? range.startContainer : range.startContainer.parentElement
+		let endParent = range.endContainer and range.endContainer.nodeType == 1 ? range.endContainer : range.endContainer.parentElement
+		return unless startParent and endParent
 		
 		# Ensure we are selecting within the article
-		let article = range.startContainer.parentElement.closest('article')
+		let article = startParent.closest('article')
 		return unless article
 		
 		# Find the verse spans
-		let startSpan = range.startContainer.parentElement.closest('span[id]')
-		let endSpan = range.endContainer.parentElement.closest('span[id]')
+		let startSpan = startParent.closest('span[id]')
+		let endSpan = endParent.closest('span[id]')
 		
 		return unless startSpan and endSpan
 		
@@ -394,10 +595,6 @@ tag chapter < section
 		# Clear selection
 		selection.removeAllRanges()
 		imba.commit!
-		if versePrefix == ''
-			// check if there is any letter in the matchId
-			return !matchId.match(/[a-zA-Z]/)
-		return matchId.startsWith(versePrefix)
 
 	def applyHighlightsToHtml html, highlights
 		# Parse the HTML into a list of "parts": either a tag or a text node
@@ -491,6 +688,20 @@ tag chapter < section
 		
 		return verseText
 
+	def getPenStrokePath stroke
+		if !stroke or !stroke.points or stroke.points.length == 0
+			return ''
+		const base = getPenStrokeBase(stroke)
+		let d = "M {Math.round(base.x + stroke.points[0].x)} {Math.round(base.y + stroke.points[0].y)}"
+		for point, index in stroke.points
+			if index == 0
+				continue
+			d += " L {Math.round(base.x + point.x)} {Math.round(base.y + point.y)}"
+		return d
+
+	def currentChapterPenSketches
+		return activities.getPenSketchesFor(me.translation, me.book, me.chapter)
+
 	def render
 		<self .parallel=parallelReader.enabled
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
@@ -503,6 +714,15 @@ tag chapter < section
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
 				<canvas.freehand-stroke-canvas>
+				<svg.pen-sketch-layer [width:{getDrawingSurfaceWidth!} height:{getDrawingSurfaceHeight!}]>
+					for stroke in currentChapterPenSketches()
+						const path = getPenStrokePath(stroke)
+						if path != ''
+							<path d=path stroke=(stroke.color or '#F9E2A0') stroke-width=(stroke.width or 6) fill="none" stroke-linecap="round" stroke-linejoin="round">
+					if currentPenStroke
+						const activePath = getPenStrokePath(currentPenStroke)
+						if activePath != ''
+							<path d=activePath stroke=(currentPenStroke.color or '#F9E2A0') stroke-width=(currentPenStroke.width or 6) fill="none" stroke-linecap="round" stroke-linejoin="round">
 
 			if me.verses..length
 				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
@@ -670,7 +890,12 @@ tag chapter < section
 								if settings.verse_number
 									unless settings.verse_break
 										<span> ' '
-									<span.verse.eq_ck .bookmarked=bookmarkOnly dir="ltr" style=superStyle @click=(me.findVerse("{versePrefix}{verse.verse}"))>
+									<span.verse.eq_ck .bookmarked=bookmarkOnly dir="ltr" style=superStyle
+										@click=(do
+											if activities.freehandHighlightMode or activities.penToolMode
+												return
+											me.findVerse("{versePrefix}{verse.verse}")
+										)>
 										if bookmarkOnly
 											<svg.eq_cn.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
 												<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
@@ -685,7 +910,7 @@ tag chapter < section
 								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
 									@click.wait(200ms)=(do
-										if activities.freehandHighlightMode
+										if activities.freehandHighlightMode or activities.penToolMode
 											# During freehand drag, suppress normal verse click selection side effects.
 											return
 										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
@@ -1014,3 +1239,11 @@ tag chapter < section
 			z-index: 0
 			opacity: 1
 			transition: none
+
+		.pen-sketch-layer
+			position: absolute
+			top: 0
+			left: 0
+			pointer-events: none
+			z-index: 1
+			overflow: visible

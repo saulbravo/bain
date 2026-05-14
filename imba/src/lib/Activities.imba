@@ -28,6 +28,16 @@ class Activities
 		'#A7C7E7'
 		'#CDB4DB'
 	]
+	penColors = [
+		'#000000'
+		'#DC2626'
+		'#F4A3A3'
+		'#F7C59F'
+		'#F9E2A0'
+		'#B7E4C7'
+		'#A7C7E7'
+		'#CDB4DB'
+	]
 	@observable bookBookmarks = Array.isArray(getValue('book-bookmarks')) ? getValue('book-bookmarks') : []
 
 	def bookBookmarkKey translation\string, book\number, chapter\number
@@ -113,6 +123,10 @@ class Activities
 	freehandHighlightMode = no
 	freehandEraserMode = no
 	freehandHighlightColor = '#F9E2A0'
+	penToolMode = no
+	penEraserMode = no
+	penLineWidth = Number(getValue('pen-line-width') or 3)
+	@observable penSketches = getValue('pen-sketches') or {}
 
 	blockInScroll = null
 	scrollLockTimeout = null
@@ -480,6 +494,8 @@ class Activities
 		copySelectReader = null
 		freehandHighlightMode = no
 		freehandEraserMode = no
+		penToolMode = no
+		penEraserMode = no
 
 		reader.show_verse_picker = no
 		parallelReader.show_verse_picker = no
@@ -506,6 +522,10 @@ class Activities
 		freehandHighlightMode = !freehandHighlightMode
 		isFreehandHighlightMinimized = no
 		if freehandHighlightMode
+			# Keep classic highlighter defaults; pen-only colors (black/red) should not carry over.
+			if freehandHighlightColor == '#000000' or freehandHighlightColor == '#DC2626'
+				freehandHighlightColor = '#F9E2A0'
+			penToolMode = no
 			# Clear verse selection and hide regular slideup
 			selectedVerses = []
 			selectedVersesPKs = []
@@ -517,6 +537,71 @@ class Activities
 			window.getSelection().removeAllRanges()
 		else
 			freehandEraserMode = no
+		imba.commit!
+
+	def togglePenToolMode
+		penToolMode = !penToolMode
+		isFreehandHighlightMinimized = no
+		if penToolMode
+			# Pen tool starts from black by default.
+			freehandHighlightColor = '#000000'
+			freehandHighlightMode = no
+			freehandEraserMode = no
+			penEraserMode = no
+			selectedVerses = []
+			selectedVersesPKs = []
+			selectedParallel = undefined
+			activeVerseAction = ''
+			show_sharing = no
+			show_bookmarks = no
+			show_add_bookmark = no
+			window.getSelection().removeAllRanges()
+		imba.commit!
+
+	def penSketchKey translation\string, book\number, chapter\number
+		return "{translation}:{book}:{chapter}"
+
+	def getPenSketchesFor translation\string, book\number, chapter\number
+		const key = penSketchKey(translation, book, chapter)
+		const arr = penSketches and penSketches[key]
+		return Array.isArray(arr) ? arr : []
+
+	def savePenSketches
+		setValue('pen-sketches', penSketches)
+
+	def addPenSketch translation\string, book\number, chapter\number, sketch
+		if !sketch
+			return
+		const key = penSketchKey(translation, book, chapter)
+		const next = getPenSketchesFor(translation, book, chapter).slice()
+		next.push(sketch)
+		penSketches = {
+			...(penSketches or {})
+			[key]: next
+		}
+		savePenSketches!
+		imba.commit!
+
+	def setPenSketchesFor translation\string, book\number, chapter\number, sketches
+		const key = penSketchKey(translation, book, chapter)
+		const nextList = Array.isArray(sketches) ? sketches : []
+		if nextList.length == 0
+			return clearPenSketchesFor(translation, book, chapter)
+		penSketches = {
+			...(penSketches or {})
+			[key]: nextList
+		}
+		savePenSketches!
+		imba.commit!
+
+	def clearPenSketchesFor translation\string, book\number, chapter\number
+		const key = penSketchKey(translation, book, chapter)
+		if !(penSketches and penSketches[key])
+			return
+		let next = { ...(penSketches or {}) }
+		delete next[key]
+		penSketches = next
+		savePenSketches!
 		imba.commit!
 
 

@@ -1,6 +1,7 @@
 import activities from '../lib/Activities'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
+import { setValue } from '../utils'
 import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
@@ -8,6 +9,7 @@ import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
+import Pen from 'lucide-static/icons/pen.svg'
 
 const DEFAULT_Y = 32
 
@@ -19,33 +21,38 @@ tag freehand-highlight-menu
 			activities.freehandHighlightColor = event.detail
 
 	def clearAllHighlights
-		if window.confirm("Clear all highlights in this chapter?")
+		if activities.penToolMode
+			console.log('[PEN DEBUG] clear all sketches', { chapter: "{reader.translation}:{reader.book}:{reader.chapter}" })
+			reader.clearPenSketchesForCurrentChapter!
+			if parallelReader.enabled
+				parallelReader.clearPenSketchesForCurrentChapter!
+		elif window.confirm("Clear all highlights in this chapter?")
 			reader.clearAllChapterHighlights!
 			if parallelReader.enabled
 				parallelReader.clearAllChapterHighlights!
 
 	def close
+		console.log('[PEN DEBUG] close tool menu')
 		activities.freehandHighlightMode = no
+		activities.penToolMode = no
 		activities.isFreehandHighlightMinimized = no
 		activities.freehandEraserMode = no
+		activities.penEraserMode = no
 		imba.commit!
 
-	def touchHandler event
-		#dy = Math.max(event.y - event.y0, -DEFAULT_Y) + DEFAULT_Y
-		event.stopPropagation!
-
-		if event.phase == "ended"
-			if #dy > DEFAULT_Y * 2
-				event.preventDefault()
-				activities.toggleFreehandHighlightMode!
-			#dy = DEFAULT_Y
+	def setPenThickness e
+		let raw = e and e.target ? e.target.value : null
+		let n = Number(raw)
+		if !Number.isFinite(n)
+			return
+		activities.penLineWidth = Math.max(1, Math.min(24, n))
+		setValue('pen-line-width', activities.penLineWidth)
 
 	get transitionDuration
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
 
-	<self [y:{activities.freehandHighlightMode ? (activities.isFreehandHighlightMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px') : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
-		.is-minimized=activities.isFreehandHighlightMinimized
-		@touch.fit(self)=touchHandler>
+	<self [y:{(activities.freehandHighlightMode or activities.penToolMode) ? (activities.isFreehandHighlightMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px') : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
+		.is-minimized=activities.isFreehandHighlightMinimized>
 		<div.control-tabs>
 			<button.tab.minimize @click=(activities.isFreehandHighlightMinimized = !activities.isFreehandHighlightMinimized) title=(activities.isFreehandHighlightMinimized ? "Restore" : "Minimize")>
 				<svg src=(activities.isFreehandHighlightMinimized ? ChevronUp : ChevronDown)>
@@ -63,22 +70,44 @@ tag freehand-highlight-menu
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.freehandHighlightColor @change=setHighlightColor>
 
-			for color in activities.highlightColors
+			for color in (activities.penToolMode ? activities.penColors : activities.highlightColors)
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
 					.selected=(activities.freehandHighlightColor == color)
-					@click.stop.prevent=(activities.freehandHighlightColor = color; activities.freehandEraserMode = no)>
+					@click.stop.prevent=(do
+						activities.freehandHighlightColor = color
+						activities.freehandEraserMode = no
+						activities.penEraserMode = no
+					)>
+
+		if activities.penToolMode
+			<div.thickness-row>
+				<span> "Thickness"
+				<input type='range' min='1' max='24' step='1' value=activities.penLineWidth @input=setPenThickness>
+				<span.thickness-value> activities.penLineWidth
 
 		<menu>
-			<li>
-				<button .active=!activities.freehandEraserMode 
-					@click=(activities.freehandEraserMode = no) 
-					role="button" aria-label="Highlight" title="Highlight Tool">
-					<svg src=Highlighter width="1.5rem" height="1.5rem">
-			<li>
-				<button .active=activities.freehandEraserMode 
-					@click=(activities.freehandEraserMode = yes) 
-					role="button" aria-label="Eraser" title="Eraser Tool">
-					<svg src=Eraser width="1.5rem" height="1.5rem">
+			if activities.penToolMode
+				<li>
+					<button .active=!activities.penEraserMode
+						@click=(activities.penEraserMode = no)
+						role="button" aria-label="Draw" title="Draw Tool">
+						<svg src=Pen width="1.5rem" height="1.5rem">
+				<li>
+					<button .active=activities.penEraserMode
+						@click=(activities.penEraserMode = yes)
+						role="button" aria-label="Erase" title="Erase Tool">
+						<svg src=Eraser width="1.5rem" height="1.5rem">
+			if !activities.penToolMode
+				<li>
+					<button .active=!activities.freehandEraserMode 
+						@click=(activities.freehandEraserMode = no) 
+						role="button" aria-label="Highlight" title="Highlight Tool">
+						<svg src=Highlighter width="1.5rem" height="1.5rem">
+				<li>
+					<button .active=activities.freehandEraserMode 
+						@click=(activities.freehandEraserMode = yes) 
+						role="button" aria-label="Eraser" title="Eraser Tool">
+						<svg src=Eraser width="1.5rem" height="1.5rem">
 			<li>
 				<button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
 					<svg src=Trash2 width="1.5rem" height="1.5rem">
@@ -175,4 +204,15 @@ tag freehand-highlight-menu
 		li
 			list-style-type: none
 			d:inline-block
+
+		.thickness-row
+			d:flex
+			ai:center
+			jc:center
+			g:0.5rem
+			pb:0.5rem
+
+		.thickness-value
+			min-width:2ch
+			ta:right
 

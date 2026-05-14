@@ -461,7 +461,7 @@ class GenericReader
 
 
 	def selectVerse pk\number, id\number
-		if !document.getSelection().isCollapsed or activities.activeModal or activities.freehandHighlightMode
+		if !document.getSelection().isCollapsed or activities.activeModal or activities.freehandHighlightMode or activities.penToolMode
 			return
 
 		if activities.copySelectMode
@@ -786,5 +786,8 @@ class GenericReader
 					if next_bookmark.collection == current_bookmark.collection and next_bookmark.note == current_bookmark.note
 						return yes
 		return no
+
+	def clearPenSketchesForCurrentChapter
+		activities.clearPenSketchesFor(translation, book, chapter)
 
 export default GenericReader
