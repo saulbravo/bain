@@ -14,7 +14,7 @@ interface BibleViewerSettings {
 }
 
 const DEFAULT_SETTINGS: BibleViewerSettings = {
-	bibleAppUrl: "http://localhost:8080",
+	bibleAppUrl: "https://bolls.familybravo.com",
 };
 
 export default class BibleViewerPlugin extends Plugin {
@@ -63,6 +63,14 @@ export default class BibleViewerPlugin extends Plugin {
 			DEFAULT_SETTINGS,
 			await this.loadData()
 		);
+		// Migrate legacy default saved in Obsidian data
+		if (
+			this.settings.bibleAppUrl === "http://localhost:8080" ||
+			this.settings.bibleAppUrl === "http://127.0.0.1:8080"
+		) {
+			this.settings.bibleAppUrl = DEFAULT_SETTINGS.bibleAppUrl;
+			await this.saveSettings();
+		}
 	}
 
 	async saveSettings() {
@@ -246,6 +254,20 @@ class BibleView extends ItemView {
 		}
 	}
 
+	isAllowedMessageOrigin(origin: string): boolean {
+		if (origin === "null" || origin === window.location.origin) {
+			return true;
+		}
+		if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+			return true;
+		}
+		try {
+			return new URL(origin).origin === new URL(this.plugin.settings.bibleAppUrl).origin;
+		} catch {
+			return false;
+		}
+	}
+
 	handleMessage(event: MessageEvent) {
 		// Debug logging
 		console.log("Bible Viewer: Received message", {
@@ -256,14 +278,8 @@ class BibleView extends ItemView {
 			source: event.source
 		});
 		
-		// Only accept messages from the Bible app (localhost or 127.0.0.1, with or without port)
-		// Also accept messages from the iframe itself
-		const isLocalhost = event.origin.includes("localhost") || 
-		                   event.origin.includes("127.0.0.1") ||
-		                   event.origin === "null" || // Some browsers use "null" for same-origin
-		                   event.source === this.iframe?.contentWindow;
-		
-		if (!isLocalhost) {
+		const fromIframe = event.source === this.iframe?.contentWindow;
+		if (!this.isAllowedMessageOrigin(event.origin) && !fromIframe) {
 			console.log("Bible Viewer: Rejected message from origin", event.origin);
 			return;
 		}
@@ -377,10 +393,10 @@ class BibleViewerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Bible App URL")
-			.setDesc("URL of the Bible app (default: http://localhost:8080)")
+			.setDesc("URL of the Bible app (default: https://bolls.familybravo.com)")
 			.addText((text) =>
 				text
-					.setPlaceholder("http://localhost:8080")
+					.setPlaceholder("https://bolls.familybravo.com")
 					.setValue(this.plugin.settings.bibleAppUrl)
 					.onChange(async (value) => {
 						this.plugin.settings.bibleAppUrl = value;

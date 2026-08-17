@@ -37,7 +37,7 @@ When installed from the **bain** monorepo, use manual install (path above).
 
 | Setting | Default | Example |
 |---------|---------|---------|
-| **Bible App URL** | `http://localhost:8080` | `https://bolls.familybravo.com` |
+| **Bible App URL** | `https://bolls.familybravo.com` | `http://192.168.1.15:9080` for local LAN |
 
 Enable the plugin under **Settings → Community plugins**.
 

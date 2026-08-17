@@ -29,7 +29,7 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
-  bibleAppUrl: "http://localhost:8080"
+  bibleAppUrl: "https://bolls.familybravo.com"
 };
 var BibleViewerPlugin = class extends import_obsidian.Plugin {
   async onload() {
@@ -62,6 +62,10 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
       DEFAULT_SETTINGS,
       await this.loadData()
     );
+    if (this.settings.bibleAppUrl === "http://localhost:8080" || this.settings.bibleAppUrl === "http://127.0.0.1:8080") {
+      this.settings.bibleAppUrl = DEFAULT_SETTINGS.bibleAppUrl;
+      await this.saveSettings();
+    }
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -85,9 +89,6 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
 var BibleView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
-    this.listenerRegistered = false;
-    this.lastMessageFingerprint = "";
-    this.lastMessageAt = 0;
     this.plugin = plugin;
     this.messageHandler = this.handleMessage.bind(this);
   }
@@ -139,10 +140,7 @@ var BibleView = class extends import_obsidian.ItemView {
         };
       }
     }, 10);
-    if (!this.listenerRegistered) {
-      window.addEventListener("message", this.messageHandler);
-      this.listenerRegistered = true;
-    }
+    window.addEventListener("message", this.messageHandler);
     console.log("Bible Viewer: Message listener added, iframe loaded with cache-buster:", cacheBuster);
   }
   async onload() {
@@ -151,9 +149,8 @@ var BibleView = class extends import_obsidian.ItemView {
     }
   }
   async onClose() {
-    if (this.messageHandler && this.listenerRegistered) {
+    if (this.messageHandler) {
       window.removeEventListener("message", this.messageHandler);
-      this.listenerRegistered = false;
       console.log("Bible Viewer: Message listener removed");
     }
   }
@@ -199,53 +196,39 @@ var BibleView = class extends import_obsidian.ItemView {
       }, 10);
     }
   }
-  handleMessage(event) {
-    var _a, _b;
-    let data = event.data;
-    if (typeof data === "string") {
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        return;
-      }
+  isAllowedMessageOrigin(origin) {
+    if (origin === "null" || origin === window.location.origin) {
+      return true;
     }
+    if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+      return true;
+    }
+    try {
+      return new URL(origin).origin === new URL(this.plugin.settings.bibleAppUrl).origin;
+    } catch (e) {
+      return false;
+    }
+  }
+  handleMessage(event) {
+    var _a;
     console.log("Bible Viewer: Received message", {
       origin: event.origin,
-      data,
-      dataType: typeof data,
-      dataKeys: data ? Object.keys(data) : [],
+      data: event.data,
+      dataType: typeof event.data,
+      dataKeys: event.data ? Object.keys(event.data) : [],
       source: event.source
     });
-    const isLocalhost = event.origin.includes("localhost") || event.origin.includes("127.0.0.1") || event.origin === "null" || // Some browsers use "null" for same-origin
-    event.source === ((_a = this.iframe) == null ? void 0 : _a.contentWindow);
-    if (!isLocalhost) {
+    const fromIframe = event.source === ((_a = this.iframe) == null ? void 0 : _a.contentWindow);
+    if (!this.isAllowedMessageOrigin(event.origin) && !fromIframe) {
       console.log("Bible Viewer: Rejected message from origin", event.origin);
       return;
     }
-    if (data && data.type === "bible-verse-selection") {
-      const fingerprint = JSON.stringify({
-        type: data.type,
-        translation: data.translation,
-        book: data.book,
-        chapter: data.chapter,
-        verses: (_b = data.verses) == null ? void 0 : _b.map((v) => ({
-          reference: v.reference,
-          verse: v.verse,
-          text: v.text
-        }))
-      });
-      const now = Date.now();
-      if (fingerprint === this.lastMessageFingerprint && now - this.lastMessageAt < 1500) {
-        console.log("Bible Viewer: Dropped duplicate verse-selection message");
-        return;
-      }
-      this.lastMessageFingerprint = fingerprint;
-      this.lastMessageAt = now;
-      console.log("Bible Viewer: Processing verse selection", data);
-      console.log("Bible Viewer: Translation in data:", data.translation);
-      this.copyVersesToNote(data);
+    if (event.data && event.data.type === "bible-verse-selection") {
+      console.log("Bible Viewer: Processing verse selection", event.data);
+      console.log("Bible Viewer: Translation in data:", event.data.translation);
+      this.copyVersesToNote(event.data);
     } else {
-      console.log("Bible Viewer: Message type mismatch or no data", data);
+      console.log("Bible Viewer: Message type mismatch or no data", event.data);
     }
   }
   copyVersesToNote(data) {
@@ -307,8 +290,8 @@ var BibleViewerSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "Bible Viewer Settings" });
-    new import_obsidian.Setting(containerEl).setName("Bible App URL").setDesc("URL of the Bible app (default: http://localhost:8080)").addText(
-      (text) => text.setPlaceholder("http://localhost:8080").setValue(this.plugin.settings.bibleAppUrl).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Bible App URL").setDesc("URL of the Bible app (default: https://bolls.familybravo.com)").addText(
+      (text) => text.setPlaceholder("https://bolls.familybravo.com").setValue(this.plugin.settings.bibleAppUrl).onChange(async (value) => {
         this.plugin.settings.bibleAppUrl = value;
         await this.plugin.saveSettings();
         if (this.plugin.bibleView) {
