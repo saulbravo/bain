@@ -88,6 +88,7 @@ tag chapter < section
 	freehandStrokePoints = []
 	freehandStrokeStartedAt = 0
 	freehandMoveDebugCount = 0
+	freehandSelectionAnchor = null
 	penDrawing = no
 	currentPenStroke = null
 	globalPointerUpHandler = null
@@ -355,6 +356,7 @@ tag chapter < section
 		if freehandStrokeStartedAt
 			console.log("[FREEHAND DEBUG] stroke end durationMs={Date.now() - freehandStrokeStartedAt} points={freehandStrokePoints.length}")
 		freehandStrokeStartedAt = 0
+		freehandSelectionAnchor = null
 		clearFreehandStrokeCanvas!
 
 	def beginPenStroke e
@@ -435,22 +437,82 @@ tag chapter < section
 		const _c = me.chapter
 		clearFreehandStrokeCanvas!
 
+	def getCaretRangeFromClientPoint clientX, clientY
+		let range = null
+		if document.caretRangeFromPoint
+			range = document.caretRangeFromPoint(clientX, clientY)
+		elif document.caretPositionFromPoint
+			let pos = document.caretPositionFromPoint(clientX, clientY)
+			if pos and pos.offsetNode
+				range = document.createRange()
+				range.setStart(pos.offsetNode, pos.offset)
+				range.collapse(yes)
+		return unless range
+		let article = self.querySelector('article')
+		if article
+			let node = range.startContainer
+			if node.nodeType == 3
+				node = node.parentElement
+			if node and !article.contains(node)
+				return null
+		return range
+
+	def updateFreehandTextSelection e, isAnchor = no
+		return unless activities.freehandHighlightMode
+		let point = getClientPoint(e)
+		return unless point
+		let range = getCaretRangeFromClientPoint(point.x, point.y)
+		return unless range
+		let selection = window.getSelection()
+		if isAnchor
+			freehandSelectionAnchor = range.cloneRange()
+			selection.removeAllRanges()
+			selection.addRange(freehandSelectionAnchor.cloneRange())
+		else
+			return unless freehandSelectionAnchor
+			try
+				let liveRange = freehandSelectionAnchor.cloneRange()
+				liveRange.setEnd(range.startContainer, range.startOffset)
+				selection.removeAllRanges()
+				selection.addRange(liveRange)
+			catch err
+				# ignore invalid cross-node range errors while dragging
+
+	def capturePointer e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if e and e.target and e.target.setPointerCapture and typeof e.pointerId == 'number'
+			try
+				e.target.setPointerCapture(e.pointerId)
+			catch err
+				# ignore if capture fails
+
 	def handlePointerDown e
 		if activities.penToolMode
+			capturePointer(e)
 			beginPenStroke(e)
 		elif activities.freehandHighlightMode
+			capturePointer(e)
 			dragging = yes
 			currentDragHighlight = null
 			beginFreehandStroke(e)
+			updateFreehandTextSelection(e, yes)
 
 	def handlePointerUp e
 		finalizeFreehandStroke!
 
 	def handlePointerMove e
 		if penDrawing and activities.penToolMode
+			if e and e.preventDefault
+				e.preventDefault()
 			drawPenStroke(e)
 		elif dragging and activities.freehandHighlightMode
+			if e and e.preventDefault
+				e.preventDefault()
 			drawFreehandStroke(e)
+			updateFreehandTextSelection(e, no)
 
 	def mount
 		globalPointerUpHandler = do finalizeFreehandStroke!
@@ -705,9 +767,10 @@ tag chapter < section
 	def render
 		<self .parallel=parallelReader.enabled
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
-			@mousedown=handlePointerDown
-			@mousemove=handlePointerMove
-			@mouseup=handlePointerUp
+			@pointerdown=handlePointerDown
+			@pointermove=handlePointerMove
+			@pointerup=handlePointerUp
+			@pointercancel=handlePointerUp
 			@touchmove=changeHeadersSizeOnScroll
 			dir=translationTextDirection(me.translation)>
 			<>
@@ -1239,6 +1302,14 @@ tag chapter < section
 			z-index: 0
 			opacity: 1
 			transition: none
+
+		html.freehand-mode &
+			touch-action: none
+			-webkit-touch-callout: none
+
+		html.pen-mode &
+			touch-action: none
+			-webkit-touch-callout: none
 
 		.pen-sketch-layer
 			position: absolute

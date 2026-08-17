@@ -12,7 +12,7 @@ Embed the Bible reader in Obsidian and copy verses into notes. See [obsidian-bib
 
 For production deployment as one app (e.g. TrueNAS Scale), see [docker/all-in-one/README.md](docker/all-in-one/README.md).
 
-- **Image:** `maxivious/bolls:v1.0`
+- **Image:** `maxivious/bolls:v1.1`
 - **Build:** `make build-all-in-one`
 - **Publish:** `make publish-all-in-one`
 

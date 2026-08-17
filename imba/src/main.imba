@@ -61,7 +61,7 @@ tag app
 			<style> "
 				article, article * \{ user-select: none !important; -webkit-user-select: none !important; \}
 			"
-		<html .freehand-mode=activities.freehandHighlightMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
+		<html .freehand-mode=activities.freehandHighlightMode .pen-mode=activities.penToolMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
 		<downloads route='/downloads/'>
 		<donate route='/donate/'>

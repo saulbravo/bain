@@ -326,6 +326,8 @@ tag reader
 
 
 	def slidestart touch
+		if activities.freehandHighlightMode or activities.penToolMode
+			return
 		unless touch.changedTouches.length
 			return
 		initialTouch = touch.changedTouches[0]
@@ -333,6 +335,8 @@ tag reader
 			inTouchZone = yes
 
 	def slideend touch
+		if activities.freehandHighlightMode or activities.penToolMode
+			return
 		unless initialTouch
 			return
 		touch = touch.changedTouches[0]
@@ -367,6 +371,8 @@ tag reader
 
 
 	def closingdrawer e
+		if activities.freehandHighlightMode or activities.penToolMode
+			return
 		unless e.changedTouches.length
 			return
 		e.dx = e.changedTouches[0].clientX - initialTouch.clientX
@@ -378,6 +384,8 @@ tag reader
 		inClosingTouchZone = yes
 
 	def openingdrawer e
+		if activities.freehandHighlightMode or activities.penToolMode
+			return
 		unless e.changedTouches.length
 			return
 		if inTouchZone
