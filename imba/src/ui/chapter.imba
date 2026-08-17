@@ -202,9 +202,9 @@ tag chapter < section
 
 	def getDrawingSurfaceHeight
 		const article = self.querySelector('article')
-		const articleHeight = article ? article.scrollHeight : 0
-		const height = Math.max(articleHeight + 120, self.clientHeight or 0, 1)
-		return Math.min(height, 32768)
+		if article
+			return Math.max(article.offsetTop + article.offsetHeight, 1)
+		return Math.max(self.clientHeight or 0, 1)
 
 	def pointToSegmentDistance px, py, x1, y1, x2, y2
 		const dx = x2 - x1
@@ -894,11 +894,11 @@ tag chapter < section
 			@pointercancel=handlePointerUp
 			@touchmove=changeHeadersSizeOnScroll
 			dir=translationTextDirection(me.translation)>
-			<>
+			<div.chapter-drawing-surface>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
 				<canvas.freehand-stroke-canvas>
-				<svg.pen-sketch-layer [width:{getDrawingSurfaceWidth!} height:{getDrawingSurfaceHeight!}]>
+				<svg.pen-sketch-layer>
 					for stroke in currentChapterPenSketches()
 						const path = getPenStrokePath(stroke)
 						if path != ''
@@ -1180,6 +1180,10 @@ tag chapter < section
 			word-break: break-word
 			padding-inline: 0.25rem
 
+		article
+			padding-bottom: 70px
+			box-sizing: border-box
+
 		header
 			position: static
 			background-color: $bgc
@@ -1414,10 +1418,23 @@ tag chapter < section
 			padding: 2rem
 			text-align: center
 
+		.chapter-drawing-surface
+			position: absolute
+			top: 0
+			left: 0
+			right: 0
+			bottom: 0
+			overflow: hidden
+			pointer-events: none
+			z-index: 0
+
 		.freehand-stroke-canvas
 			position: absolute
 			top: 0
 			left: 0
+			width: 100%
+			height: 100%
+			max-width: 100%
 			pointer-events: none
 			# Keep preview behind verse glyphs so text remains readable.
 			z-index: 0
@@ -1436,6 +1453,9 @@ tag chapter < section
 			position: absolute
 			top: 0
 			left: 0
+			width: 100%
+			height: 100%
+			max-width: 100%
 			pointer-events: none
 			z-index: 1
-			overflow: visible
+			overflow: hidden
