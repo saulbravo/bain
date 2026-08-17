@@ -909,7 +909,7 @@ tag chapter < section
 							<path d=activePath stroke=(currentPenStroke.color or '#F9E2A0') stroke-width=(currentPenStroke.width or 6) fill="none" stroke-linecap="round" stroke-linejoin="round">
 
 			if me.verses..length
-				<header[zi:1] @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
+				<header @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
 					<h1.header-title [lh:1 padding-block:0.2em padding-inline:2.5rem m:0 d@md:flex ai@md:center jc@md:center ta:center w:100% pos:relative box-sizing:border-box font:inherit ff:{theme.fontFamily} fw:{theme.fontWeight + 200} fs:{headerFontSize}em fs@lt-sm:{headerFontSize * 0.85}em]
 						title=translationFullName(me.translation)>
 
@@ -1183,9 +1183,13 @@ tag chapter < section
 		article
 			padding-bottom: 70px
 			box-sizing: border-box
+			position: relative
+			z-index: 0
 
 		header
-			position: static
+			position: relative
+			z-index: 20
+			isolation: isolate
 			background-color: $bgc
 			margin: 0
 			padding-top: 1rem
@@ -1233,7 +1237,8 @@ tag chapter < section
 		.tabs-sticky
 			position: sticky
 			top: 0
-			zi: 2
+			z-index: 20
+			isolation: isolate
 			bgc: $bgc
 			padding-top: 1rem
 			w: 100%
@@ -1307,7 +1312,7 @@ tag chapter < section
 			border-radius: 8px
 			background: color-mix(in srgb, #a855f7 15%, transparent)
 			border: 2px solid #a855f7
-			z-index: 5
+			z-index: 0
 			pointer-events: none
 			transition: top 150ms ease, height 150ms ease
 			display: none
