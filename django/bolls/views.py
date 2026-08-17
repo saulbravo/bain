@@ -3,6 +3,8 @@ import re
 import os
 import unicodedata
 import json
+import sqlite3
+import html
 from django.db.models import Count, Q
 from django.contrib.postgres.search import (
     SearchQuery,
@@ -27,8 +29,81 @@ from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary, Fr
 from .utils.books import BOOKS, get_book_id, is_number
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CBA_COMMENTARY_PATH = os.environ.get(
+    "CBA_COMMENTARY_PATH",
+    os.path.join(BASE_DIR, "Comentario Biblico Adventista Tomos 1 al 7.cmtx"),
+)
 
 incorrect_body = "The body of the request is incorrect"
+
+
+def _decode_cmtx_text(raw_text):
+    if not raw_text:
+        return ""
+
+    text = str(raw_text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(
+        r"\\'([0-9a-fA-F]{2})",
+        lambda m: bytes.fromhex(m.group(1)).decode("latin-1", errors="ignore"),
+        text,
+    )
+    # Strip RTF control words except line breaks/tabs we want to preserve.
+    text = re.sub(r"\\(?!par\b|line\b|tab\b)[a-zA-Z]+-?\d*\s?", "", text)
+    text = text.replace("\\par", "\n").replace("\\line", "\n").replace("\\tab", "\t")
+    text = text.replace("{", "").replace("}", "").replace("\\", "")
+    text = html.unescape(text)
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    return text.strip()
+
+
+def _plain_text_to_html(text):
+    if not text:
+        return ""
+    safe = html.escape(text)
+    return safe.replace("\n", "<br>")
+
+
+def get_cba_commentary_text(book, chapter, verse):
+    if not os.path.exists(CBA_COMMENTARY_PATH):
+        return []
+
+    comments = []
+    with sqlite3.connect(CBA_COMMENTARY_PATH) as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT Comments
+            FROM Verses
+            WHERE Book = ?
+              AND ChapterBegin <= ?
+              AND ChapterEnd >= ?
+              AND VerseBegin <= ?
+              AND VerseEnd >= ?
+            ORDER BY ChapterBegin, VerseBegin
+            """,
+            (book, chapter, chapter, verse, verse),
+        )
+        verse_rows = [row[0] for row in cur.fetchall() if row and row[0]]
+        comments.extend(verse_rows)
+
+        # Fallbacks if verse-level entry does not exist.
+        if len(comments) == 0:
+            cur.execute(
+                "SELECT Comments FROM Chapters WHERE Book = ? AND Chapter = ?",
+                (book, chapter),
+            )
+            chapter_rows = [row[0] for row in cur.fetchall() if row and row[0]]
+            comments.extend(chapter_rows)
+
+        if len(comments) == 0:
+            cur.execute("SELECT Comments FROM Books WHERE Book = ?", (book,))
+            book_rows = [row[0] for row in cur.fetchall() if row and row[0]]
+            comments.extend(book_rows)
+
+    decoded = [_decode_cmtx_text(piece) for piece in comments]
+    return [piece for piece in decoded if piece]
 
 
 def cross_origin(response, headers={}):
@@ -650,6 +725,31 @@ def get_a_verse(_, translation, book, chapter, verse):
     except Exception as e:
         print(e)
         return cross_origin(HttpResponse("The verse is not found", status=404))
+
+
+def get_cba_commentary(_, book, chapter, verse):
+    try:
+        if book <= 0 or chapter <= 0 or verse <= 0:
+            return cross_origin(JsonResponse({"error": "Invalid verse location"}, status=400))
+
+        comments = get_cba_commentary_text(book, chapter, verse)
+        plain_text = "\n\n".join(comments)
+        return cross_origin(
+            JsonResponse(
+                {
+                    "book": book,
+                    "chapter": chapter,
+                    "verse": verse,
+                    "hasCommentary": len(comments) > 0,
+                    "commentaryText": plain_text,
+                    "commentaryHtml": _plain_text_to_html(plain_text),
+                },
+                safe=False,
+            )
+        )
+    except Exception as e:
+        print(e)
+        return cross_origin(JsonResponse({"error": "Commentary not available"}, status=404))
 
 
 @require_POST

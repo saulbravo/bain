@@ -1,0 +1,15 @@
+.git
+.github
+obsidian
+traefik
+mkcert
+sql/restore.sql
+**/__pycache__
+**/.mypy_cache
+**/*.pyc
+.env.dev
+*.code-workspace
+docker-compose*.yml
+nginx_dev
+start-containers.sh
+SETUP_*.md

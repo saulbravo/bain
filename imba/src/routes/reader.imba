@@ -578,8 +578,10 @@ tag reader
 				if activities.activeModal
 					<modal />
 
-				if activities.activeVerseAction and activities.selectedVersesPKs.length > 0
+				if activities.activeVerseAction == 'options' and activities.selectedVersesPKs.length > 0
 					<verse-actions />
+				if activities.activeVerseAction == 'commentary' and activities.selectedVersesPKs.length > 0
+					<verse-commentary-modal />
 
 				if (reader.loading || parallelReader.loading || dictionary.loading || search.loading || compare.loading) and !activities.isSwitchingTab
 					<loading>

@@ -2,7 +2,15 @@
 
 ## Setting up the project
 
-Go to [docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md](docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md) for setup info
+Go to [docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md](docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md) for local development setup.
+
+## Docker / TrueNAS Scale (single container)
+
+For production deployment as one app (e.g. TrueNAS Scale), see [docker/all-in-one/README.md](docker/all-in-one/README.md).
+
+- **Image:** `maxivious/bolls:v1.0`
+- **Build:** `make build-all-in-one`
+- **Publish:** `make publish-all-in-one`
 
 ## Some other useful docs at docs/
 

@@ -37,6 +37,7 @@ services:
     volumes:
       - ./django:/code
       - ./imba/:/imba
+      - "./Comentario Biblico Adventista Tomos 1 al 7.cmtx:/code/Comentario Biblico Adventista Tomos 1 al 7.cmtx:ro"
     expose:
       - 8000
     ports:

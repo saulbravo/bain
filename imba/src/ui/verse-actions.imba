@@ -11,6 +11,7 @@ import Bookmark from 'lucide-static/icons/bookmark.svg'
 import Facebook from 'lucide-static/icons/facebook.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
+import BookOpenText from 'lucide-static/icons/book-open-text.svg'
 import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
@@ -272,6 +273,12 @@ tag verse-actions < section
 					activities.cleanUp!
 				) title=(selectionHasBookmark ? (t.delete or "Remove bookmark") : (t.bookmark or "Bookmark"))>
 					<svg src=Bookmark aria-hidden=yes>
+			<li>
+				<button @click=(do
+					activities.activeVerseAction = 'commentary'
+					imba.commit!
+				) title=(t.verse_commentary or "Verse commentary")>
+					<svg src=BookOpenText aria-hidden=yes>
 			<li>
 				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
 					<svg src=Trash2 aria-hidden=yes>
