@@ -32,11 +32,44 @@ if DEBUG:
     ALLOWED_HOSTS = ["*"]
 else:
     ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(" ")
+
 CSRF_TRUSTED_ORIGINS = ["https://bolls.life", "https://dev.bolls.life"]
+_extra_csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+if _extra_csrf_origins:
+    CSRF_TRUSTED_ORIGINS.extend([o.strip() for o in _extra_csrf_origins.split(",") if o.strip()])
+_public_url = os.environ.get("DJANGO_PUBLIC_URL", "").strip().rstrip("/")
+if _public_url and _public_url not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(_public_url)
 if DEBUG:
     CSRF_TRUSTED_ORIGINS.append("https://bolls.local")
     CSRF_TRUSTED_ORIGINS.append("http://localhost:8080")
     CSRF_TRUSTED_ORIGINS.append("http://127.0.0.1:8080")
+else:
+    # Self-hosted installs: trust https/http origins for explicit allowed hosts.
+    for host in ALLOWED_HOSTS:
+        host = (host or "").strip()
+        if not host or host == "*":
+            continue
+        for scheme in ("https", "http"):
+            origin = f"{scheme}://{host}"
+            if origin not in CSRF_TRUSTED_ORIGINS:
+                CSRF_TRUSTED_ORIGINS.append(origin)
+
+# Reverse proxy / Cloudflare tunnel: honor X-Forwarded-Proto and Host.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+_behind_https = os.environ.get("DJANGO_USE_HTTPS", "").lower() in ("1", "true", "yes")
+if _behind_https:
+    # Required when the browser loads the site over HTTPS (e.g. Cloudflare) but
+    # nginx inside the container speaks HTTP — otherwise csrftoken is not stored.
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    # Obsidian (and other apps) embed Bolls in a cross-site iframe; Lax blocks cookies there.
+    CSRF_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SAMESITE = "None"
+else:
+    CSRF_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SAMESITE = "Lax"
 
 # Application definition
 INSTALLED_APPS = [

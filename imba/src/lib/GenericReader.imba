@@ -1,4 +1,4 @@
-import { getValue, setValue } from '../utils'
+import { getValue, setValue, deleteValue } from '../utils'
 
 import ALL_BOOKS from '../data/translations_books.json'
 
@@ -349,21 +349,61 @@ class GenericReader
 		imba.commit!
 
 	def getFreehandHighlights
+		loadLocalFreehandHighlights!
 		if !user.username or !window.navigator.onLine
 			return
 
 		try
 			freehandHighlights = await API.getJson("/get-freehand-highlights/" + translation + '/' + book + '/' + chapter + '/', 'freehandHighlights')
+			saveLocalFreehandHighlights!
 			if activities and activities.cacheChapterState
 				activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			imba.commit!
 		catch error
 			console.log "Error fetching freehand highlights:", error
 
-	def saveFreehandHighlights
-		if !user.username or !window.navigator.onLine
-			return
+	def freehandLocalStorageKey
+		return "freehand-highlights:{translation}:{book}:{chapter}"
 
+	def loadLocalFreehandHighlights
+		let stored = getValue(freehandLocalStorageKey!)
+		if !Array.isArray(stored)
+			return
+		freehandHighlights = stored.map(do |item|
+			return {
+				startVerse: item.startVerse
+				startOffset: item.startOffset
+				endVerse: item.endVerse
+				endOffset: item.endOffset
+				color: item.color
+				date: item.date or Date.now()
+			}
+		)
+
+	def saveLocalFreehandHighlights
+		const now = Date.now()
+		const normalized = (freehandHighlights or []).map(do |item|
+			return {
+				startVerse: item.startVerse
+				startOffset: item.startOffset
+				endVerse: item.endVerse
+				endOffset: item.endOffset
+				color: item.color
+				date: item.date or now
+			}
+		)
+		setValue(freehandLocalStorageKey!, normalized)
+
+	def refreshFreehandHighlightDisplay
+		if !Array.isArray(freehandHighlights) or freehandHighlights.length == 0
+			return
+		# Force verse HTML to rebuild mark tags after leaving freehand mode.
+		freehandHighlights = freehandHighlights.slice()
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		imba.commit!
+
+	def saveFreehandHighlights
 		const now = Date.now()
 		freehandHighlights = (freehandHighlights or []).map(do |item|
 			return {
@@ -375,6 +415,14 @@ class GenericReader
 				date: item.date or now
 			}
 		)
+		saveLocalFreehandHighlights!
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		if !user.username or !window.navigator.onLine
+			imba.commit!
+			return
+
 		# Keep only the newest pending payload; this prevents out-of-order API writes
 		# from dropping recently drawn strokes when users draw quickly.
 		freehandPendingSaveRequest = {
@@ -426,6 +474,7 @@ class GenericReader
 				deletedColors.add(b.color)
 		freehandHighlights = []
 		bookmarks = []
+		deleteValue(freehandLocalStorageKey!)
 		if activities and activities.cacheChapterState
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		for color in deletedColors

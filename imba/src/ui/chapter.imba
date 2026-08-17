@@ -89,6 +89,9 @@ tag chapter < section
 	freehandStrokeStartedAt = 0
 	freehandMoveDebugCount = 0
 	freehandSelectionAnchor = null
+	freehandSelectionFocus = null
+	globalPointerMoveHandler = null
+	globalPenMoveHandler = null
 	penDrawing = no
 	currentPenStroke = null
 	globalPointerUpHandler = null
@@ -357,6 +360,7 @@ tag chapter < section
 			console.log("[FREEHAND DEBUG] stroke end durationMs={Date.now() - freehandStrokeStartedAt} points={freehandStrokePoints.length}")
 		freehandStrokeStartedAt = 0
 		freehandSelectionAnchor = null
+		freehandSelectionFocus = null
 		clearFreehandStrokeCanvas!
 
 	def beginPenStroke e
@@ -368,6 +372,7 @@ tag chapter < section
 			penDrawing = yes
 			currentPenStroke = null
 			erasePenAtPoint(e)
+			startPenDragListeners!
 			return
 		let p = getPointerCoords(e)
 		return unless p
@@ -387,6 +392,7 @@ tag chapter < section
 			date: Date.now()
 		}
 		penDrawing = yes
+		startPenDragListeners!
 		imba.commit!
 
 	def drawPenStroke e
@@ -410,6 +416,7 @@ tag chapter < section
 
 	def endPenStroke
 		return unless penDrawing
+		stopPenDragListeners!
 		penDrawing = no
 		if activities.penEraserMode
 			currentPenStroke = null
@@ -426,9 +433,12 @@ tag chapter < section
 			return
 		return unless dragging
 		dragging = no
+		stopFreehandDragListeners!
+		applySelectionFromStrokePoints!
+		commitFreehandHighlightFromStrokePoints(yes)
 		endFreehandStroke!
-		handleFreehandHighlight(yes)
 		window.getSelection().removeAllRanges()
+		me.refreshFreehandHighlightDisplay!
 		imba.commit!
 
 	@autorun def resetFreehandCanvasOnChapterChange
@@ -436,6 +446,80 @@ tag chapter < section
 		const _b = me.book
 		const _c = me.chapter
 		clearFreehandStrokeCanvas!
+
+	def clientPointFromChapterPoint p
+		let rect = self.getBoundingClientRect()
+		return {
+			x: rect.left + p.x - self.scrollLeft
+			y: rect.top + p.y - self.scrollTop
+		}
+
+	def buildRangeBetween anchor, focus
+		let liveRange = document.createRange()
+		let cmp = anchor.compareBoundaryPoints(Range.START_TO_START, focus)
+		if cmp <= 0
+			liveRange.setStart(anchor.startContainer, anchor.startOffset)
+			liveRange.setEnd(focus.startContainer, focus.startOffset)
+		else
+			liveRange.setStart(focus.startContainer, focus.startOffset)
+			liveRange.setEnd(anchor.startContainer, anchor.startOffset)
+		return liveRange
+
+	def applySelectionFromStrokePoints
+		return unless activities.freehandHighlightMode
+		return unless freehandStrokePoints.length
+		let startRange = null
+		let endRange = null
+		for point in freehandStrokePoints
+			let client = clientPointFromChapterPoint(point)
+			let range = getCaretRangeFromClientPoint(client.x, client.y)
+			continue unless range
+			if !startRange
+				startRange = range
+				endRange = range
+			else
+				if range.compareBoundaryPoints(Range.START_TO_START, startRange) < 0
+					startRange = range
+				if range.compareBoundaryPoints(Range.START_TO_START, endRange) > 0
+					endRange = range
+		return unless startRange and endRange
+		let liveRange = buildRangeBetween(startRange, endRange)
+		let selection = window.getSelection()
+		selection.removeAllRanges()
+		selection.addRange(liveRange)
+
+	def startFreehandDragListeners
+		stopFreehandDragListeners!
+		globalPointerMoveHandler = do |ev|
+			return unless dragging and activities.freehandHighlightMode
+			if ev and ev.preventDefault
+				ev.preventDefault()
+			drawFreehandStroke(ev)
+			updateFreehandTextSelection(ev, no)
+		window.addEventListener('pointermove', globalPointerMoveHandler, { passive: false })
+		window.addEventListener('touchmove', globalPointerMoveHandler, { passive: false })
+
+	def stopFreehandDragListeners
+		if globalPointerMoveHandler
+			window.removeEventListener('pointermove', globalPointerMoveHandler)
+			window.removeEventListener('touchmove', globalPointerMoveHandler)
+			globalPointerMoveHandler = null
+
+	def startPenDragListeners
+		stopPenDragListeners!
+		globalPenMoveHandler = do |ev|
+			return unless penDrawing and activities.penToolMode
+			if ev and ev.preventDefault
+				ev.preventDefault()
+			drawPenStroke(ev)
+		window.addEventListener('pointermove', globalPenMoveHandler, { passive: false })
+		window.addEventListener('touchmove', globalPenMoveHandler, { passive: false })
+
+	def stopPenDragListeners
+		if globalPenMoveHandler
+			window.removeEventListener('pointermove', globalPenMoveHandler)
+			window.removeEventListener('touchmove', globalPenMoveHandler)
+			globalPenMoveHandler = null
 
 	def getCaretRangeFromClientPoint clientX, clientY
 		let range = null
@@ -466,13 +550,14 @@ tag chapter < section
 		let selection = window.getSelection()
 		if isAnchor
 			freehandSelectionAnchor = range.cloneRange()
+			freehandSelectionFocus = range.cloneRange()
 			selection.removeAllRanges()
 			selection.addRange(freehandSelectionAnchor.cloneRange())
 		else
 			return unless freehandSelectionAnchor
+			freehandSelectionFocus = range.cloneRange()
 			try
-				let liveRange = freehandSelectionAnchor.cloneRange()
-				liveRange.setEnd(range.startContainer, range.startOffset)
+				let liveRange = buildRangeBetween(freehandSelectionAnchor, freehandSelectionFocus)
 				selection.removeAllRanges()
 				selection.addRange(liveRange)
 			catch err
@@ -483,9 +568,10 @@ tag chapter < section
 			e.preventDefault()
 		if e and e.stopPropagation
 			e.stopPropagation()
-		if e and e.target and e.target.setPointerCapture and typeof e.pointerId == 'number'
+		if typeof e.pointerId == 'number'
 			try
-				e.target.setPointerCapture(e.pointerId)
+				if self.setPointerCapture
+					self.setPointerCapture(e.pointerId)
 			catch err
 				# ignore if capture fails
 
@@ -499,6 +585,7 @@ tag chapter < section
 			currentDragHighlight = null
 			beginFreehandStroke(e)
 			updateFreehandTextSelection(e, yes)
+			startFreehandDragListeners!
 
 	def handlePointerUp e
 		finalizeFreehandStroke!
@@ -527,6 +614,8 @@ tag chapter < section
 		window.addEventListener('touchcancel', globalTouchCancelHandler)
 
 	def unmount
+		stopFreehandDragListeners!
+		stopPenDragListeners!
 		if globalPointerUpHandler
 			window.removeEventListener('pointerup', globalPointerUpHandler)
 			globalPointerUpHandler = null
@@ -543,87 +632,92 @@ tag chapter < section
 			window.removeEventListener('touchcancel', globalTouchCancelHandler)
 			globalTouchCancelHandler = null
 		
-	def handleFreehandHighlight isFinal = no
-		return unless activities.freehandHighlightMode
-		
-		let selection = window.getSelection()
-		if selection.isCollapsed
-			if isFinal and currentDragHighlight
-				currentDragHighlight = null
-			return
-		
-		let range = selection.getRangeAt(0)
-		let startParent = range.startContainer and range.startContainer.nodeType == 1 ? range.startContainer : range.startContainer.parentElement
-		let endParent = range.endContainer and range.endContainer.nodeType == 1 ? range.endContainer : range.endContainer.parentElement
-		return unless startParent and endParent
-		
-		# Ensure we are selecting within the article
-		let article = startParent.closest('article')
-		return unless article
-		
-		# Find the verse spans
-		let startSpan = startParent.closest('span[id]')
-		let endSpan = endParent.closest('span[id]')
-		
-		return unless startSpan and endSpan
-		
-		let startVerse = parseInt(startSpan.id.replace(versePrefix, ''))
-		let endVerse = parseInt(endSpan.id.replace(versePrefix, ''))
+	def getCharOffsetInVerseSpan node, offset, root
+		let count = 0
+		let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
+		while (let next = walker.nextNode())
+			if next == node
+				return count + offset
+			count += next.textContent.length
+		return count
 
-		# Helper to get character offset relative to a root element, ignoring tags
-		def getCharOffset node, offset, root
-			let count = 0
-			let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
-			while (let next = walker.nextNode())
-				if next == node
-					return count + offset
-				count += next.textContent.length
-			return count
+	def getTextPositionFromRangePoint container, offset
+		let parent = container and container.nodeType == 3 ? container.parentElement : container
+		return unless parent
+		let span = parent.closest('span[id]')
+		return unless span
+		let article = self.querySelector('article')
+		if article and !article.contains(span)
+			return null
+		let verse = parseInt(span.id.replace(versePrefix, ''))
+		if Number.isNaN(verse)
+			return null
+		let charOffset = getCharOffsetInVerseSpan(container, offset, span)
+		return {
+			verse: verse
+			offset: charOffset
+			pos: verse * 1000000 + charOffset
+		}
 
-		let startOffset = getCharOffset(range.startContainer, range.startOffset, startSpan)
-		let endOffset = getCharOffset(range.endContainer, range.endOffset, endSpan)
-		
+	def collectTextPositionsFromStrokePoints
+		let startPos = null
+		let endPos = null
+		def considerPosition container, offset
+			let pos = getTextPositionFromRangePoint(container, offset)
+			return unless pos
+			if !startPos or pos.pos < startPos.pos
+				startPos = pos
+			if !endPos or pos.pos > endPos.pos
+				endPos = pos
+		for point in freehandStrokePoints
+			let client = clientPointFromChapterPoint(point)
+			let range = getCaretRangeFromClientPoint(client.x, client.y)
+			continue unless range
+			considerPosition(range.startContainer, range.startOffset)
+			considerPosition(range.endContainer, range.endOffset)
+		return { startPos: startPos, endPos: endPos }
+
+	def applyFreehandHighlightRange startVerse, startOffset, endVerse, endOffset, isFinal = no
+		let sPos = startVerse * 1000000 + startOffset
+		let ePos = endVerse * 1000000 + endOffset
+		if ePos < sPos
+			let tmpVerse = startVerse
+			let tmpOffset = startOffset
+			startVerse = endVerse
+			startOffset = endOffset
+			endVerse = tmpVerse
+			endOffset = tmpOffset
+			sPos = startVerse * 1000000 + startOffset
+			ePos = endVerse * 1000000 + endOffset
+
 		if activities.freehandEraserMode
-			# Precise erasing logic: Split or truncate highlights that overlap with the selected range
 			let newHighlights = []
-			let changed = false
-			let sStart = startVerse * 1000000 + startOffset
-			let sEnd = endVerse * 1000000 + endOffset
-
+			let changed = no
 			for h in me.freehandHighlights
 				let hStart = h.startVerse * 1000000 + h.startOffset
 				let hEnd = h.endVerse * 1000000 + h.endOffset
-				
-				# Check if highlight 'h' overlaps with current selection [sStart, sEnd]
-				if sEnd < hStart or sStart > hEnd
-					# No overlap, keep the highlight as is
+				if ePos < hStart or sPos > hEnd
 					newHighlights.push(h)
 					continue
-				
-				changed = true
-				
-				# Part of highlight before selection
-				if hStart < sStart
+				changed = yes
+				if hStart < sPos
 					newHighlights.push({
 						startVerse: h.startVerse
 						startOffset: h.startOffset
-						endVerse: Math.floor(sStart / 1000000)
-						endOffset: sStart % 1000000
+						endVerse: Math.floor(sPos / 1000000)
+						endOffset: sPos % 1000000
 						color: h.color
 						date: h.date or Date.now()
 					})
-				
-				# Part of highlight after selection
-				if hEnd > sEnd
+				if hEnd > ePos
 					newHighlights.push({
-						startVerse: Math.floor(sEnd / 1000000)
-						startOffset: sEnd % 1000000
+						startVerse: Math.floor(ePos / 1000000)
+						startOffset: ePos % 1000000
 						endVerse: h.endVerse
 						endOffset: h.endOffset
 						color: h.color
 						date: h.date or Date.now()
 					})
-			
 			if changed
 				me.freehandHighlights = newHighlights
 				if isFinal
@@ -638,23 +732,50 @@ tag chapter < section
 				color: activities.freehandHighlightColor or '#eab308'
 				date: now
 			}
-			
 			if currentDragHighlight
-				# Replace the last temporary highlight
 				me.freehandHighlights[me.freehandHighlights.length - 1] = highlight
 			else
-				# Start a new temporary highlight
 				me.freehandHighlights.push(highlight)
-			
-			currentDragHighlight = highlight
-			
+			currentDragHighlight = isFinal ? null : highlight
 			if isFinal
 				me.saveFreehandHighlights!
-				currentDragHighlight = null
-		
 		imba.commit!
+
+	def commitFreehandHighlightFromStrokePoints isFinal = yes
+		return unless activities.freehandHighlightMode
+		return unless freehandStrokePoints.length
+		let positions = collectTextPositionsFromStrokePoints!
+		return unless positions.startPos and positions.endPos
+		applyFreehandHighlightRange(positions.startPos.verse, positions.startPos.offset, positions.endPos.verse, positions.endPos.offset, isFinal)
+
+	def handleFreehandHighlight isFinal = no
+		return unless activities.freehandHighlightMode
 		
-		# Clear selection
+		let selection = window.getSelection()
+		if selection.isCollapsed
+			if isFinal and currentDragHighlight
+				currentDragHighlight = null
+			return
+		
+		let range = selection.getRangeAt(0)
+		let startParent = range.startContainer and range.startContainer.nodeType == 1 ? range.startContainer : range.startContainer.parentElement
+		let endParent = range.endContainer and range.endContainer.nodeType == 1 ? range.endContainer : range.endContainer.parentElement
+		return unless startParent and endParent
+		
+		let article = startParent.closest('article')
+		return unless article
+		
+		let startSpan = startParent.closest('span[id]')
+		let endSpan = endParent.closest('span[id]')
+		return unless startSpan and endSpan
+		
+		let startVerse = parseInt(startSpan.id.replace(versePrefix, ''))
+		let endVerse = parseInt(endSpan.id.replace(versePrefix, ''))
+		let startOffset = getCharOffsetInVerseSpan(range.startContainer, range.startOffset, startSpan)
+		let endOffset = getCharOffsetInVerseSpan(range.endContainer, range.endOffset, endSpan)
+
+		applyFreehandHighlightRange(startVerse, startOffset, endVerse, endOffset, isFinal)
+		
 		selection.removeAllRanges()
 		imba.commit!
 

@@ -1,6 +1,7 @@
 import activities from '../lib/Activities'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
+import { hasTouchEvents } from '../constants'
 import { setValue } from '../utils'
 import X from 'lucide-static/icons/x.svg'
 import Dices from 'lucide-static/icons/dices.svg'
@@ -20,19 +21,26 @@ tag freehand-highlight-menu
 		if event.detail
 			activities.freehandHighlightColor = event.detail
 
-	def clearAllHighlights
+	def clearAllHighlights e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
 		if activities.penToolMode
 			console.log('[PEN DEBUG] clear all sketches', { chapter: "{reader.translation}:{reader.book}:{reader.chapter}" })
 			reader.clearPenSketchesForCurrentChapter!
 			if parallelReader.enabled
 				parallelReader.clearPenSketchesForCurrentChapter!
-		elif window.confirm("Clear all highlights in this chapter?")
+		elif hasTouchEvents or window.confirm("Clear all highlights in this chapter?")
 			reader.clearAllChapterHighlights!
 			if parallelReader.enabled
 				parallelReader.clearAllChapterHighlights!
 
 	def close
 		console.log('[PEN DEBUG] close tool menu')
+		reader.refreshFreehandHighlightDisplay!
+		if parallelReader.enabled
+			parallelReader.refreshFreehandHighlightDisplay!
 		activities.freehandHighlightMode = no
 		activities.penToolMode = no
 		activities.isFreehandHighlightMinimized = no
@@ -109,7 +117,7 @@ tag freehand-highlight-menu
 						role="button" aria-label="Eraser" title="Eraser Tool">
 						<svg src=Eraser width="1.5rem" height="1.5rem">
 			<li>
-				<button @click=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
+				<button @click.stop.prevent=clearAllHighlights role="button" aria-label="Clear all" title="Clear all highlights">
 					<svg src=Trash2 width="1.5rem" height="1.5rem">
 
 	css

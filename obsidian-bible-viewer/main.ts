@@ -39,6 +39,14 @@ export default class BibleViewerPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "open-bible-login",
+			name: "Open Bolls login in browser",
+			callback: () => {
+				window.open(`${this.settings.bibleAppUrl}/accounts/login/`, "_blank");
+			},
+		});
+
 		// Add ribbon icon
 		this.addRibbonIcon("book-open", "Open Bible Viewer", () => {
 			this.activateView();
@@ -137,7 +145,7 @@ class BibleView extends ItemView {
 		this.iframe = container.createEl("iframe", {
 			cls: "bible-viewer-iframe",
 			attr: {
-				sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
+				sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox",
 			},
 		});
 
@@ -212,7 +220,7 @@ class BibleView extends ItemView {
 			this.iframe = container.createEl("iframe", {
 				cls: "bible-viewer-iframe",
 				attr: {
-					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
+					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox",
 				},
 			});
 			

@@ -45,6 +45,13 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
         this.activateView();
       }
     });
+    this.addCommand({
+      id: "open-bible-login",
+      name: "Open Bolls login in browser",
+      callback: () => {
+        window.open(`${this.settings.bibleAppUrl}/accounts/login/`, "_blank");
+      }
+    });
     this.addRibbonIcon("book-open", "Open Bible Viewer", () => {
       this.activateView();
     });
@@ -111,7 +118,7 @@ var BibleView = class extends import_obsidian.ItemView {
     this.iframe = container.createEl("iframe", {
       cls: "bible-viewer-iframe",
       attr: {
-        sandbox: "allow-same-origin allow-scripts allow-forms allow-popups"
+        sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
       }
     });
     setTimeout(() => {
@@ -165,7 +172,7 @@ var BibleView = class extends import_obsidian.ItemView {
       this.iframe = container.createEl("iframe", {
         cls: "bible-viewer-iframe",
         attr: {
-          sandbox: "allow-same-origin allow-scripts allow-forms allow-popups"
+          sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         }
       });
       setTimeout(() => {

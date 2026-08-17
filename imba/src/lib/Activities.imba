@@ -537,6 +537,9 @@ class Activities
 			window.getSelection().removeAllRanges()
 		else
 			freehandEraserMode = no
+			reader.refreshFreehandHighlightDisplay!
+			if parallelReader.enabled
+				parallelReader.refreshFreehandHighlightDisplay!
 		imba.commit!
 
 	def togglePenToolMode

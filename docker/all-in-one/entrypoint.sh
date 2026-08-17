@@ -51,6 +51,9 @@ SQL_DATABASE=${SQL_DATABASE}
 DEBUG=${DEBUG}
 SECRET_KEY=${SECRET_KEY:-change-me-in-production}
 DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+DJANGO_USE_HTTPS=${DJANGO_USE_HTTPS:-0}
+DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+DJANGO_PUBLIC_URL=${DJANGO_PUBLIC_URL:-}
 EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
 EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${SOCIAL_AUTH_GOOGLE_OAUTH2_KEY:-}
@@ -86,6 +89,11 @@ if [ "${verse_count:-0}" = "0" ] && [ "${AUTO_RESTORE_DB:-0}" = "1" ]; then
 fi
 
 gosu postgres pg_ctl -D "$PGDATA" -m fast -w stop
+
+if [ "${DJANGO_USE_HTTPS:-0}" = "1" ]; then
+  # Cloudflare tunnel often reaches the container over HTTP without X-Forwarded-Proto.
+  sed -i "s/''      \$scheme;/''      https;/" /etc/nginx/conf.d/bolls.conf
+fi
 
 echo "Starting Bolls Bible..."
 exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
