@@ -1,0 +1,11 @@
+{
+  "id": "bible-viewer",
+  "name": "Bible Viewer",
+  "version": "0.2.1",
+  "minAppVersion": "1.5.0",
+  "description": "Embed Bible app in right pane and copy selected verses to current note",
+  "author": "saulbravo",
+  "isDesktopOnly": false
+}
+
+
