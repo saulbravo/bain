@@ -300,8 +300,10 @@ tag verse-commentary-modal
 	def sendCommentaryToObsidian
 		unless obsidianMode
 			return
+		let start = Math.min(exportStartIdx, exportEndIdx)
+		let end = Math.max(exportStartIdx, exportEndIdx)
 		let texts = []
-		for i in [exportStartIdx .. exportEndIdx]
+		for i in [start .. end]
 			let block = commentaryBlocks[i]
 			if block and block.text
 				texts.push(block.text)
@@ -310,8 +312,8 @@ tag verse-commentary-modal
 		let messageToSend = {
 			type: 'bible-commentary-selection'
 			sections: [{
-				reference: commentaryReference
-				verse: currentVerse
+				reference: String(commentaryReference)
+				verse: Number(currentVerse)
 				text: texts.join('\n\n')
 			}]
 			translation: String(currentReader.translation or '')
@@ -320,12 +322,9 @@ tag verse-commentary-modal
 			bookId: Number(currentReader.book or 1)
 		}
 		try
-			window.parent.postMessage(messageToSend, '*')
+			window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
 		catch postError
-			try
-				window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
-			catch fallbackError
-				pass
+			pass
 
 	def getContentEl
 		return self.querySelector('.content')
@@ -401,12 +400,13 @@ tag verse-commentary-modal
 		box.style.borderRadius = '8px'
 		box.style.background = 'color-mix(in srgb, #a855f7 15%, transparent)'
 		box.style.border = '2px solid #a855f7'
-		box.style.zIndex = '2'
+		box.style.zIndex = '10'
 		box.style.pointerEvents = 'none'
 		box.style.display = 'none'
 		box.style.boxSizing = 'border-box'
 		box.style.paddingLeft = '20px'
 		box.style.paddingRight = '20px'
+		let modal = self
 		let insertBtn = document.createElement('button')
 		insertBtn.type = 'button'
 		insertBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>'
@@ -414,7 +414,7 @@ tag verse-commentary-modal
 		insertBtn.addEventListener('click', do |e|
 			e.preventDefault()
 			e.stopPropagation()
-			sendCommentaryToObsidian!
+			modal.sendCommentaryToObsidian!
 		)
 		let closeBtn = document.createElement('button')
 		closeBtn.type = 'button'
@@ -423,7 +423,7 @@ tag verse-commentary-modal
 		closeBtn.addEventListener('click', do |e|
 			e.preventDefault()
 			e.stopPropagation()
-			toggleObsidianMode!
+			modal.toggleObsidianMode!
 		)
 		let topHandle = document.createElement('span')
 		styleObsidianDragHandle(topHandle, 'top')
@@ -439,10 +439,10 @@ tag verse-commentary-modal
 		box.appendChild(bottomHandle)
 		box.appendChild(insertBtn)
 		box.appendChild(closeBtn)
-		host.appendChild(box)
 		let sections = document.createElement('div')
 		sections.className = 'commentary-obsidian-sections'
 		sections.style.position = 'relative'
+		sections.style.zIndex = '1'
 		for block, idx in commentaryBlocks
 			let blockEl = document.createElement('div')
 			blockEl.dataset.blockIdx = String(idx)
@@ -450,7 +450,7 @@ tag verse-commentary-modal
 			blockEl.style.paddingTop = idx > 0 ? "{commentaryLineHeight - 1}em" : '0'
 			blockEl.style.cursor = 'pointer'
 			blockEl.addEventListener('click', do |e|
-				handleObsidianBlockClick(idx, e)
+				modal.handleObsidianBlockClick(idx, e)
 			)
 			let p = document.createElement('p')
 			p.style.margin = '0'
@@ -463,6 +463,7 @@ tag verse-commentary-modal
 			blockEl.appendChild(p)
 			sections.appendChild(blockEl)
 		host.appendChild(sections)
+		host.appendChild(box)
 		root.appendChild(host)
 		contentEl.appendChild(root)
 		#obsidianRoot = root
@@ -540,8 +541,8 @@ tag verse-commentary-modal
 			<header>
 				<div.header-top>
 					<div.obsidian-slot>
-						if commentaryHtml and commentaryHtml.length and !obsidianMode
-							<button.obsidian-btn.header-action-btn @click.stop=toggleObsidianMode title="Obsidian">
+						if commentaryHtml and commentaryHtml.length
+							<button.obsidian-btn.header-action-btn .obsidian-active=obsidianMode @click.stop=toggleObsidianMode title="Obsidian">
 								<svg src=Obsidian aria-hidden=yes>
 						else
 							<span.header-spacer aria-hidden=yes>
@@ -658,8 +659,18 @@ tag verse-commentary-modal
 			bgc: transparent
 			c: $acc @hover:$acc-hover
 			border: none
+			opacity: 0.75 @hover:1
 			svg
 				size: 1.35rem
+				c: inherit
+				opacity: 0.75 @hover:1
+
+		.obsidian-btn.obsidian-active
+			c: #a855f7
+			opacity: 1
+			svg
+				c: #a855f7
+				opacity: 1
 
 		.close-btn
 			bgc: transparent
