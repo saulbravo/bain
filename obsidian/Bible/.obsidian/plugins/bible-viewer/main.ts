@@ -288,6 +288,9 @@ class BibleView extends ItemView {
 			console.log("Bible Viewer: Processing verse selection", event.data);
 			console.log("Bible Viewer: Translation in data:", event.data.translation);
 			this.copyVersesToNote(event.data);
+		} else if (event.data && event.data.type === "bible-commentary-selection") {
+			console.log("Bible Viewer: Processing commentary selection", event.data);
+			this.copyCommentaryToNote(event.data);
 		} else {
 			console.log("Bible Viewer: Message type mismatch or no data", event.data);
 		}
@@ -373,6 +376,54 @@ class BibleView extends ItemView {
 		editor.replaceRange(formattedText, cursor);
 
 		new Notice(`Copied ${verses.length} verse${verses.length > 1 ? "s" : ""} to note`);
+	}
+
+	copyCommentaryToNote(data: {
+		sections: Array<{
+			reference: string;
+			text: string;
+			verse: number;
+		}>;
+		translation?: string;
+		book?: string;
+		chapter?: number;
+		bookId?: number | string;
+	}) {
+		const sections = data.sections || [];
+		if (sections.length === 0) {
+			new Notice("No commentary to copy.");
+			return;
+		}
+
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeView) {
+			new Notice("No active note to copy commentary to.");
+			return;
+		}
+
+		const translationCode = data?.translation || "BBE";
+		const bookId = data.bookId || 1;
+		const chapter = data.chapter || 1;
+
+		const blocks = sections.map((section) => {
+			const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${section.verse}`;
+			const header = `> [!cba] [${section.reference} - ${translationCode}](${url})`;
+			const body = section.text
+				.split(/\n+/)
+				.filter((line) => line.trim().length > 0)
+				.map((line) => `> ${line.trim()}`)
+				.join("\n");
+			return `${header}\n${body}`;
+		});
+
+		const formattedText = `${blocks.join("\n\n")}\n\n`;
+		const editor = activeView.editor;
+		const cursor = editor.getCursor();
+		editor.replaceRange(formattedText, cursor);
+
+		new Notice(
+			`Copied commentary for ${sections.length} verse${sections.length > 1 ? "s" : ""} to note`
+		);
 	}
 }
 

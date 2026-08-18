@@ -74,8 +74,11 @@ def _plain_text_to_html(text):
             part = re.sub(r"^[ \t]+", "", part.strip())
             if not part:
                 continue
+            is_heading = part.startswith("[") and re.match(r"^\[[A-Za-z0-9_:]+", part)
+            if is_heading:
+                part = part[1:].lstrip()
             safe = html.escape(part).replace("\n", "<br>")
-            if part.startswith("[") and re.match(r"^\[[A-Za-z0-9_:]+", part):
+            if is_heading:
                 paragraphs.append(f'<p class="cba-heading">{safe}</p>')
             else:
                 paragraphs.append(f"<p>{safe}</p>")
@@ -105,20 +108,6 @@ def get_cba_commentary_text(book, chapter, verse):
         )
         verse_rows = [row[0] for row in cur.fetchall() if row and row[0]]
         comments.extend(verse_rows)
-
-        # Fallbacks if verse-level entry does not exist.
-        if len(comments) == 0:
-            cur.execute(
-                "SELECT Comments FROM Chapters WHERE Book = ? AND Chapter = ?",
-                (book, chapter),
-            )
-            chapter_rows = [row[0] for row in cur.fetchall() if row and row[0]]
-            comments.extend(chapter_rows)
-
-        if len(comments) == 0:
-            cur.execute("SELECT Comments FROM Books WHERE Book = ?", (book,))
-            book_rows = [row[0] for row in cur.fetchall() if row and row[0]]
-            comments.extend(book_rows)
 
     decoded = [_decode_cmtx_text(piece) for piece in comments]
     return [piece for piece in decoded if piece]

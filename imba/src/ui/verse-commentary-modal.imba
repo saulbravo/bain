@@ -2,18 +2,31 @@ import activities from '../lib/Activities'
 import API from '../lib/Api'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
+import theme from '../lib/Theme'
 import { getBookName } from '../utils'
-import { localizeCommentaryRefs } from '../utils/cbaBooks'
+import { localizeCommentaryRefs, htmlToPlainText, splitCommentaryHtmlIntoBlocks } from '../utils/cbaBooks'
 import X from 'lucide-static/icons/x.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
+import Obsidian from '../icons/obsidian.svg'
 
 tag verse-commentary-modal
 	loading = no
 	error = ''
 	commentaryHtml = ''
+	commentaryBlocks = []
+	obsidianMode = no
+	exportStartIdx = 0
+	exportEndIdx = 0
 	currentVerse = 0
 	lastLoadKey = ''
+	#obsidianRoot = null
+	#onObsidianScroll = null
+	obsidianDragging = no
+	obsidianDragHandle = ''
+	lastDragBlockIdx = -1
+	obsidianDragRAF = null
+	#obsidianBlockClickLock = no
 
 	get currentReader
 		if activities.selectedParallel == 'main'
@@ -22,24 +35,82 @@ tag verse-commentary-modal
 			return parallelReader
 		return reader
 
+	get bookName
+		return getBookName(currentReader.translation, currentReader.book)
+
+	commentaryLineHeight = 1.5
+
+	get commentaryReference
+		return "{bookName} {currentReader.chapter}:{currentVerse}"
+
+	get contentStyle
+		return "--cmt-pt:{commentaryLineHeight - 1}em;--cmt-pb:{0.8 * commentaryLineHeight}em"
+
+	def applyCommentaryTypography
+		let content = getContentEl!
+		if !content
+			return
+		content.style.setProperty('--cmt-pt', "{commentaryLineHeight - 1}em")
+		content.style.setProperty('--cmt-pb', "{0.8 * commentaryLineHeight}em")
+		let reading = content.querySelector('.commentary-text')
+		if !reading
+			return
+		reading.style.fontFamily = theme.fontFamily
+		reading.style.fontSize = "{theme.fontSize}px"
+		reading.style.lineHeight = String(commentaryLineHeight)
+		reading.style.fontWeight = String(theme.fontWeight)
+		let paras = reading.querySelectorAll('p')
+		if !paras or paras.length == 0
+			return
+		let padTop = "{commentaryLineHeight - 1}em"
+		let padBottom = "{0.8 * commentaryLineHeight}em"
+		for i in [0 .. paras.length - 1]
+			let p = paras[i]
+			p.style.margin = '0'
+			p.style.paddingTop = i > 0 ? padTop : '0'
+			p.style.paddingBottom = padBottom
+			p.style.lineHeight = String(commentaryLineHeight)
+
 	def getVerseNumbers
-		let nums = (currentReader.verses or []).map(do |v| return v.verse)
+		let nums = []
+		let chapterVerses = currentReader.verses or []
+		if activities.selectedVersesPKs and activities.selectedVersesPKs.length
+			for v in chapterVerses
+				if activities.selectedVersesPKs.includes(v.pk)
+					nums.push(Number(v.verse))
+		elif activities.selectedVerses and activities.selectedVerses.length
+			let valid = chapterVerses.map(do |item| return Number(item.verse))
+			for n in activities.selectedVerses
+				let verseNum = Number(n)
+				if valid.includes(verseNum)
+					nums.push(verseNum)
+		else
+			for v in chapterVerses
+				nums.push(Number(v.verse))
 		nums.sort(do |a, b| return a - b)
-		return nums
+		let unique = []
+		for n in nums
+			unless unique.includes(n)
+				unique.push(n)
+		return unique
+
+	def resetExportRange
+		exportStartIdx = 0
+		exportEndIdx = 0
 
 	def clampCurrentVerse
 		let nums = getVerseNumbers!
+		if nums.length == 0 and activities.selectedVerses and activities.selectedVerses.length
+			nums = activities.selectedVerses.map(do |n| return Number(n)).sort(do |a, b| return a - b)
 		if nums.length == 0
 			currentVerse = 0
 			return
-		if currentVerse <= 0
+		if currentVerse <= 0 or !nums.includes(currentVerse)
 			if activities.selectedVerses and activities.selectedVerses.length
-				# Open commentary on the most recently selected verse (the one user tapped last).
-				currentVerse = activities.selectedVerses[activities.selectedVerses.length - 1]
+				currentVerse = Number(activities.selectedVerses[activities.selectedVerses.length - 1])
 			else
 				currentVerse = nums[0]
 		if !nums.includes(currentVerse)
-			# Choose nearest valid verse if current one is missing.
 			let nearest = nums[0]
 			let nearestDistance = Math.abs(nums[0] - currentVerse)
 			for n in nums
@@ -49,10 +120,356 @@ tag verse-commentary-modal
 					nearest = n
 			currentVerse = nearest
 
+	def unmount
+		teardownObsidianUI!
+
 	def close
-		# Return to options slideup while keeping current selection.
+		stopObsidianDragListeners!
+		teardownObsidianUI!
+		obsidianMode = no
+		resetExportRange!
+		lastLoadKey = ''
 		activities.activeVerseAction = 'options'
 		imba.commit!
+
+	def toggleObsidianMode
+		obsidianMode = !obsidianMode
+		if obsidianMode
+			resetExportRange!
+			buildObsidianUI!
+		else
+			stopObsidianDragListeners!
+			teardownObsidianUI!
+		imba.commit!
+
+	def ensureObsidianDragBindings
+		unless #boundObsidianMove
+			#boundObsidianMove = handleObsidianDrag.bind(self)
+		unless #boundObsidianEnd
+			#boundObsidianEnd = handleObsidianDragEnd.bind(self)
+
+	def stopObsidianDragListeners
+		document.documentElement.removeAttribute('data-commentary-obsidian-dragging')
+		if #boundObsidianMove
+			document.removeEventListener('mousemove', #boundObsidianMove)
+			document.removeEventListener('touchmove', #boundObsidianMove)
+			document.removeEventListener('pointermove', #boundObsidianMove)
+		if #boundObsidianEnd
+			document.removeEventListener('mouseup', #boundObsidianEnd)
+			document.removeEventListener('touchend', #boundObsidianEnd)
+			document.removeEventListener('touchcancel', #boundObsidianEnd)
+			document.removeEventListener('pointerup', #boundObsidianEnd)
+			document.removeEventListener('pointercancel', #boundObsidianEnd)
+		if obsidianDragRAF
+			window.cancelAnimationFrame(obsidianDragRAF)
+			obsidianDragRAF = null
+		obsidianDragging = no
+		obsidianDragHandle = ''
+		lastDragBlockIdx = -1
+
+	def startObsidianDrag handle\string, e
+		ensureObsidianDragBindings!
+		unless obsidianMode or !#boundObsidianMove or !#boundObsidianEnd
+			return
+		if !e
+			return
+		e.preventDefault()
+		e.stopPropagation()
+		obsidianDragging = yes
+		obsidianDragHandle = handle
+		lastDragBlockIdx = -1
+		if e.target and e.target.setPointerCapture and e.pointerId != undefined
+			try
+				e.target.setPointerCapture(e.pointerId)
+			catch err
+				pass
+		document.addEventListener('mousemove', #boundObsidianMove)
+		document.addEventListener('mouseup', #boundObsidianEnd)
+		document.addEventListener('touchmove', #boundObsidianMove, { passive: no })
+		document.addEventListener('touchend', #boundObsidianEnd)
+		document.addEventListener('touchcancel', #boundObsidianEnd)
+		document.addEventListener('pointermove', #boundObsidianMove)
+		document.addEventListener('pointerup', #boundObsidianEnd)
+		document.addEventListener('pointercancel', #boundObsidianEnd)
+		handleObsidianDrag(e)
+
+	def findBlockIndexFromElement element
+		let el = element
+		let depth = 0
+		while el and depth < 20
+			if el.dataset and el.dataset.blockIdx != undefined and el.dataset.blockIdx != ''
+				let idx = parseInt(el.dataset.blockIdx, 10)
+				if !isNaN(idx)
+					return idx
+			el = el.parentElement
+			depth++
+		return -1
+
+	def findBlockIndexFromY clientY\number
+		let sectionsWrap = #obsidianRoot and #obsidianRoot.querySelector('.commentary-obsidian-sections')
+		if !sectionsWrap
+			return -1
+		let nodes = sectionsWrap.children
+		if !nodes or nodes.length == 0
+			return -1
+		for i in [0 .. nodes.length - 1]
+			let rect = nodes[i].getBoundingClientRect()
+			let midY = rect.top + (rect.height / 2)
+			if clientY <= midY
+				return i
+		return nodes.length - 1
+
+	def handleObsidianDrag e
+		if !obsidianDragging or !obsidianMode or !e or typeof e.type != 'string'
+			return
+		e.preventDefault()
+		e.stopPropagation()
+		document.documentElement.setAttribute('data-commentary-obsidian-dragging', 'true')
+		if obsidianDragRAF
+			window.cancelAnimationFrame(obsidianDragRAF)
+		let touch = e.type.startsWith('touch') ? (e.touches and e.touches.length > 0 ? e.touches[0] : (e.changedTouches and e.changedTouches[0] ? e.changedTouches[0] : null)) : null
+		let clientX = touch ? touch.clientX : e.clientX
+		let clientY = touch ? touch.clientY : e.clientY
+		obsidianDragRAF = window.requestAnimationFrame(do
+			let hit = document.elementFromPoint(clientX, clientY)
+			let idx = findBlockIndexFromElement(hit)
+			if idx < 0
+				idx = findBlockIndexFromY(clientY)
+			if idx < 0
+				obsidianDragRAF = null
+				return
+			if idx != lastDragBlockIdx
+				lastDragBlockIdx = idx
+				if obsidianDragHandle == 'top'
+					exportStartIdx = Math.min(idx, exportEndIdx)
+				elif obsidianDragHandle == 'bottom'
+					exportEndIdx = Math.max(idx, exportStartIdx)
+				imba.commit!
+			updateObsidianBox!
+			obsidianDragRAF = null
+		)
+
+	def handleObsidianDragEnd e
+		stopObsidianDragListeners!
+		#obsidianBlockClickLock = yes
+		setTimeout(&, 50) do
+			#obsidianBlockClickLock = no
+		imba.commit!
+
+	def handleObsidianBlockClick idx\number, e
+		if !obsidianMode or obsidianDragging or #obsidianBlockClickLock
+			return
+		if !e
+			return
+		e.preventDefault()
+		e.stopPropagation()
+		exportStartIdx = idx
+		exportEndIdx = idx
+		imba.commit!
+		updateObsidianBox!
+
+	def updateObsidianBox
+		unless obsidianMode or !#obsidianRoot
+			return
+		window.requestAnimationFrame do
+			let host = #obsidianRoot.querySelector('.commentary-obsidian-host')
+			let sectionsWrap = #obsidianRoot.querySelector('.commentary-obsidian-sections')
+			let box = #obsidianRoot.querySelector('.commentary-obsidian-box')
+			if !host or !sectionsWrap or !box or commentaryBlocks.length == 0
+				if box
+					box.style.display = 'none'
+				return
+			let startEl = sectionsWrap.querySelector("[data-block-idx=\"{exportStartIdx}\"]")
+			let endEl = sectionsWrap.querySelector("[data-block-idx=\"{exportEndIdx}\"]")
+			if !startEl or !endEl
+				box.style.display = 'none'
+				return
+			let hostRect = host.getBoundingClientRect()
+			let startRect = startEl.getBoundingClientRect()
+			let endRect = endEl.getBoundingClientRect()
+			let top = startRect.top - hostRect.top + host.scrollTop - 6
+			let bottom = endRect.bottom - hostRect.top + host.scrollTop + 6
+			box.style.display = 'block'
+			box.style.top = "{Math.max(0, top)}px"
+			box.style.height = "{Math.max(24, bottom - top)}px"
+			if document.documentElement.getAttribute('data-commentary-obsidian-dragging') == 'true'
+				box.style.transition = 'none'
+			else
+				box.style.transition = 'top 150ms ease, height 150ms ease'
+
+	def sendCommentaryToObsidian
+		unless obsidianMode
+			return
+		let texts = []
+		for i in [exportStartIdx .. exportEndIdx]
+			let block = commentaryBlocks[i]
+			if block and block.text
+				texts.push(block.text)
+		if texts.length == 0
+			return
+		let messageToSend = {
+			type: 'bible-commentary-selection'
+			sections: [{
+				reference: commentaryReference
+				verse: currentVerse
+				text: texts.join('\n\n')
+			}]
+			translation: String(currentReader.translation or '')
+			book: String(bookName or '')
+			chapter: Number(currentReader.chapter or 1)
+			bookId: Number(currentReader.book or 1)
+		}
+		try
+			window.parent.postMessage(messageToSend, '*')
+		catch postError
+			try
+				window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
+			catch fallbackError
+				pass
+
+	def getContentEl
+		return self.querySelector('.content')
+
+	def styleObsidianSideButton btn, side\string
+		btn.style.position = 'absolute'
+		btn.style.top = '0'
+		btn.style.bottom = '0'
+		btn.style.width = '20px'
+		btn.style.background = '#a855f7'
+		btn.style.border = 'none'
+		btn.style.color = 'white'
+		btn.style.cursor = 'pointer'
+		btn.style.padding = '0'
+		btn.style.display = 'flex'
+		btn.style.alignItems = 'center'
+		btn.style.justifyContent = 'center'
+		btn.style.pointerEvents = 'auto'
+		if side == 'left'
+			btn.style.left = '0'
+			btn.style.borderRadius = '6px 0 0 6px'
+		else
+			btn.style.right = '0'
+			btn.style.borderRadius = '0 6px 6px 0'
+
+	def styleObsidianDragHandle handle, position\string
+		handle.style.position = 'absolute'
+		handle.style.left = '50%'
+		handle.style.transform = 'translateX(-50%)'
+		handle.style.width = '64px'
+		handle.style.height = '6px'
+		handle.style.borderRadius = '999px'
+		handle.style.background = '#a855f7'
+		handle.style.cursor = 'ns-resize'
+		handle.style.pointerEvents = 'auto'
+		handle.style.zIndex = '6'
+		handle.style.touchAction = 'none'
+		if position == 'top'
+			handle.style.top = '-4px'
+		else
+			handle.style.bottom = '-4px'
+
+	def teardownObsidianUI
+		stopObsidianDragListeners!
+		if #onObsidianScroll and #obsidianRoot
+			let host = #obsidianRoot.querySelector('.commentary-obsidian-host')
+			if host
+				host.removeEventListener('scroll', #onObsidianScroll)
+		if #obsidianRoot
+			#obsidianRoot.remove()
+			#obsidianRoot = null
+		let readingEl = getContentEl! and getContentEl!.querySelector('.commentary-text')
+		if readingEl
+			readingEl.style.display = ''
+
+	def buildObsidianUI
+		teardownObsidianUI!
+		let contentEl = getContentEl!
+		if !contentEl or commentaryBlocks.length == 0
+			return
+		let readingEl = contentEl.querySelector('.commentary-text')
+		if readingEl
+			readingEl.style.display = 'none'
+		let root = document.createElement('div')
+		let host = document.createElement('div')
+		host.className = 'commentary-obsidian-host'
+		host.style.position = 'relative'
+		let box = document.createElement('div')
+		box.className = 'commentary-obsidian-box'
+		box.style.position = 'absolute'
+		box.style.left = '0'
+		box.style.right = '0'
+		box.style.borderRadius = '8px'
+		box.style.background = 'color-mix(in srgb, #a855f7 15%, transparent)'
+		box.style.border = '2px solid #a855f7'
+		box.style.zIndex = '2'
+		box.style.pointerEvents = 'none'
+		box.style.display = 'none'
+		box.style.boxSizing = 'border-box'
+		box.style.paddingLeft = '20px'
+		box.style.paddingRight = '20px'
+		let insertBtn = document.createElement('button')
+		insertBtn.type = 'button'
+		insertBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>'
+		styleObsidianSideButton(insertBtn, 'left')
+		insertBtn.addEventListener('click', do |e|
+			e.preventDefault()
+			e.stopPropagation()
+			sendCommentaryToObsidian!
+		)
+		let closeBtn = document.createElement('button')
+		closeBtn.type = 'button'
+		closeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+		styleObsidianSideButton(closeBtn, 'right')
+		closeBtn.addEventListener('click', do |e|
+			e.preventDefault()
+			e.stopPropagation()
+			toggleObsidianMode!
+		)
+		let topHandle = document.createElement('span')
+		styleObsidianDragHandle(topHandle, 'top')
+		topHandle.addEventListener('mousedown', do |e| startObsidianDrag('top', e))
+		topHandle.addEventListener('touchstart', do |e| startObsidianDrag('top', e))
+		topHandle.addEventListener('pointerdown', do |e| startObsidianDrag('top', e))
+		let bottomHandle = document.createElement('span')
+		styleObsidianDragHandle(bottomHandle, 'bottom')
+		bottomHandle.addEventListener('mousedown', do |e| startObsidianDrag('bottom', e))
+		bottomHandle.addEventListener('touchstart', do |e| startObsidianDrag('bottom', e))
+		bottomHandle.addEventListener('pointerdown', do |e| startObsidianDrag('bottom', e))
+		box.appendChild(topHandle)
+		box.appendChild(bottomHandle)
+		box.appendChild(insertBtn)
+		box.appendChild(closeBtn)
+		host.appendChild(box)
+		let sections = document.createElement('div')
+		sections.className = 'commentary-obsidian-sections'
+		sections.style.position = 'relative'
+		for block, idx in commentaryBlocks
+			let blockEl = document.createElement('div')
+			blockEl.dataset.blockIdx = String(idx)
+			blockEl.style.padding = "0 30px {0.8 * commentaryLineHeight}em"
+			blockEl.style.paddingTop = idx > 0 ? "{commentaryLineHeight - 1}em" : '0'
+			blockEl.style.cursor = 'pointer'
+			blockEl.addEventListener('click', do |e|
+				handleObsidianBlockClick(idx, e)
+			)
+			let p = document.createElement('p')
+			p.style.margin = '0'
+			p.style.wordBreak = 'break-word'
+			p.style.fontFamily = theme.fontFamily
+			p.style.fontSize = "{theme.fontSize}px"
+			p.style.lineHeight = String(commentaryLineHeight)
+			p.style.fontWeight = String(theme.fontWeight)
+			p.textContent = block.text or ''
+			blockEl.appendChild(p)
+			sections.appendChild(blockEl)
+		host.appendChild(sections)
+		root.appendChild(host)
+		contentEl.appendChild(root)
+		#obsidianRoot = root
+		unless #onObsidianScroll
+			#onObsidianScroll = updateObsidianBox.bind(self)
+		host.addEventListener('scroll', #onObsidianScroll, { passive: yes })
+		updateObsidianBox!
 
 	def stepVerse delta\number
 		let nums = getVerseNumbers!
@@ -62,6 +479,9 @@ tag verse-commentary-modal
 			idx = 0
 		let next = Math.max(0, Math.min(nums.length - 1, idx + delta))
 		currentVerse = nums[next]
+		teardownObsidianUI!
+		obsidianMode = no
+		resetExportRange!
 		imba.commit!
 		loadCommentary!
 
@@ -88,24 +508,29 @@ tag verse-commentary-modal
 		loading = yes
 		error = ''
 		commentaryHtml = ''
+		commentaryBlocks = []
+		teardownObsidianUI!
+		obsidianMode = no
+		resetExportRange!
 		imba.commit!
 		try
 			let payload = await API.getJson("/get-cba-commentary/{currentReader.book}/{currentReader.chapter}/{currentVerse}/")
 			let html = payload and payload.commentaryHtml ? payload.commentaryHtml : ''
+			let plain = htmlToPlainText(html) or (payload and payload.commentaryText ? payload.commentaryText : '')
 			commentaryHtml = localizeCommentaryRefs(html, currentReader.translation)
+			commentaryBlocks = splitCommentaryHtmlIntoBlocks(html, plain)
 		catch err
-			error = err and err.message ? err.message : 'Unable to load commentary'
+			error = err and err.message ? err.message : (t.commentary_unavailable or 'Unable to load commentary')
 		finally
 			loading = no
 			imba.commit!
+			imba.commit!.then do applyCommentaryTypography!
 
 	@autorun def syncAndReload
 		const action = activities.activeVerseAction
-		const selected = activities.selectedVerses and activities.selectedVerses.slice().sort(do |a, b| return a - b).join(',')
-		const translation = currentReader.translation
-		const book = currentReader.book
-		const chapter = currentReader.chapter
-		if action == 'commentary'
+		const selectedPKs = activities.selectedVersesPKs and activities.selectedVersesPKs.length
+		const versesLoaded = currentReader.verses and currentReader.verses.length
+		if action == 'commentary' and selectedPKs > 0 and versesLoaded
 			clampCurrentVerse!
 			loadCommentary!
 
@@ -113,25 +538,31 @@ tag verse-commentary-modal
 		<div.commentary-overlay @click=close>
 		<section.commentary-modal @click.stop>
 			<header>
-				<div.title-wrap>
+				<div.header-top>
+					<div.obsidian-slot>
+						if commentaryHtml and commentaryHtml.length and !obsidianMode
+							<button.obsidian-btn.header-action-btn @click.stop=toggleObsidianMode title="Obsidian">
+								<svg src=Obsidian aria-hidden=yes>
+						else
+							<span.header-spacer aria-hidden=yes>
 					<h3> "Comentario Bíblico Adventista"
-					<div.verse-nav>
-						<button.nav-btn @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
-							<svg src=ChevronLeft>
-						<p.verse-ref> "{getBookName(currentReader.translation, currentReader.book)} {currentReader.chapter}:{currentVerse}"
-						<button.nav-btn @click=stepVerse(1) disabled=!canGoNext title="Next verse">
-							<svg src=ChevronRight>
-				<button.close-btn @click=close title="Close">
-					<svg src=X>
-			<div.content>
+					<button.close-btn.header-action-btn @click=close title="Close">
+						<svg src=X>
+				<div.header-nav>
+					<button.nav-btn.nav-prev @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
+						<svg src=ChevronLeft>
+					<p.verse-ref> commentaryReference
+					<button.nav-btn.nav-next @click=stepVerse(1) disabled=!canGoNext title="Next verse">
+						<svg src=ChevronRight>
+			<div.content [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight}] style=contentStyle>
 				if loading
-					<p.status> "Loading commentary..."
+					<p.status> (t.commentary_loading or "Loading commentary...")
 				elif error
 					<p.error> error
 				elif commentaryHtml and commentaryHtml.length
-					<div.commentary-text innerHTML=commentaryHtml>
+					<div.commentary-text [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{commentaryLineHeight} fw:{theme.fontWeight}] style=contentStyle innerHTML=commentaryHtml>
 				else
-					<p.status> "No commentary available for this verse."
+					<p.status> (t.commentary_none_for_verse or "No commentary available for this verse.")
 
 	css
 		pos: fixed
@@ -162,53 +593,91 @@ tag verse-commentary-modal
 
 		header
 			d: flex
-			ai: flex-start
-			jc: space-between
-			g: 1rem
-			padding: 1rem 1.25rem 0.85rem
+			fld: column
+			g: 0.65rem
+			padding: 0.85rem 1.25rem 0.85rem
 			bdb: 1px solid $acc-bgc
 
-		.title-wrap
-			d: flex
-			fld: column
+		.header-top
+			d: grid
+			grid-template-columns: 1fr auto 1fr
+			ai: center
 			g: 0.5rem
-			fl: 1
-			min-width: 0
+			min-height: 2.125rem
+
+		.obsidian-slot
+			d: flex
+			ai: center
+			justify-self: start
+			size: 2.125rem
+			flex-shrink: 0
+
+		.header-spacer
+			d: block
+			size: 2.125rem
+			flex-shrink: 0
+
+		.header-nav
+			d: flex
+			ai: center
+			jc: center
+			pos: relative
+			min-height: 2rem
 
 		h3
 			m: 0
 			fs: 1rem
 			fw: 700
 			lh: 1.3
-
-		.verse-nav
-			d: flex
-			ai: center
-			g: 0.5rem
+			ta: center
+			justify-self: center
+			min-width: 0
 
 		.verse-ref
 			m: 0
 			c: $acc
-			fs: 0.95rem
-			fw: 600
+			fs: 1.15rem
+			fw: 700
+			lh: 1.2
 			ta: center
-			fl: 1
+			min-width: 0
+			padding-inline: 2.35rem
+
+		.header-action-btn
+			d: inline-flex
+			ai: center
+			jc: center
+			size: 2.125rem
+			p: 0
+			rd: 0.4rem
+			cursor: pointer
+			flex-shrink: 0
+			box-sizing: border-box
+
+		.obsidian-btn
+			bgc: transparent
+			c: $acc @hover:$acc-hover
+			border: none
+			svg
+				size: 1.35rem
 
 		.close-btn
 			bgc: transparent
-			c: $c
-			p: 0.25rem
-			rd: 0.375rem
-			cursor: pointer
-			flex-shrink: 0
+			c: $c @hover:$acc-hover
+			p: 0
+			justify-self: end
 			svg
-				size: 1.2rem
+				size: 1.35rem
 
 		.nav-btn
+			pos: absolute
+			top: 50%
+			transform: translateY(-50%)
+			size: 1.75rem
 			bgc: $acc-bgc
 			c: $c
-			p: 0.3rem
-			rd: 0.4rem
+			p: 0
+			rd: 0.35rem
 			cursor: pointer
 			d: hcc
 			flex-shrink: 0
@@ -216,28 +685,28 @@ tag verse-commentary-modal
 				opacity: 0.35
 				cursor: not-allowed
 			svg
-				size: 1rem
+				size: 0.95rem
+
+		.nav-prev
+			left: 0
+
+		.nav-next
+			right: 0
 
 		.content
 			overflow: auto
-			padding: 1.25rem
-			lh: 1.65
+			padding: 1.25rem 30px
 			-webkit-overflow-scrolling: touch
 
 		.commentary-text
 			word-break: break-word
 			text-align: left
 
-			p
-				m: 0 0 1rem
-				&:last-child
-					m-bottom: 0
-
 			.cba-heading
 				m-bottom: 0.35rem
 				c: $acc
 				fw: 600
-				fs: 0.95rem
+				fs: 0.95em
 
 		.status
 			m: 0
@@ -250,3 +719,15 @@ tag verse-commentary-modal
 			m: 0
 			ta: center
 			padding-block: 2rem
+
+global css
+	.commentary-modal .commentary-text p
+		margin: 0
+		padding-top: var(--cmt-pt, 0.5em)
+		padding-bottom: var(--cmt-pb, 1.2em)
+
+	.commentary-modal .commentary-text p:first-child
+		padding-top: 0
+
+	.commentary-modal .commentary-text p:last-child
+		padding-bottom: 0

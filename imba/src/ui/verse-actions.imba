@@ -95,6 +95,16 @@ tag verse-actions < section
 			return reader.selectionHasBookmark
 		return parallelReader.selectionHasBookmark
 
+	def openCommentary e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if !activities.selectedVersesPKs or activities.selectedVersesPKs.length == 0
+			return
+		activities.activeVerseAction = 'commentary'
+		imba.commit!
+
 	def clearAllHighlights e
 		if e and e.preventDefault
 			e.preventDefault()
@@ -279,10 +289,7 @@ tag verse-actions < section
 				) title=(selectionHasBookmark ? (t.delete or "Remove bookmark") : (t.bookmark or "Bookmark"))>
 					<svg src=Bookmark aria-hidden=yes>
 			<li>
-				<button @click=(do
-					activities.activeVerseAction = 'commentary'
-					imba.commit!
-				) title=(t.verse_commentary or "Verse commentary")>
+				<button @click.stop.prevent=openCommentary title=(t.verse_commentary or "Verse commentary")>
 					<svg src=BookOpenText aria-hidden=yes>
 			<li>
 				<button @click.stop.prevent=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>

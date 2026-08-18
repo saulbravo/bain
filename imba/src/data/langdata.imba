@@ -174,6 +174,9 @@ export const english = {
 	"unexisten_chapter": "This chapter doesn't exist"
 	"verse_break": "Verse wrap",
 	"verse_commentary": "Verse commentary",
+	"commentary_loading": "Loading commentary...",
+	"commentary_none_for_verse": "No commentary available for this verse.",
+	"commentary_unavailable": "Unable to load commentary",
 	"verse_number": "Verse number"
 	"verse_picker": "Verse picker",
 	"view_source": "View the source code",
@@ -364,6 +367,9 @@ export const ukrainian = {
 	"unexisten_chapter": "Ця глава неіснує"
 	"verse_break": "Перенос віршів",
 	"verse_commentary": "Коментар вірша",
+	"commentary_loading": "Завантаження коментаря...",
+	"commentary_none_for_verse": "Коментар для цього вірша недоступний.",
+	"commentary_unavailable": "Не вдалося завантажити коментар",
 	"verse_number": "Номер вірша"
 	"verse_picker": "Вибір вірша",
 	"view_source": "Дивитися джерельний код",
@@ -554,6 +560,9 @@ export const russian = {
 	"unexisten_chapter": "Такой главы не существует"
 	"verse_break": "Перенос стихов",
 	"verse_commentary": "Комментарий стиха",
+	"commentary_loading": "Загрузка комментария...",
+	"commentary_none_for_verse": "Комментарий для этого стиха недоступен.",
+	"commentary_unavailable": "Не удалось загрузить комментарий",
 	"verse_number": "Номер стиха"
 	"verse_picker": "Выбор стиха",
 	"view_source": "Смотреть исходный код",
@@ -744,6 +753,9 @@ export const portuguese = {
 	"unexisten_chapter": "Este capítulo não existe"
 	"verse_break": "Um versículo por linha",
 	"verse_commentary": "Comentário do verso",
+	"commentary_loading": "Carregando comentário...",
+	"commentary_none_for_verse": "Não há comentário disponível para este versículo.",
+	"commentary_unavailable": "Não foi possível carregar o comentário",
 	"verse_number": "Número do verso"
 	"verse_picker": "Seletor de versículo",
 	"view_source": "Veja o código fonte",
@@ -933,6 +945,9 @@ export const espanol = {
 	"unexisten_chapter": "Este capítulo no existe",
 	"verse_break": "Envolver versículo",
 	"verse_commentary": "Comentario en verso",
+	"commentary_loading": "Cargando comentario...",
+	"commentary_none_for_verse": "No hay comentario disponible para este versículo.",
+	"commentary_unavailable": "No se pudo cargar el comentario",
 	"verse_number": "Número de versículo",
 	"verse_picker": "Selector de versículo",
 	"view_source": "Ver el código fuente",
@@ -1124,6 +1139,9 @@ export const german = {
 	"unexisten_chapter": "This chapter doesn't exist"
 	"verse_break": "Zeilenumbruch",
 	"verse_commentary": "Verskommentar",
+	"commentary_loading": "Kommentar wird geladen...",
+	"commentary_none_for_verse": "Für diesen Vers ist kein Kommentar verfügbar.",
+	"commentary_unavailable": "Kommentar konnte nicht geladen werden",
 	"verse_number": "Versnummer"
 	"verse_picker": "Versauswahl",
 	"view_source": "Source code anzeigen",

@@ -432,7 +432,7 @@ class Activities
 	selectedCategories = []
 
 	activeModal = ''
-	activeVerseAction = ''
+	@observable activeVerseAction = ''
 	isVerseActionsMinimized = no
 	isFreehandHighlightMinimized = no
 	highlight_color\string = ''

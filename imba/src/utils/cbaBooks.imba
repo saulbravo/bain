@@ -16,13 +16,70 @@ const CBA_BOOK_CODES = {
 export def localizeCommentaryRefs html\string, translation\string
 	if !html or !translation
 		return html or ''
-	return String(html).replace(/([A-Za-z0-9]+)_(\d+):(\d+(?:-\d+)?)/g, do(match, code, chapter, verses)
+	let localized = String(html).replace(/([A-Za-z0-9]+)_(\d+):(\d+(?:-\d+)?)/g, do(match, code, chapter, verses)
 		const bookid = CBA_BOOK_CODES[code]
 		if !bookid
 			return match
 		const bookName = getBookName(translation, bookid)
 		return "{bookName} {chapter}:{verses}"
 	)
+	return cleanCommentaryHtml(localized)
+
+export def cleanCommentaryHtml html\string
+	if !html
+		return html or ''
+	return String(html).replace(/<p class="cba-heading">\[/g, '<p class="cba-heading">')
+
+export def htmlToPlainText html\string
+	if !html
+		return ''
+	let el = document.createElement('div')
+	el.innerHTML = html
+	return (el.textContent or el.innerText or '').replace(/\n{3,}/g, '\n\n').trim()
+
+export def escapeHtml text\string
+	return String(text or '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+
+export def splitPlainTextToParagraphs text\string
+	if !text
+		return []
+	let normalized = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+	normalized = normalized.replace(/\n{3,}/g, '\n\n').trim()
+	let paragraphs = []
+	for block in normalized.split(/\n\n+/)
+		block = block.trim()
+		if !block or block == 'Comentario Bíblico Adventista'
+			continue
+		for part in block.split(/\n(?=\s{2,})/)
+			part = part.replace(/^[\t ]+/gm, '').trim()
+			if part
+				paragraphs.push(part)
+	return paragraphs
+
+export def splitCommentaryHtmlIntoBlocks html\string, fallbackText\string = ''
+	let blocks = []
+	if html
+		let wrapper = document.createElement('div')
+		wrapper.innerHTML = html
+		let paras = wrapper.querySelectorAll('p')
+		if paras and paras.length > 0
+			for i in [0 .. paras.length - 1]
+				let p = paras[i]
+				let text = String(p.textContent or '').trim()
+				if !text
+					continue
+				blocks.push({ html: p.outerHTML, text: text })
+			if blocks.length > 0
+				return blocks
+	let parts = splitPlainTextToParagraphs(fallbackText or htmlToPlainText(html))
+	for part in parts
+		let safe = escapeHtml(part).replace(/\n/g, '<br>')
+		blocks.push({ html: "<p>{safe}</p>", text: part })
+	return blocks
 
 export def localizedBookAbbreviation book\object, showFull\boolean = no
 	if !book or !book.name
