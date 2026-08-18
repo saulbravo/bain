@@ -72,7 +72,19 @@ tag verse-commentary-modal
 			p.style.paddingBottom = padBottom
 			p.style.lineHeight = String(commentaryLineHeight)
 
-	def getVerseNumbers
+	def getChapterVerseNumbers
+		let nums = []
+		let chapterVerses = currentReader.verses or []
+		for v in chapterVerses
+			nums.push(Number(v.verse))
+		nums.sort(do |a, b| return a - b)
+		let unique = []
+		for n in nums
+			unless unique.includes(n)
+				unique.push(n)
+		return unique
+
+	def getSelectedVerseNumbers
 		let nums = []
 		let chapterVerses = currentReader.verses or []
 		if activities.selectedVersesPKs and activities.selectedVersesPKs.length
@@ -85,9 +97,6 @@ tag verse-commentary-modal
 				let verseNum = Number(n)
 				if valid.includes(verseNum)
 					nums.push(verseNum)
-		else
-			for v in chapterVerses
-				nums.push(Number(v.verse))
 		nums.sort(do |a, b| return a - b)
 		let unique = []
 		for n in nums
@@ -95,31 +104,24 @@ tag verse-commentary-modal
 				unique.push(n)
 		return unique
 
-	def resetExportRange
-		exportStartIdx = 0
-		exportEndIdx = 0
+	def getVerseNumbers
+		return getChapterVerseNumbers!
 
 	def clampCurrentVerse
-		let nums = getVerseNumbers!
-		if nums.length == 0 and activities.selectedVerses and activities.selectedVerses.length
-			nums = activities.selectedVerses.map(do |n| return Number(n)).sort(do |a, b| return a - b)
+		let nums = getChapterVerseNumbers!
 		if nums.length == 0
 			currentVerse = 0
 			return
 		if currentVerse <= 0 or !nums.includes(currentVerse)
-			if activities.selectedVerses and activities.selectedVerses.length
-				currentVerse = Number(activities.selectedVerses[activities.selectedVerses.length - 1])
+			let selected = getSelectedVerseNumbers!
+			if selected.length
+				currentVerse = selected[selected.length - 1]
 			else
 				currentVerse = nums[0]
-		if !nums.includes(currentVerse)
-			let nearest = nums[0]
-			let nearestDistance = Math.abs(nums[0] - currentVerse)
-			for n in nums
-				let d = Math.abs(n - currentVerse)
-				if d < nearestDistance
-					nearestDistance = d
-					nearest = n
-			currentVerse = nearest
+
+	def resetExportRange
+		exportStartIdx = 0
+		exportEndIdx = 0
 
 	def unmount
 		teardownObsidianUI!
