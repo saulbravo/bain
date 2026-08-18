@@ -2,6 +2,8 @@ import activities from '../lib/Activities'
 import API from '../lib/Api'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
+import { getBookName } from '../utils'
+import { localizeCommentaryRefs } from '../utils/cbaBooks'
 import X from 'lucide-static/icons/x.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
@@ -80,7 +82,7 @@ tag verse-commentary-modal
 	def loadCommentary
 		clampCurrentVerse!
 		return if currentVerse <= 0
-		let key = "{currentReader.book}:{currentReader.chapter}:{currentVerse}"
+		let key = "{currentReader.translation}:{currentReader.book}:{currentReader.chapter}:{currentVerse}"
 		return if key == lastLoadKey
 		lastLoadKey = key
 		loading = yes
@@ -89,7 +91,8 @@ tag verse-commentary-modal
 		imba.commit!
 		try
 			let payload = await API.getJson("/get-cba-commentary/{currentReader.book}/{currentReader.chapter}/{currentVerse}/")
-			commentaryHtml = payload and payload.commentaryHtml ? payload.commentaryHtml : ''
+			let html = payload and payload.commentaryHtml ? payload.commentaryHtml : ''
+			commentaryHtml = localizeCommentaryRefs(html, currentReader.translation)
 		catch err
 			error = err and err.message ? err.message : 'Unable to load commentary'
 		finally
@@ -115,7 +118,7 @@ tag verse-commentary-modal
 					<div.verse-nav>
 						<button.nav-btn @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
 							<svg src=ChevronLeft>
-						<p.verse-ref> "{currentReader.nameOfCurrentBook} {currentReader.chapter}:{currentVerse}"
+						<p.verse-ref> "{getBookName(currentReader.translation, currentReader.book)} {currentReader.chapter}:{currentVerse}"
 						<button.nav-btn @click=stepVerse(1) disabled=!canGoNext title="Next verse">
 							<svg src=ChevronRight>
 				<button.close-btn @click=close title="Close">

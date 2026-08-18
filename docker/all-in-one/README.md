@@ -4,7 +4,7 @@ Deploy Bolls Bible as one Docker image: PostgreSQL, Django, Imba, and Nginx run 
 
 ## Docker Hub image
 
-`docker.io/maxivious/bolls:v2.0`
+`docker.io/maxivious/bolls:v2.01`
 
 Published from this repo via `make build-all-in-one` and `make publish-all-in-one`.
 
@@ -14,7 +14,7 @@ Published from this repo via `make build-all-in-one` and `make publish-all-in-on
 2. **Application name:** `bolls` (or any name you prefer).
 3. **Container image:**
    - Repository: `maxivious/bolls`
-   - Tag: `v2.0`
+   - Tag: `v2.01`
 4. Leave **Entrypoint**, **CMD**, and **Args** empty (use image defaults).
 5. **Port forwarding:**
 
@@ -61,11 +61,11 @@ Alternatively, import your own PostgreSQL dump into the mounted data directory b
 ## Local test
 
 ```bash
-podman build -f docker/all-in-one/Dockerfile -t maxivious/bolls:v2.0 .
+podman build -f docker/all-in-one/Dockerfile -t maxivious/bolls:v2.01 .
 podman run --rm -p 8080:80 \
   -v bolls-pgdata:/var/lib/postgresql/data \
   -e AUTO_RESTORE_DB=1 \
-  maxivious/bolls:v2.0
+  maxivious/bolls:v2.01
 ```
 
 Then open http://localhost:8080/
@@ -81,8 +81,8 @@ make publish-all-in-one
 Or manually:
 
 ```bash
-podman build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v2.0 .
-podman push docker.io/maxivious/bolls:v2.0
+podman build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v2.01 .
+podman push docker.io/maxivious/bolls:v2.01
 ```
 
 Tag a new release by changing the version in the Makefile `build-all-in-one` / `publish-all-in-one` targets and in this README.
@@ -100,4 +100,4 @@ Tag a new release by changing the version in the Makefile `build-all-in-one` / `
 | Setup | Use case |
 |-------|----------|
 | `docker compose up` (see [docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md](../../docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md)) | Local development |
-| `maxivious/bolls:v2.0` all-in-one image | TrueNAS Scale, single-container production |
+| `maxivious/bolls:v2.01` all-in-one image | TrueNAS Scale, single-container production |

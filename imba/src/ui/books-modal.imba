@@ -24,6 +24,7 @@ import vault from '../lib/Vault'
 import user from '../lib/User'
 import readingHistory from '../lib/ReadingHistory'
 import goToBook from '../lib/GoToBook'
+import { localizedBookAbbreviation } from '../utils/cbaBooks'
 
 
 tag books-modal
@@ -112,25 +113,12 @@ tag books-modal
 			return 'bible-color-green'
 		return ''
 
-	# Book abbreviation mapping (similar to Obsidian plugin)
-	def getBookAbbreviation bookNumber\number
-		const abbreviations = {
-			1: "GEN", 2: "EX", 3: "LEV", 4: "NUM", 5: "DEU",
-			6: "JOS", 7: "JDG", 8: "RTH", 9: "1SA", 10: "2SA",
-			11: "1KI", 12: "2KI", 13: "1CH", 14: "2CH", 15: "EZR",
-			16: "NEH", 17: "EST", 18: "JOB", 19: "PSA", 20: "PRV",
-			21: "ECC", 22: "SOS", 23: "ISA", 24: "JER", 25: "LAM",
-			26: "EZE", 27: "DAN", 28: "HOS", 29: "JOE", 30: "AMO",
-			31: "OBD", 32: "JON", 33: "MIC", 34: "NAH", 35: "HAB",
-			36: "ZEP", 37: "HAG", 38: "ZEC", 39: "MAL",
-			40: "MAT", 41: "MRK", 42: "LUK", 43: "JN",
-			44: "ACT", 45: "ROM", 46: "1CO", 47: "2CO", 48: "GAL",
-			49: "EPH", 50: "PHP", 51: "COL", 52: "1TH", 53: "2TH",
-			54: "1TI", 55: "2TI", 56: "TIT", 57: "PHM",
-			58: "HEB", 59: "JAM", 60: "1PE", 61: "2PE", 62: "1JN",
-			63: "2JN", 64: "3JN", 65: "JUD", 66: "REV"
-		}
-		return abbreviations[bookNumber] || "???"
+	# Compact label derived from the active translation's book name.
+	def getBookAbbreviation bookOrId
+		let book = bookOrId
+		if typeof bookOrId == 'number'
+			book = books.find(do(b) return b.bookid == bookOrId)
+		return localizedBookAbbreviation(book, no)
 
 	def setActiveTranslation parallel\boolean
 		activities.activeParallelAtBooksDrawer = parallel
@@ -181,7 +169,7 @@ tag books-modal
 			if !book
 				return no
 			const bookName = book.name.toLowerCase()
-			const abbr = getBookAbbreviation(item.book).toLowerCase()
+			const abbr = getBookAbbreviation(book).toLowerCase()
 			return bookName.includes(query) or abbr.includes(query) or item.chapter.toString().includes(query) or (item.verse and item.verse.toString().includes(query))
 		).slice(0, 10)
 
@@ -630,7 +618,7 @@ tag books-modal
 								const isSelected = selectedBook == bookIndex or (selectedBook == null and book.bookid == activeBook)
 								const colorClass = getBookColorClass(book.bookid)
 								<button.bible-book-btn .bible-color-red=(colorClass == 'bible-color-red') .bible-color-blue=(colorClass == 'bible-color-blue') .bible-color-orange=(colorClass == 'bible-color-orange') .bible-color-purple=(colorClass == 'bible-color-purple') .bible-color-green=(colorClass == 'bible-color-green') .active=isSelected @click=selectBook(bookIndex)>
-									<div.bible-book-abbreviation> getBookAbbreviation(book.bookid)
+									<div.bible-book-abbreviation> getBookAbbreviation(book)
 									if showFullBookNames
 										<div.bible-book-name> book.name
 					# New Testament
@@ -643,7 +631,7 @@ tag books-modal
 								const isSelected = selectedBook == bookIndex or (selectedBook == null and book.bookid == activeBook)
 								const colorClass = getBookColorClass(book.bookid)
 								<button.bible-book-btn .bible-color-red=(colorClass == 'bible-color-red') .bible-color-blue=(colorClass == 'bible-color-blue') .bible-color-orange=(colorClass == 'bible-color-orange') .bible-color-purple=(colorClass == 'bible-color-purple') .bible-color-green=(colorClass == 'bible-color-green') .active=isSelected @click=selectBook(bookIndex)>
-									<div.bible-book-abbreviation> getBookAbbreviation(book.bookid)
+									<div.bible-book-abbreviation> getBookAbbreviation(book)
 									if showFullBookNames
 										<div.bible-book-name> book.name
 			elif modalState == 'chapter' and selectedBook != null
