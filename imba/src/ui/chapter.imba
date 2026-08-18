@@ -1062,7 +1062,9 @@ tag chapter < section
 					for verse, verse_index in (me.verses or [])
 						let bookmark = me.getBookmark(verse.pk)
 						let bookmarkOnly = me.getBookmarkOnly(verse.pk)
-						let superStyle = "padding-bottom:{0.8 * theme.lineHeight}em;padding-top:{theme.lineHeight - 1}em;scroll-margin-top:1.4rem;"
+						let displayCollection = bookmark ? me.stripBookmarkMarker(bookmark.collection) : ''
+						let showBookmarkNote = bookmark and (displayCollection or bookmark.note) and not me.nextVerseHasTheSameBookmark(verse_index)
+						let superStyle = "scroll-margin-top:1.4rem;"
 						let verseText = getVerseText(verse)
 
 						<>
@@ -1080,15 +1082,26 @@ tag chapter < section
 												return
 											me.findVerse("{versePrefix}{verse.verse}")
 										)>
-										<span.verse-marker-slot aria-hidden=yes>
-											if bookmarkOnly
-												<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
-													<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
-										<span.verse-number-text>
-											if settings.verse_break
-												'\u2007'
-											verse.verse
-											"\u2007"
+										<span.verse-number-group>
+											<span.verse-marker-slot aria-hidden=yes>
+												if bookmarkOnly
+													if showBookmarkNote
+														<note-tooltip compact style=superStyle bookmark=bookmark>
+															<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
+																<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+													else
+														<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
+															<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+												elif showBookmarkNote
+													<note-tooltip compact style=superStyle bookmark=bookmark>
+														<svg src=Bookmark aria-hidden=yes>
+												else
+													<span.verse-marker-spacer aria-hidden=yes>
+											<span.verse-number-text>
+												if settings.verse_break
+													'\u2007'
+												verse.verse
+												"\u2007"
 								else
 									unless settings.verse_break
 										<span> ' '
@@ -1107,12 +1120,6 @@ tag chapter < section
 									@keydown.enter=me.saveBookmark
 									[scroll-margin-top: 1.4rem]
 								>
-							let displayCollection = bookmark ? me.stripBookmarkMarker(bookmark.collection) : ''
-							if bookmark and not me.nextVerseHasTheSameBookmark(verse_index) and (displayCollection || bookmark.note)
-								<note-tooltip style=superStyle bookmark=bookmark>
-									<svg src=Bookmark>
-										<title> displayCollection + ': ' + bookmark.note
-
 							if verse.comment and settings.verse_commentary
 								<note-tooltip style=superStyle bookmark=verse.comment>
 									<span[c:$acc @hover:$acc-hover]> '†'
@@ -1261,27 +1268,41 @@ tag chapter < section
 			fs: 0.68em
 			c: $acc @hover:$acc-hover
 			bgc@hover:$acc-bgc-hover
-			vertical-align: super
-			white-space: nowrap
+			vertical-align: baseline
 			border-radius: 0.25rem
 			padding: 0
+
+		.verse-number-group
+			d: inline-block
+			white-space: nowrap
+			vertical-align: baseline
+			text-align: left
+			line-height: 1
 
 		.verse-marker-slot
 			d: inline-block
 			width: 0.85em
+			min-width: 0.85em
 			height: 0.85em
-			vertical-align: super
-			line-height: 0
+			vertical-align: baseline
+			line-height: 1
 			overflow: hidden
+			text-align: center
+
+		.verse-marker-spacer
+			d: inline-block
+			width: 100%
+			height: 100%
 
 		.verse-bookmark-icon
 			width: 0.85em
 			height: 0.85em
 			pointer-events: none
-			d: block
+			d: inline-block
+			vertical-align: baseline
 
 		.verse-number-text
-			vertical-align: super
+			vertical-align: baseline
 			d: inline
 
 		note-tooltip svg

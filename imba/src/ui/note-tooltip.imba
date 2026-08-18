@@ -7,6 +7,7 @@ import X from 'lucide-static/icons/x.svg'
 
 tag note-tooltip
 	prop bookmark\(string|Bookmark)
+	prop compact = no
 
 	#show = no
 	#textToRender = ''
@@ -15,6 +16,8 @@ tag note-tooltip
 	cleanupAutoupdate = null
 
 	get anchorElement
+		if compact
+			return self.querySelector('svg') or self.firstElementChild or self
 		return self.childNodes[1] || self
 
 	def updatePosition
@@ -58,10 +61,12 @@ tag note-tooltip
 			updatePosition.bind(this),
 		);
 
-	<self @click=toggle>
-		'\u2007\u2007'
+	<self @click=toggle .compact=compact>
+		unless compact
+			'\u2007\u2007'
 		<slot>
-		"  "
+		unless compact
+			"  "
 		if #show
 			<aside$content @click.stop [o@off:0 scale@off:0.95 origin:top center maw:{theme.maxWidth}em t:{contentPosition.y}px l:{contentPosition.x}px] ease>
 				<p innerHTML=#textToRender>
@@ -79,6 +84,11 @@ tag note-tooltip
 		fill:$acc-color @hover:$acc-color-hover
 		stroke:$acc-color @hover:$acc-color-hover
 		bg@hover:$acc-bgc-hover
+
+		&.compact
+			vertical-align: baseline
+			line-height: 1
+			bg@hover:transparent
 
 
 	css aside

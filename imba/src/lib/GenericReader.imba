@@ -493,7 +493,8 @@ class GenericReader
 
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs
-			if bookmarks.find(do |element| return element.verse == verse)
+			let entry = bookmarks.find(do |element| return element.verse == verse)
+			if entry and isExplicitBookmarkEntry(entry)
 				return yes
 		return no
 
