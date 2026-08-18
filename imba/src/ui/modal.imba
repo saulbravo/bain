@@ -178,7 +178,7 @@ tag modal < section
 
 	def render
 		<self
-			[pos:fixed inset:0 bg:{backdropColor} h:100% d:flex ai:flex-start jc:center p:6vh 0 @lt-sm:0 o@off:0 zi:{activities.activeModal == "notes" ? 1200 : 3}]
+			[pos:fixed inset:0 bg:{backdropColor} h:100% d:flex ai:flex-start jc:center p:6vh 0 @lt-sm:0 o@off:0 zi:1200]
 			@click=activities.cleanUp ease>
 
 			<[
