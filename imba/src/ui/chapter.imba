@@ -1074,17 +1074,19 @@ tag chapter < section
 								if settings.verse_number
 									unless settings.verse_break
 										<span> ' '
-									<span.verse.eq_ck .bookmarked=bookmarkOnly dir="ltr" style=superStyle
+									<span.verse dir="ltr" style=superStyle
 										@click=(do
 											if activities.freehandHighlightMode or activities.penToolMode
 												return
 											me.findVerse("{versePrefix}{verse.verse}")
 										)>
-										if bookmarkOnly
-											<svg.eq_cn.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
-												<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+										<span.verse-marker-slot aria-hidden=yes>
+											if bookmarkOnly
+												<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
+													<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
 										<span.verse-number-text>
-											if settings.verse_break then '\u2007' else'\u2007\u2007\u2007'
+											if settings.verse_break
+												'\u2007'
 											verse.verse
 											"\u2007"
 								else
@@ -1260,27 +1262,27 @@ tag chapter < section
 			c: $acc @hover:$acc-hover
 			bgc@hover:$acc-bgc-hover
 			vertical-align: super
-			white-space: pre
+			white-space: nowrap
 			border-radius: 0.25rem
-			&.bookmarked
-				padding: 0
+			padding: 0
 
-		.eq_cn.verse-bookmark-icon
-			position: absolute
-			left: 69%
-			top: 45%
-			transform: translate(-50%, -50%)
-			zi: 0
+		.verse-marker-slot
+			d: inline-block
+			width: 0.85em
+			height: 0.85em
+			vertical-align: super
+			line-height: 0
+			overflow: hidden
+
+		.verse-bookmark-icon
+			width: 0.85em
+			height: 0.85em
 			pointer-events: none
-			width: 2em
-			height: 2em
+			d: block
 
 		.verse-number-text
-			pos: relative
-			zi: 1
-
-		.verse.eq_ck.bookmarked
-			pos: relative
+			vertical-align: super
+			d: inline
 
 		note-tooltip svg
 			c:$acc @hover:$acc-hover
