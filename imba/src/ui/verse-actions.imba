@@ -16,6 +16,7 @@ import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
+import { hasTouchEvents } from '../constants'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 
@@ -94,8 +95,12 @@ tag verse-actions < section
 			return reader.selectionHasBookmark
 		return parallelReader.selectionHasBookmark
 
-	def clearAllHighlights
-		if window.confirm("Clear all highlights in this chapter?")
+	def clearAllHighlights e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if hasTouchEvents or window.confirm("Clear all highlights in this chapter?")
 			if activities.selectedParallel == 'main'
 				reader.clearAllChapterHighlights!
 			else
@@ -280,7 +285,7 @@ tag verse-actions < section
 				) title=(t.verse_commentary or "Verse commentary")>
 					<svg src=BookOpenText aria-hidden=yes>
 			<li>
-				<button @click=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
+				<button @click.stop.prevent=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
 					<svg src=Trash2 aria-hidden=yes>
 
 	css

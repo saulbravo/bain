@@ -112,23 +112,23 @@ tag verse-commentary-modal
 			<header>
 				<div.title-wrap>
 					<h3> "Comentario Bíblico Adventista"
-					<p.verse-ref> "{currentReader.nameOfCurrentBook} {currentReader.chapter}:{currentVerse}"
+					<div.verse-nav>
+						<button.nav-btn @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
+							<svg src=ChevronLeft>
+						<p.verse-ref> "{currentReader.nameOfCurrentBook} {currentReader.chapter}:{currentVerse}"
+						<button.nav-btn @click=stepVerse(1) disabled=!canGoNext title="Next verse">
+							<svg src=ChevronRight>
 				<button.close-btn @click=close title="Close">
 					<svg src=X>
-			<div.nav-row>
-				<button.nav-btn @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
-					<svg src=ChevronLeft>
-				<button.nav-btn @click=stepVerse(1) disabled=!canGoNext title="Next verse">
-					<svg src=ChevronRight>
 			<div.content>
 				if loading
-					<p> "Loading commentary..."
+					<p.status> "Loading commentary..."
 				elif error
 					<p.error> error
 				elif commentaryHtml and commentaryHtml.length
 					<div.commentary-text innerHTML=commentaryHtml>
 				else
-					<p> "No commentary available for this verse."
+					<p.status> "No commentary available for this verse."
 
 	css
 		pos: fixed
@@ -162,22 +162,34 @@ tag verse-commentary-modal
 			ai: flex-start
 			jc: space-between
 			g: 1rem
-			padding: 1rem 1rem 0.75rem
+			padding: 1rem 1.25rem 0.85rem
 			bdb: 1px solid $acc-bgc
 
 		.title-wrap
 			d: flex
 			fld: column
+			g: 0.5rem
+			fl: 1
+			min-width: 0
 
 		h3
 			m: 0
-			fs: 1.05rem
+			fs: 1rem
 			fw: 700
+			lh: 1.3
+
+		.verse-nav
+			d: flex
+			ai: center
+			g: 0.5rem
 
 		.verse-ref
-			m: 0.25rem 0 0
+			m: 0
 			c: $acc
-			fs: 0.9rem
+			fs: 0.95rem
+			fw: 600
+			ta: center
+			fl: 1
 
 		.close-btn
 			bgc: transparent
@@ -185,37 +197,53 @@ tag verse-commentary-modal
 			p: 0.25rem
 			rd: 0.375rem
 			cursor: pointer
+			flex-shrink: 0
 			svg
 				size: 1.2rem
-
-		.nav-row
-			d: flex
-			jc: space-between
-			padding: 0.5rem 1rem
-			bdb: 1px solid $acc-bgc
 
 		.nav-btn
 			bgc: $acc-bgc
 			c: $c
-			p: 0.35rem 0.6rem
+			p: 0.3rem
 			rd: 0.4rem
 			cursor: pointer
 			d: hcc
+			flex-shrink: 0
 			&:disabled
-				opacity: 0.4
+				opacity: 0.35
 				cursor: not-allowed
 			svg
-				size: 1.1rem
+				size: 1rem
 
 		.content
 			overflow: auto
-			padding: 1rem
-			lh: 1.55
+			padding: 1.25rem
+			lh: 1.65
 			-webkit-overflow-scrolling: touch
 
 		.commentary-text
-			white-space: normal
 			word-break: break-word
+			text-align: left
+
+			p
+				m: 0 0 1rem
+				&:last-child
+					m-bottom: 0
+
+			.cba-heading
+				m-bottom: 0.35rem
+				c: $acc
+				fw: 600
+				fs: 0.95rem
+
+		.status
+			m: 0
+			c: $acc
+			ta: center
+			padding-block: 2rem
 
 		.error
 			c: #ef4444
+			m: 0
+			ta: center
+			padding-block: 2rem

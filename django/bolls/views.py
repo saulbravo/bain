@@ -61,8 +61,26 @@ def _decode_cmtx_text(raw_text):
 def _plain_text_to_html(text):
     if not text:
         return ""
-    safe = html.escape(text)
-    return safe.replace("\n", "<br>")
+
+    text = str(text).replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+
+    paragraphs = []
+    for block in re.split(r"\n\n+", text):
+        block = block.strip()
+        if not block or block == "Comentario Bíblico Adventista":
+            continue
+        for part in re.split(r"\n(?=\s{2,})", block):
+            part = re.sub(r"^[ \t]+", "", part.strip())
+            if not part:
+                continue
+            safe = html.escape(part).replace("\n", "<br>")
+            if part.startswith("[") and re.match(r"^\[[A-Za-z0-9_:]+", part):
+                paragraphs.append(f'<p class="cba-heading">{safe}</p>')
+            else:
+                paragraphs.append(f"<p>{safe}</p>")
+
+    return "".join(paragraphs)
 
 
 def get_cba_commentary_text(book, chapter, verse):
