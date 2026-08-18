@@ -21,7 +21,8 @@ tag bible-tabs
 		d: block
 		w: 100%
 		bgc: transparent
-		overflow: hidden
+		overflow-x: auto
+		overflow-y: visible
 		scrollbar-width: none
 		&::-webkit-scrollbar
 			d: none
@@ -30,13 +31,25 @@ tag bible-tabs
 			d: flex
 			ai: flex-end
 			gap: 4px
-			border-bottom: 1px solid $acc-bgc
+			pos: relative
 			w: 100%
 			min-width: 0
 			box-sizing: border-box
-			overflow: hidden
+			overflow: visible
+
+			&::after
+				content: ''
+				pos: absolute
+				left: 0
+				right: 0
+				bottom: 0
+				h: 1px
+				bgc: $acc-bgc
+				zi: 0
+				pointer-events: none
 
 		.tab
+			pos: relative
 			d: flex
 			ai: center
 			gap: 8px
@@ -47,18 +60,29 @@ tag bible-tabs
 			transition: all 0.2s
 			jc: space-between
 			border: 1px solid transparent
-			border-bottom: 1px solid transparent
-			mb: -1px
-			zi: 0
+			border-bottom: none
+			zi: 1
 			flex: 1 1 0
 			min-width: 0
-			overflow: hidden
+			overflow: visible
 
 			&.active
 				bgc: $bgc
 				bd: 1px solid $acc-bgc
-				border-bottom-color: $bgc
-				zi: 1
+				border-bottom: none
+				zi: 3
+
+				&::after
+					content: ''
+					pos: absolute
+					left: -1px
+					right: -1px
+					bottom: -2px
+					h: 3px
+					bgc: $bgc
+					zi: 4
+					pointer-events: none
+
 				.tab-name
 					fw: bold
 					c: $acc

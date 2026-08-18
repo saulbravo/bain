@@ -1245,7 +1245,8 @@ tag chapter < section
 			max-width: 100%
 			min-width: 0
 			box-sizing: border-box
-			overflow-x: hidden
+			overflow-x: clip
+			overflow-y: visible
 
 		section .arrowh
 			transition-property: fill, color, background, transform, border-radius
