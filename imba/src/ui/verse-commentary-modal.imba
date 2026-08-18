@@ -22,6 +22,7 @@ tag verse-commentary-modal
 	lastLoadKey = ''
 	#obsidianRoot = null
 	#onObsidianScroll = null
+	#obsidianBlockClicks = []
 	obsidianDragging = no
 	obsidianDragHandle = ''
 	lastDragBlockIdx = -1
@@ -136,11 +137,14 @@ tag verse-commentary-modal
 		obsidianMode = !obsidianMode
 		if obsidianMode
 			resetExportRange!
-			buildObsidianUI!
+			imba.commit!
+			imba.commit!.then do
+				applyCommentaryTypography!
+				buildObsidianUI!
 		else
 			stopObsidianDragListeners!
 			teardownObsidianUI!
-		imba.commit!
+			imba.commit!
 
 	def ensureObsidianDragBindings
 		unless #boundObsidianMove
@@ -205,19 +209,26 @@ tag verse-commentary-modal
 			depth++
 		return -1
 
+	def getObsidianBlockElements
+		let reading = getContentEl! and getContentEl!.querySelector('.commentary-text')
+		if !reading
+			return []
+		return reading.querySelectorAll('[data-block-idx]')
+
 	def findBlockIndexFromY clientY\number
-		let sectionsWrap = #obsidianRoot and #obsidianRoot.querySelector('.commentary-obsidian-sections')
-		if !sectionsWrap
-			return -1
-		let nodes = sectionsWrap.children
+		let nodes = getObsidianBlockElements!
 		if !nodes or nodes.length == 0
 			return -1
 		for i in [0 .. nodes.length - 1]
 			let rect = nodes[i].getBoundingClientRect()
 			let midY = rect.top + (rect.height / 2)
 			if clientY <= midY
-				return i
-		return nodes.length - 1
+				let idx = parseInt(nodes[i].dataset.blockIdx, 10)
+				if !isNaN(idx)
+					return idx
+		let last = nodes[nodes.length - 1]
+		let lastIdx = parseInt(last.dataset.blockIdx, 10)
+		return isNaN(lastIdx) ? nodes.length - 1 : lastIdx
 
 	def handleObsidianDrag e
 		if !obsidianDragging or !obsidianMode or !e or typeof e.type != 'string'
@@ -244,17 +255,12 @@ tag verse-commentary-modal
 					exportStartIdx = Math.min(idx, exportEndIdx)
 				elif obsidianDragHandle == 'bottom'
 					exportEndIdx = Math.max(idx, exportStartIdx)
-				imba.commit!
 			updateObsidianBox!
 			obsidianDragRAF = null
 		)
 
 	def handleObsidianDragEnd e
 		stopObsidianDragListeners!
-		#obsidianBlockClickLock = yes
-		setTimeout(&, 50) do
-			#obsidianBlockClickLock = no
-		imba.commit!
 
 	def handleObsidianBlockClick idx\number, e
 		if !obsidianMode or obsidianDragging or #obsidianBlockClickLock
@@ -265,30 +271,29 @@ tag verse-commentary-modal
 		e.stopPropagation()
 		exportStartIdx = idx
 		exportEndIdx = idx
-		imba.commit!
 		updateObsidianBox!
 
 	def updateObsidianBox
 		unless obsidianMode or !#obsidianRoot
 			return
 		window.requestAnimationFrame do
-			let host = #obsidianRoot.querySelector('.commentary-obsidian-host')
-			let sectionsWrap = #obsidianRoot.querySelector('.commentary-obsidian-sections')
+			let contentEl = getContentEl!
+			let readingEl = contentEl and contentEl.querySelector('.commentary-text')
 			let box = #obsidianRoot.querySelector('.commentary-obsidian-box')
-			if !host or !sectionsWrap or !box or commentaryBlocks.length == 0
+			if !contentEl or !readingEl or !box or commentaryBlocks.length == 0
 				if box
 					box.style.display = 'none'
 				return
-			let startEl = sectionsWrap.querySelector("[data-block-idx=\"{exportStartIdx}\"]")
-			let endEl = sectionsWrap.querySelector("[data-block-idx=\"{exportEndIdx}\"]")
+			let startEl = readingEl.querySelector("[data-block-idx=\"{exportStartIdx}\"]")
+			let endEl = readingEl.querySelector("[data-block-idx=\"{exportEndIdx}\"]")
 			if !startEl or !endEl
 				box.style.display = 'none'
 				return
-			let hostRect = host.getBoundingClientRect()
+			let contentRect = contentEl.getBoundingClientRect()
 			let startRect = startEl.getBoundingClientRect()
 			let endRect = endEl.getBoundingClientRect()
-			let top = startRect.top - hostRect.top + host.scrollTop - 6
-			let bottom = endRect.bottom - hostRect.top + host.scrollTop + 6
+			let top = startRect.top - contentRect.top + contentEl.scrollTop - 6
+			let bottom = endRect.bottom - contentRect.top + contentEl.scrollTop + 6
 			box.style.display = 'block'
 			box.style.top = "{Math.max(0, top)}px"
 			box.style.height = "{Math.max(24, bottom - top)}px"
@@ -297,9 +302,7 @@ tag verse-commentary-modal
 			else
 				box.style.transition = 'top 150ms ease, height 150ms ease'
 
-	def sendCommentaryToObsidian
-		unless obsidianMode
-			return
+	def getObsidianExportTexts
 		let start = Math.min(exportStartIdx, exportEndIdx)
 		let end = Math.max(exportStartIdx, exportEndIdx)
 		let texts = []
@@ -307,6 +310,28 @@ tag verse-commentary-modal
 			let block = commentaryBlocks[i]
 			if block and block.text
 				texts.push(block.text)
+		if texts.length == 0
+			let reading = getContentEl! and getContentEl!.querySelector('.commentary-text')
+			if reading
+				for i in [start .. end]
+					let el = reading.querySelector("[data-block-idx=\"{i}\"]")
+					if el
+						let t = String(el.textContent or '').trim()
+						if t
+							texts.push(t)
+		return texts
+
+	def postObsidianMessage message
+		let payload = JSON.parse(JSON.stringify(message))
+		if window.parent and window.parent != window
+			window.parent.postMessage(payload, '*')
+		if window.top and window.top != window
+			window.top.postMessage(payload, '*')
+
+	def sendCommentaryToObsidian
+		unless obsidianMode
+			return
+		let texts = getObsidianExportTexts!
 		if texts.length == 0
 			return
 		let messageToSend = {
@@ -322,7 +347,7 @@ tag verse-commentary-modal
 			bookId: Number(currentReader.book or 1)
 		}
 		try
-			window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
+			postObsidianMessage(messageToSend)
 		catch postError
 			pass
 
@@ -343,6 +368,7 @@ tag verse-commentary-modal
 		btn.style.alignItems = 'center'
 		btn.style.justifyContent = 'center'
 		btn.style.pointerEvents = 'auto'
+		btn.style.zIndex = '12'
 		if side == 'left'
 			btn.style.left = '0'
 			btn.style.borderRadius = '6px 0 0 6px'
@@ -367,31 +393,64 @@ tag verse-commentary-modal
 		else
 			handle.style.bottom = '-4px'
 
+	def clearCommentaryObsidianAnnotations
+		if #obsidianBlockClicks and #obsidianBlockClicks.length
+			for item in #obsidianBlockClicks
+				if item.el and item.handler
+					item.el.removeEventListener('click', item.handler)
+					item.el.removeAttribute('data-block-idx')
+					item.el.style.cursor = ''
+			#obsidianBlockClicks = []
+
+	def annotateCommentaryBlocksForObsidian
+		clearCommentaryObsidianAnnotations!
+		let reading = getContentEl! and getContentEl!.querySelector('.commentary-text')
+		if !reading
+			return no
+		let paras = reading.querySelectorAll('p')
+		if !paras or paras.length == 0
+			return no
+		let modal = self
+		let blockIdx = 0
+		for i in [0 .. paras.length - 1]
+			let p = paras[i]
+			let text = String(p.textContent or '').trim()
+			if !text
+				continue
+			p.dataset.blockIdx = String(blockIdx)
+			p.style.cursor = 'pointer'
+			let idx = blockIdx
+			let handler = do |e|
+				modal.handleObsidianBlockClick(idx, e)
+			p.addEventListener('click', handler)
+			#obsidianBlockClicks.push({ el: p, handler: handler })
+			blockIdx++
+		return blockIdx > 0
+
 	def teardownObsidianUI
 		stopObsidianDragListeners!
-		if #onObsidianScroll and #obsidianRoot
-			let host = #obsidianRoot.querySelector('.commentary-obsidian-host')
-			if host
-				host.removeEventListener('scroll', #onObsidianScroll)
+		if #onObsidianScroll
+			let contentEl = getContentEl!
+			if contentEl
+				contentEl.removeEventListener('scroll', #onObsidianScroll)
 		if #obsidianRoot
 			#obsidianRoot.remove()
 			#obsidianRoot = null
-		let readingEl = getContentEl! and getContentEl!.querySelector('.commentary-text')
-		if readingEl
-			readingEl.style.display = ''
+		clearCommentaryObsidianAnnotations!
+		let contentEl = getContentEl!
+		if contentEl
+			contentEl.classList.remove('commentary-obsidian-active')
 
 	def buildObsidianUI
 		teardownObsidianUI!
 		let contentEl = getContentEl!
 		if !contentEl or commentaryBlocks.length == 0
 			return
-		let readingEl = contentEl.querySelector('.commentary-text')
-		if readingEl
-			readingEl.style.display = 'none'
+		unless annotateCommentaryBlocksForObsidian!
+			return
+		contentEl.classList.add('commentary-obsidian-active')
 		let root = document.createElement('div')
-		let host = document.createElement('div')
-		host.className = 'commentary-obsidian-host'
-		host.style.position = 'relative'
+		root.className = 'commentary-obsidian-root'
 		let box = document.createElement('div')
 		box.className = 'commentary-obsidian-box'
 		box.style.position = 'absolute'
@@ -411,10 +470,15 @@ tag verse-commentary-modal
 		insertBtn.type = 'button'
 		insertBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>'
 		styleObsidianSideButton(insertBtn, 'left')
+		insertBtn.style.zIndex = '12'
 		insertBtn.addEventListener('click', do |e|
 			e.preventDefault()
 			e.stopPropagation()
 			modal.sendCommentaryToObsidian!
+		)
+		insertBtn.addEventListener('pointerdown', do |e|
+			e.preventDefault()
+			e.stopPropagation()
 		)
 		let closeBtn = document.createElement('button')
 		closeBtn.type = 'button'
@@ -439,37 +503,12 @@ tag verse-commentary-modal
 		box.appendChild(bottomHandle)
 		box.appendChild(insertBtn)
 		box.appendChild(closeBtn)
-		let sections = document.createElement('div')
-		sections.className = 'commentary-obsidian-sections'
-		sections.style.position = 'relative'
-		sections.style.zIndex = '1'
-		for block, idx in commentaryBlocks
-			let blockEl = document.createElement('div')
-			blockEl.dataset.blockIdx = String(idx)
-			blockEl.style.padding = "0 30px {0.8 * commentaryLineHeight}em"
-			blockEl.style.paddingTop = idx > 0 ? "{commentaryLineHeight - 1}em" : '0'
-			blockEl.style.cursor = 'pointer'
-			blockEl.addEventListener('click', do |e|
-				modal.handleObsidianBlockClick(idx, e)
-			)
-			let p = document.createElement('p')
-			p.style.margin = '0'
-			p.style.wordBreak = 'break-word'
-			p.style.fontFamily = theme.fontFamily
-			p.style.fontSize = "{theme.fontSize}px"
-			p.style.lineHeight = String(commentaryLineHeight)
-			p.style.fontWeight = String(theme.fontWeight)
-			p.textContent = block.text or ''
-			blockEl.appendChild(p)
-			sections.appendChild(blockEl)
-		host.appendChild(sections)
-		host.appendChild(box)
-		root.appendChild(host)
+		root.appendChild(box)
 		contentEl.appendChild(root)
 		#obsidianRoot = root
 		unless #onObsidianScroll
 			#onObsidianScroll = updateObsidianBox.bind(self)
-		host.addEventListener('scroll', #onObsidianScroll, { passive: yes })
+		contentEl.addEventListener('scroll', #onObsidianScroll, { passive: yes })
 		updateObsidianBox!
 
 	def stepVerse delta\number
@@ -707,7 +746,21 @@ tag verse-commentary-modal
 		.content
 			overflow: auto
 			padding: 1.25rem 30px
+			margin-left: 20px
+			margin-right: 20px
 			-webkit-overflow-scrolling: touch
+
+		.content.commentary-obsidian-active
+			pos: relative
+
+		.commentary-obsidian-root
+			pos: absolute
+			top: 0
+			left: 0
+			right: 0
+			bottom: 0
+			pointer-events: none
+			zi: 2
 
 		.commentary-text
 			word-break: break-word
@@ -742,3 +795,6 @@ global css
 
 	.commentary-modal .commentary-text p:last-child
 		padding-bottom: 0
+
+	.commentary-modal .commentary-text [data-block-idx]
+		cursor: pointer

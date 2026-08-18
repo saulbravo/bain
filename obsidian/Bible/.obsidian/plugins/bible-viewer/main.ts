@@ -103,11 +103,40 @@ class BibleView extends ItemView {
 	plugin: BibleViewerPlugin;
 	iframe: HTMLIFrameElement;
 	messageHandler: (event: MessageEvent) => void;
+	lastMarkdownLeaf: WorkspaceLeaf | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: BibleViewerPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.messageHandler = this.handleMessage.bind(this);
+	}
+
+	rememberMarkdownLeaf(leaf: WorkspaceLeaf | null) {
+		if (leaf?.view instanceof MarkdownView) {
+			this.lastMarkdownLeaf = leaf;
+		}
+	}
+
+	getMarkdownViewForInsert(): MarkdownView | null {
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeView) {
+			this.lastMarkdownLeaf = activeView.leaf;
+			return activeView;
+		}
+
+		if (this.lastMarkdownLeaf?.view instanceof MarkdownView) {
+			return this.lastMarkdownLeaf.view;
+		}
+
+		const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+		for (const leaf of markdownLeaves) {
+			if (leaf.view instanceof MarkdownView) {
+				this.lastMarkdownLeaf = leaf;
+				return leaf.view;
+			}
+		}
+
+		return null;
 	}
 
 	getViewType() {
@@ -123,6 +152,14 @@ class BibleView extends ItemView {
 	}
 
 	async onOpen() {
+		this.rememberMarkdownLeaf(this.app.workspace.activeLeaf);
+
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", (leaf) => {
+				this.rememberMarkdownLeaf(leaf);
+			})
+		);
+
 		const container = this.containerEl.children[1];
 		container.empty();
 		container.addClass("bible-viewer-container");
@@ -313,8 +350,7 @@ class BibleView extends ItemView {
 		console.log("Bible Viewer: Data keys:", Object.keys(data));
 		console.log("Bible Viewer: Translation field:", data.translation);
 		
-		const activeView =
-			this.app.workspace.getActiveViewOfType(MarkdownView);
+		const activeView = this.getMarkdownViewForInsert();
 		
 		if (!activeView) {
 			console.log("Bible Viewer: No active markdown view");
@@ -395,7 +431,7 @@ class BibleView extends ItemView {
 			return;
 		}
 
-		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const activeView = this.getMarkdownViewForInsert();
 		if (!activeView) {
 			new Notice("No active note to copy commentary to.");
 			return;
