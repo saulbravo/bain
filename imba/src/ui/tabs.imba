@@ -1,20 +1,40 @@
 import activities from '../lib/Activities'
+import { hasTouchEvents } from '../constants'
 import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
 tag bible-tabs
 	prop scale = 1
+	touchInput = hasTouchEvents
 
-	<self>
+	def handleTabClick index
+		if index == activities.activeTabIndex
+			activities.toggleBooksMenu!
+		else
+			activities.switchTab(index)
+
+	def releaseTouchHover e
+		if e.pointerType != 'touch' and e.pointerType != 'pen'
+			return
+		for el in self.querySelectorAll('.tab, .close-tab, .add-tab')
+			el.blur!
+		# Surface/hybrid touch leaves :hover stuck until the next tap elsewhere.
+		let body = document.body
+		let pe = body.style.pointerEvents
+		body.style.pointerEvents = 'none'
+		requestAnimationFrame do
+			body.style.pointerEvents = pe
+
+	<self .touch-input=touchInput>
 		<div.tabs-container [padding-inline:{scale}rem]>
 			for tab, index in activities.tabs
-				<div.tab .active=(activities.activeTabIndex == index) @click=activities.switchTab(index) [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
+				<div.tab .active=(activities.activeTabIndex == index) @click=handleTabClick(index) @pointerup=releaseTouchHover [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
 					<span.tab-name [fs:{scale * 0.875}rem]> tab.name
 					if activities.tabs.length > 1
-						<div.close-tab @click.stop=activities.closeTab(index) [size:{scale * 1.25}rem]>
+						<div.close-tab @click.stop=activities.closeTab(index) @pointerup=releaseTouchHover [size:{scale * 1.25}rem]>
 							<svg src=X [size:{scale * 0.75}rem]>
 			
-			<button.add-tab @click=activities.addTab title="Add new tab" [size:{scale * 2}rem]>
+			<button.add-tab @click=activities.addTab @pointerup=releaseTouchHover title="Add new tab" [size:{scale * 2}rem]>
 				<svg src=Plus [size:{scale * 1.25}rem]>
 
 	css
@@ -66,6 +86,9 @@ tag bible-tabs
 			min-width: 0
 			overflow: visible
 
+			@hover
+				bgc: $acc-bgc-hover
+
 			&.active
 				bgc: $bgc
 				bd: 1px solid $acc-bgc
@@ -87,15 +110,8 @@ tag bible-tabs
 					fw: bold
 					c: $acc
 
-			@hover
-				bgc: $acc-bgc-hover
-
-		.tab-name
-			user-select: none
-			flex: 1 1 auto
-			min-width: 0
-			overflow: hidden
-			text-overflow: ellipsis
+				@hover
+					bgc: $bgc
 
 		.close-tab
 			d: hcc
@@ -112,7 +128,31 @@ tag bible-tabs
 			cursor: pointer
 			rd: 50%
 			flex: 0 0 auto
+			mb: 4px
 			@hover
 				bgc: $acc-bgc
-			mb: 4px
 
+		&.touch-input
+			.tab
+				@hover
+					bgc: $acc-bgc
+
+				&.active
+					@hover
+						bgc: $bgc
+
+			.close-tab
+				@hover
+					o: 0.5
+					bgc: transparent
+
+			.add-tab
+				@hover
+					bgc: transparent
+
+		.tab-name
+			user-select: none
+			flex: 1 1 auto
+			min-width: 0
+			overflow: hidden
+			text-overflow: ellipsis
