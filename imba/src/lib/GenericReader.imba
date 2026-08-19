@@ -83,6 +83,50 @@ class GenericReader
 				return yes
 		return no
 
+	# Pick a valid book/chapter for the target translation (same book when possible).
+	def normalizedPlaceForTranslation translation\string, book\number, chapter\number
+		let bookList = ALL_BOOKS[translation]
+		unless bookList and bookList.length
+			return null
+		let nextBook = book
+		let nextChapter = chapter
+		let bookEntry = bookList.find(do |b| return b.bookid == nextBook)
+		unless bookEntry
+			bookEntry = bookList[0]
+			nextBook = bookEntry.bookid
+			nextChapter = 1
+		else
+			if nextChapter < 1
+				nextChapter = 1
+			elif nextChapter > bookEntry.chapters
+				nextChapter = bookEntry.chapters
+		return { book: nextBook, chapter: nextChapter }
+
+	@action def applyTranslationChange nextTranslation\string
+		unless nextTranslation
+			return no
+		let place = normalizedPlaceForTranslation(nextTranslation, book, chapter)
+		unless place
+			notifications.push('error')
+			return no
+		self.translation = nextTranslation
+		self.book = place.book
+		self.chapter = place.chapter
+		if me == 'main' and activities
+			const path = activities.readerPath(nextTranslation, place.book, place.chapter)
+			window.history.replaceState({}, '', window.location.origin + path)
+			syncMainTabState!
+		return yes
+
+	@action def ensureValidChapterForTranslation
+		unless theChapterExistInThisTranslation book, chapter
+			let place = normalizedPlaceForTranslation(translation, book, chapter)
+			unless place
+				return no
+			self.book = place.book
+			self.chapter = place.chapter
+		return yes
+
 	@computed get chaptersOfCurrentBook
 		for book in books
 			if book.bookid == self.book

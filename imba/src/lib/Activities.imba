@@ -438,6 +438,10 @@ class Activities
 	@autorun def updateCurrentTabName
 		if isSwitchingTab
 			return
+		# Explicitly track reader location so tab labels update on translation changes.
+		const _t = reader.translation
+		const _b = reader.book
+		const _c = reader.chapter
 		applyTabStateFromReader(null, 'autorun')
 
 	@observable selectedVerses\number[] = []

@@ -28,10 +28,9 @@ tag modal < section
 	expandedLanguage = ''
 
 	@action def changeTranslation translation\string
-		unless ALL_BOOKS[translation].find(do |element| return element.bookid == reader.book)
-			reader.book = ALL_BOOKS[reader.translation][0].bookid
-			reader.chapter = 1
-		reader.translation = translation
+		unless reader.applyTranslationChange(translation)
+			return
+		reader.syncMainTabState!
 
 	@action def openTranslationInParallel translation\string
 		parallelReader.enable = yes

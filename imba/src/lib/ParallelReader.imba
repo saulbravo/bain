@@ -50,7 +50,7 @@ class ParallelReader < GenericReader
 	# Whenever translation, book or chapter changes, we need to fetch the verses for the current chapter.
 	@autorun
 	def fetchVerses
-		unless theChapterExistInThisTranslation book, chapter
+		unless ensureValidChapterForTranslation!
 			return
 		let requestId = (self._fetchId or 0) + 1
 		self._fetchId = requestId

@@ -127,15 +127,11 @@ tag books-drawer < nav
 
 	@action def changeTranslation translation\string
 		if parallelReader.enabled && activeTranslation == parallelReader.translation
-			unless ALL_BOOKS[translation].find(do |element| return element.bookid == parallelReader.book)
-				parallelReader.book = ALL_BOOKS[translation][0].bookid
-				parallelReader.chapter = 1
-			parallelReader.translation = translation
+			unless parallelReader.applyTranslationChange(translation)
+				return
 		else
-			unless ALL_BOOKS[translation].find(do |element| return element.bookid == reader.book)
-				reader.book = ALL_BOOKS[translation][0].bookid
-				reader.chapter = 1
-			reader.translation = translation
+			unless reader.applyTranslationChange(translation)
+				return
 		settings.recordRecentTranslation(translation)
 		unfoldTranslationsList = no
 
