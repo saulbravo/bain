@@ -30,6 +30,101 @@ tag reader
 	pageShowHandler = null
 	pageHideHandler = null
 	visibilityHandler = null
+	splitDragging = no
+	splitDragRAF = null
+
+	get isSplitView
+		return parallelReader.enabled or activities.commentaryCompareMode
+
+	get isStackedSplit
+		return window.innerWidth < 640
+
+	get splitMainHeight
+		return isSplitView ? '100vh' : 'auto'
+
+	get splitMainMaxHeight
+		return isSplitView ? '100vh' : 'none'
+
+	def splitFlex first = yes
+		unless isSplitView
+			return '0 1 auto'
+		const grow = first ? activities.splitRatio : (1 - activities.splitRatio)
+		return "{grow} 1 0"
+
+	def ensureSplitDragBindings
+		unless #boundSplitMove
+			#boundSplitMove = handleSplitDrag.bind(self)
+		unless #boundSplitEnd
+			#boundSplitEnd = endSplitDrag.bind(self)
+
+	def startSplitDrag e
+		return unless e
+		ensureSplitDragBindings!
+		splitDragging = yes
+		document.documentElement.setAttribute('data-split-dragging', 'true')
+		if e.target and e.target.setPointerCapture and e.pointerId != undefined
+			try
+				e.target.setPointerCapture(e.pointerId)
+			catch err
+				pass
+		document.addEventListener('pointermove', #boundSplitMove)
+		document.addEventListener('pointerup', #boundSplitEnd)
+		document.addEventListener('pointercancel', #boundSplitEnd)
+		document.addEventListener('mousemove', #boundSplitMove)
+		document.addEventListener('mouseup', #boundSplitEnd)
+		document.addEventListener('touchmove', #boundSplitMove, { passive: no })
+		document.addEventListener('touchend', #boundSplitEnd)
+		document.addEventListener('touchcancel', #boundSplitEnd)
+		handleSplitDrag(e)
+
+	def handleSplitDrag e
+		if !splitDragging or !e or typeof e.type != 'string'
+			return
+		if e.cancelable
+			e.preventDefault()
+		e.stopPropagation()
+		const container = document.getElementById('main')
+		return unless container
+		const touch = e.type.startsWith('touch') ? (e.touches and e.touches.length > 0 ? e.touches[0] : (e.changedTouches and e.changedTouches[0] ? e.changedTouches[0] : null)) : null
+		const clientX = touch ? touch.clientX : e.clientX
+		const clientY = touch ? touch.clientY : e.clientY
+		if clientX == undefined or clientY == undefined
+			return
+		if splitDragRAF
+			window.cancelAnimationFrame(splitDragRAF)
+		splitDragRAF = window.requestAnimationFrame(do
+			const rect = container.getBoundingClientRect()
+			const ratio = isStackedSplit ? (clientY - rect.top) / rect.height : (clientX - rect.left) / rect.width
+			splitDragRAF = null
+			return unless isFinite(ratio)
+			activities.setSplitRatio(ratio)
+			imba.commit!
+		)
+
+	def endSplitDrag e
+		document.documentElement.removeAttribute('data-split-dragging')
+		if #boundSplitMove
+			document.removeEventListener('pointermove', #boundSplitMove)
+			document.removeEventListener('mousemove', #boundSplitMove)
+			document.removeEventListener('touchmove', #boundSplitMove)
+		if #boundSplitEnd
+			document.removeEventListener('pointerup', #boundSplitEnd)
+			document.removeEventListener('pointercancel', #boundSplitEnd)
+			document.removeEventListener('mouseup', #boundSplitEnd)
+			document.removeEventListener('touchend', #boundSplitEnd)
+			document.removeEventListener('touchcancel', #boundSplitEnd)
+		if splitDragRAF
+			window.cancelAnimationFrame(splitDragRAF)
+			splitDragRAF = null
+		if splitDragging
+			activities.saveSplitRatio!
+		splitDragging = no
+		imba.commit!
+
+	def resetSplitRatio
+		activities.setSplitRatio(0.5)
+		activities.saveSplitRatio!
+		imba.commit!
 
 	def onPopState event
 		if event.target.hash
@@ -148,7 +243,7 @@ tag reader
 			const isVerseActions = clickTarget.closest('.verse-actions')
 			const isColorOption = clickTarget.closest('.color-option') or clickTarget.classList.contains('color-option')
 			const isButton = clickTarget.tagName == 'BUTTON' or clickTarget.closest('button')
-			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .commentary-pane, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
+			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .commentary-pane, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle, .parallel-divider')
 			
 			# If clicking on color options or inside verse-actions, preserve selection
 			if isVerseActions or isColorOption or (isButton and clickTarget.closest('section.verse-actions'))
@@ -434,19 +529,25 @@ tag reader
 	get drawerTransiton
 		(inClosingTouchZone || inTouchZone) ? '0' : '450ms'
 
+	def paneWidth mainReader = yes
+		const usable = window.innerWidth - pageSearch.drawerOffset
+		if isStackedSplit
+			return usable
+		return usable * (mainReader ? activities.splitRatio : (1 - activities.splitRatio))
+
 	def readerPadding mainReader = yes
 		if activities.commentaryCompareMode
-			# In compare mode the reader only owns half of the viewport,
-			# so the centering padding has to be computed against that half.
-			const available = (window.innerWidth - pageSearch.drawerOffset) / 2
-			const desired = Math.min(theme.maxWidth * theme.fontSize, available - 32)
+			# In compare mode the reader only owns part of the viewport,
+			# so the centering padding has to be computed against that share.
+			const available = paneWidth(mainReader)
+			const desired = Math.min(theme.maxWidth * theme.fontSize, Math.max(0, available - 32))
 			const padding = Math.max(12, (available - desired) / 2)
 			return "{padding}px"
 		if parallelReader.enabled
 			# the padding is 0 on the side of the parallel reader
 			# the parallel should not have padding in between them. Take into account text direction
 			const textDirection = translationTextDirection(mainReader ? reader.translation : parallelReader.translation)
-			const oneSidePadding = (window.innerWidth - theme.maxWidth * theme.fontSize * 2) / 2 - pageSearch.drawerOffset
+			const oneSidePadding = Math.max(0, paneWidth(mainReader) - theme.maxWidth * theme.fontSize)
 			if (textDirection == 'rtl' && mainReader) or (textDirection == 'ltr' && !mainReader)
 				return "0 {oneSidePadding}px"
 			return "{oneSidePadding}px 0"
@@ -552,16 +653,25 @@ tag reader
 			<main id="main"
 				.parallel_text=parallelReader.enabled .hide-comments=!settings.verse_commentary .parallels=(parallelReader.enabled or activities.commentaryCompareMode) .commentary-compare=activities.commentaryCompareMode
 				[pos:{(parallelReader.enabled or activities.commentaryCompareMode) ? 'relative' : 'static'} ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight} ta:{theme.align} fl:1]
-				[height:{activities.commentaryCompareMode ? '100vh' : 'auto'} max-height:{activities.commentaryCompareMode ? '100vh' : 'none'} min-height:0 overflow-y:{activities.commentaryCompareMode ? 'hidden' : 'visible'}]
+				[height:{splitMainHeight} max-height:{splitMainMaxHeight} min-height:0 overflow:{isSplitView ? 'hidden' : 'visible'}]
 				[data-bm={((reader.bookmarks and reader.bookmarks.length) or 0) + '-' + (parallelReader.enabled ? ((parallelReader.bookmarks and parallelReader.bookmarks.length) or 0) : 0)}]
 				>
-				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!} box-sizing:border-box height:{activities.commentaryCompareMode ? '100%' : 'auto'} max-height:{activities.commentaryCompareMode ? '100%' : '100vh'} min-height:0] />
-				if activities.commentaryCompareMode
-					<div.parallel-divider aria-hidden=yes>
-					<verse-commentary-modal />
-				elif parallelReader.enabled
-					<div.parallel-divider aria-hidden=yes>
-					<chapter id="parallel-reader" me=parallelReader [padding-inline:{readerPadding(no)}] versePrefix="p" />
+				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!} box-sizing:border-box flex:{splitFlex(yes)} height:auto max-height:{isSplitView ? 'none' : '100vh'} min-width:0 min-height:0] />
+				if isSplitView
+					<div.parallel-divider>
+						<span.parallel-divider-line aria-hidden=yes>
+						<div.parallel-divider-handle
+							role="separator"
+							title=(t.parallel or "Resize")
+							@pointerdown.prevent.stop=startSplitDrag
+							@mousedown.prevent.stop=startSplitDrag
+							@touchstart.prevent.stop=startSplitDrag
+							@dblclick.prevent.stop=resetSplitRatio>
+							<span.parallel-divider-grip aria-hidden=yes>
+					if activities.commentaryCompareMode
+						<verse-commentary-modal />
+					else
+						<chapter id="parallel-reader" me=parallelReader [padding-inline:{readerPadding(no)} box-sizing:border-box flex:{splitFlex(no)} height:auto max-height:none min-width:0 min-height:0] versePrefix="p" />
 
 			<global
 				@hotkey('mod+shift+f|mod+k').force.prevent.stop.cleanUpSelection=activities.showSearch
@@ -832,35 +942,84 @@ tag reader
 				overflow: hidden
 
 			.parallel-divider
-				flex: 0 0 2px
+				flex: 0 0 16px
 				align-self: stretch
 				flex-shrink: 0
-				bgc: $acc-bgc
+				bgc: transparent
 				border: none
 				p: 0
 				m: 0
+				pos: relative
+				overflow: visible
+				zi: 25
 
 				@lt-sm
 					align-self: auto
 					w: 100%
+					h: 16px
+					flex: 0 0 16px
+
+			.parallel-divider-line
+				pos: absolute
+				left: 50%
+				top: 0
+				bottom: 0
+				w: 2px
+				transform: translateX(-50%)
+				bgc: $acc-bgc
+				pointer-events: none
+
+				@lt-sm
+					left: 0
+					right: 0
+					top: 50%
+					bottom: auto
+					w: auto
 					h: 2px
-					flex: 0 0 2px
+					transform: translateY(-50%)
+
+			.parallel-divider-handle
+				pos: absolute
+				left: 50%
+				top: 50%
+				transform: translate(-50%, -50%)
+				d: hcc
+				w: 16px
+				h: 84px
+				p: 0
+				m: 0
+				bgc: $bgc
+				border: none
+				cursor: col-resize
+				touch-action: none
+				user-select: none
+				zi: 26
+
+				@lt-sm
+					w: 84px
+					h: 16px
+					cursor: row-resize
+
+			.parallel-divider-grip
+				d: block
+				w: 6px
+				h: 64px
+				rd: 999px
+				bgc: $acc
+				opacity: 0.65 @hover:1
+				pointer-events: none
+				transition: opacity 150ms ease
+
+				@lt-sm
+					w: 64px
+					h: 6px
 
 			section
-				flex: 1 1 0
 				min-width: 0
 				min-h: 0
-				max-height@lt-sm: 50vh
 				-webkit-overflow-scrolling: touch
 
 				@lt-sm
-					flex: 0 0 auto
-					w: 100%
-					min-h: 0
-
-				@lt-sm
-					flex: 1 1 0
-					max-h: none
 					w: 100%
 
 		.drawer-handle
@@ -869,3 +1028,10 @@ tag reader
 			bgc:gray4/25
 			o:0 @hover:1
 			d:hcc cursor:pointer zi:2 c:$acc 
+
+global css
+	html[data-split-dragging="true"]
+		user-select: none
+
+	html[data-split-dragging="true"] .parallel-divider-grip
+		opacity: 1

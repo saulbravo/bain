@@ -499,6 +499,14 @@ class Activities
 	@observable activeParallelAtBooksDrawer = no
 	@observable commentaryCompareMode = no
 	@observable commentaryCompareVerse = 0
+	# Fraction of the split view taken by the first (main) pane.
+	@observable splitRatio\number = getValue('split_ratio') ?? 0.5
+
+	@action def setSplitRatio value\number
+		splitRatio = Math.min(0.85, Math.max(0.15, value))
+
+	def saveSplitRatio
+		setValue('split_ratio', splitRatio)
 
 	# Clean all the variables in order to free space around the text
 	@action def cleanUp { onPopState, preserveBooksModal } = {}

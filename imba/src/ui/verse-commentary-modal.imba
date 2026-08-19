@@ -544,7 +544,8 @@ tag verse-commentary-modal
 
 	get rootStyle
 		if embedded
-			return "position:relative;top:auto;left:auto;right:auto;bottom:auto;z-index:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;flex:1 1 0;width:auto;height:100%;min-width:0;min-height:0;overflow:hidden;padding:0;box-sizing:border-box"
+			const grow = 1 - activities.splitRatio
+			return "position:relative;top:auto;left:auto;right:auto;bottom:auto;z-index:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;flex:{grow} 1 0;width:auto;height:auto;min-width:0;min-height:0;overflow:hidden;padding:0;box-sizing:border-box"
 		return "position:fixed;top:0;left:0;right:0;bottom:0;z-index:1300;display:flex;flex-direction:row;align-items:center;justify-content:center;flex:0 0 auto;height:auto;min-width:0;min-height:0;overflow:visible;padding:1rem"
 
 	get paneStyle
