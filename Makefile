@@ -73,7 +73,7 @@ build-all-in-one:
 	$(DOCKER) build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v2.7 .
 
 publish-all-in-one: build-all-in-one
-	$(DOCKER) push docker.io/maxivious/bolls:v2.7
+	$(DOCKER) push --format v2s2 docker.io/maxivious/bolls:v2.7
 
 restore-db:
 	# first, make sure we have all migrations run
