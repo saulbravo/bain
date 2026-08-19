@@ -19,6 +19,7 @@ import VenetianMask from 'lucide-static/icons/venetian-mask.svg'
 import Pipette from 'lucide-static/icons/pipette.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
+import BookmarkIcon from 'lucide-static/icons/bookmark.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 import reader from '../lib/Reader'
@@ -232,9 +233,10 @@ tag settings-drawer < aside
 						<button .active-butt=('es'==language) @click=(language = 'es')> "Español"
 						<button .active-butt=('ru'==language) @click=(language = 'ru')> "русский"
 
-		<button.option-box.checkbox-parent @click=(parallelReader.enable = !parallelReader.enabled) .checkbox-turned=parallelReader.enabled>
-			t.parallel
-			<.checkbox> <span>
+		<button.settings-btn @click=activities.showBookmarksModal>
+			<svg src=BookmarkIcon aria-hidden=true>
+			"Highlights and Bookmarks"
+
 		<button.option-box.checkbox-parent @click=(settings.parallel_sync = !settings.parallel_sync) .checkbox-turned=settings.parallel_sync>
 			t.parallel_sync
 			<.checkbox> <span>

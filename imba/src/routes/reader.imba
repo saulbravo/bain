@@ -18,7 +18,7 @@ import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Pen from 'lucide-static/icons/pen.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
-import ListIcon from 'lucide-static/icons/list.svg'
+import ParallelReadingIcon from '../icons/parallel-reading.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -464,6 +464,9 @@ tag reader
 			search.query = selectedText
 		activities.cleanUp { onPopState: yes }
 
+	@action def toggleParallelReading
+		parallelReader.enable = !parallelReader.enabled
+
 	def toggleCopySelectMode
 		let wasOff = !activities.copySelectMode
 		activities.copySelectMode = !activities.copySelectMode
@@ -722,8 +725,8 @@ tag reader
 							<svg src=Highlighter aria-hidden=yes>
 						<button .pen-tool-active=(activities.penToolMode) @click=(activities.togglePenToolMode!) title="Pen Tool">
 							<svg src=Pen aria-hidden=yes>
-						<button @click=activities.showBookmarksModal title=(t.bookmarks or "Bookmarks")>
-							<svg src=ListIcon aria-hidden=yes>
+						<button .parallel-active=(parallelReader.enabled) @click=toggleParallelReading title=t.parallel>
+							<svg src=ParallelReadingIcon aria-hidden=yes>
 						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
 							<svg src=SettingsIcon aria-hidden=yes>
 						<button @click=reader.nextChapter title=t.next>
@@ -750,6 +753,11 @@ tag reader
 			c: var(--freehand-color, GoldenRod)
 			svg
 				c: var(--freehand-color, GoldenRod)
+
+		.parallel-active
+			c: $acc
+			svg
+				c: $acc
 		
 		nav, aside
 			h: 100vh
