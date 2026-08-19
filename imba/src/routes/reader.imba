@@ -550,6 +550,7 @@ tag reader
 				>
 				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!}] />
 				if parallelReader.enabled
+					<div.parallel-divider aria-hidden=yes>
 					<chapter id="parallel-reader" me=parallelReader [padding-inline:{readerPadding(no)}] versePrefix="p" />
 
 			<global
@@ -793,9 +794,25 @@ tag reader
 		.parallels
 			d:flex
 			fld@lt-sm:column
-			g:1rem @lt-sm:0
+			g:0
+
+			.parallel-divider
+				flex: 0 0 2px
+				align-self: stretch
+				bgc: $acc-bgc
+				border: none
+				p: 0
+				m: 0
+
+				@lt-sm
+					align-self: auto
+					w: 100%
+					h: 2px
+					flex: 0 0 2px
 
 			section
+				flex: 1 1 0
+				min-width: 0
 				max-height@lt-sm: 50vh
 				-webkit-overflow-scrolling: touch
 
