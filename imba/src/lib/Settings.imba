@@ -16,6 +16,16 @@ class SettingsState
 	@observable contrast\number = getValue('contrast') ?? 105
 	@observable chronorder\boolean = getValue('chronorder') ?? no
 	@observable favoriteTranslations\string[] = getValue('favorite_translations') ?? []
+	@observable recentTranslations\string[] = getValue('recent_translations') ?? []
+
+	@action def recordRecentTranslation translation\string
+		unless translation
+			return
+		let next = recentTranslations.filter(do |t| return t != translation)
+		next.unshift(translation)
+		if next.length > 8
+			next.length = 8
+		recentTranslations = next
 
 	@autorun def saveVerseNumber
 		setValue('verse_number', verse_number)
@@ -64,6 +74,9 @@ class SettingsState
 				})
 		catch err
 			console.warn(err)
+
+	@autorun def saveRecentTranslations
+		setValue('recent_translations', recentTranslations)
 
 const settings = new SettingsState()
 

@@ -29,7 +29,9 @@ tag bible-tabs
 		<div.tabs-container [padding-inline:{scale}rem]>
 			for tab, index in activities.tabs
 				<div.tab .active=(activities.activeTabIndex == index) @click=handleTabClick(index) [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
-					<span.tab-name [fs:{scale * 0.875}rem]> tab.name
+					<span.tab-name [fs:{scale * 0.875}rem]>
+						tab.name
+						<sup.tab-translation title=translationFullName(tab.translation)> tab.translation
 					if activities.tabs.length > 1
 						<div.close-tab @click.stop=(do clearTouchHover!; activities.closeTab(index)) [size:{scale * 1.25}rem]>
 							<svg src=X [size:{scale * 0.75}rem]>
@@ -159,3 +161,13 @@ tag bible-tabs
 			min-width: 0
 			overflow: hidden
 			text-overflow: ellipsis
+
+		.tab-translation
+			fs: 0.62em
+			vertical-align: super
+			line-height: 0
+			fw: inherit
+			c: inherit
+			ml: 0.12em
+			letter-spacing: 0.02em
+			white-space: nowrap

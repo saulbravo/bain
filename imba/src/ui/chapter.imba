@@ -932,6 +932,7 @@ tag chapter < section
 
 						<span.book-title @click=activities.toggleBooksMenu(!!versePrefix)>
 							me.nameOfCurrentBook, ' ', me.chapter
+							<sup.translation-mark title=translationFullName(me.translation)> me.translation
 
 						<button.header-action.header-search
 							@click.stop.prevent=activities.showSearch
@@ -1225,6 +1226,16 @@ tag chapter < section
 			display: inline-block
 			cursor: pointer
 			touch-action: manipulation
+
+		.translation-mark
+			fs: 0.55em
+			vertical-align: super
+			line-height: 0
+			fw: inherit
+			c: inherit
+			ml: 0.15em
+			letter-spacing: 0.02em
+			white-space: nowrap
 		
 		.header-action
 			position: absolute

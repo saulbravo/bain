@@ -55,6 +55,7 @@ class ReadingHistory
 			verse: verse,
 			date: Date.now!
 		})
+		settings.recordRecentTranslation(translation)
 		# Remove items exceeding limit to avoid UI lag
 		if history.length > 256
 			history.length = 256
