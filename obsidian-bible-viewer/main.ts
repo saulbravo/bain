@@ -39,14 +39,6 @@ export default class BibleViewerPlugin extends Plugin {
 			},
 		});
 
-		this.addCommand({
-			id: "open-bible-login",
-			name: "Open Bolls login in browser",
-			callback: () => {
-				window.open(`${this.settings.bibleAppUrl}/accounts/login/`, "_blank");
-			},
-		});
-
 		// Add ribbon icon
 		this.addRibbonIcon("book-open", "Open Bible Viewer", () => {
 			this.activateView();
@@ -111,11 +103,40 @@ class BibleView extends ItemView {
 	plugin: BibleViewerPlugin;
 	iframe: HTMLIFrameElement;
 	messageHandler: (event: MessageEvent) => void;
+	lastMarkdownLeaf: WorkspaceLeaf | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: BibleViewerPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.messageHandler = this.handleMessage.bind(this);
+	}
+
+	rememberMarkdownLeaf(leaf: WorkspaceLeaf | null) {
+		if (leaf?.view instanceof MarkdownView) {
+			this.lastMarkdownLeaf = leaf;
+		}
+	}
+
+	getMarkdownViewForInsert(): MarkdownView | null {
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeView) {
+			this.lastMarkdownLeaf = activeView.leaf;
+			return activeView;
+		}
+
+		if (this.lastMarkdownLeaf?.view instanceof MarkdownView) {
+			return this.lastMarkdownLeaf.view;
+		}
+
+		const markdownLeaves = this.app.workspace.getLeavesOfType("markdown");
+		for (const leaf of markdownLeaves) {
+			if (leaf.view instanceof MarkdownView) {
+				this.lastMarkdownLeaf = leaf;
+				return leaf.view;
+			}
+		}
+
+		return null;
 	}
 
 	getViewType() {
@@ -131,6 +152,14 @@ class BibleView extends ItemView {
 	}
 
 	async onOpen() {
+		this.rememberMarkdownLeaf(this.app.workspace.activeLeaf);
+
+		this.registerEvent(
+			this.app.workspace.on("active-leaf-change", (leaf) => {
+				this.rememberMarkdownLeaf(leaf);
+			})
+		);
+
 		const container = this.containerEl.children[1];
 		container.empty();
 		container.addClass("bible-viewer-container");
@@ -145,7 +174,7 @@ class BibleView extends ItemView {
 		this.iframe = container.createEl("iframe", {
 			cls: "bible-viewer-iframe",
 			attr: {
-				sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox",
+				sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
 			},
 		});
 
@@ -220,7 +249,7 @@ class BibleView extends ItemView {
 			this.iframe = container.createEl("iframe", {
 				cls: "bible-viewer-iframe",
 				attr: {
-					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox",
+					sandbox: "allow-same-origin allow-scripts allow-forms allow-popups",
 				},
 			});
 			
@@ -296,6 +325,9 @@ class BibleView extends ItemView {
 			console.log("Bible Viewer: Processing verse selection", event.data);
 			console.log("Bible Viewer: Translation in data:", event.data.translation);
 			this.copyVersesToNote(event.data);
+		} else if (event.data && event.data.type === "bible-commentary-selection") {
+			console.log("Bible Viewer: Processing commentary selection", event.data);
+			this.copyCommentaryToNote(event.data);
 		} else {
 			console.log("Bible Viewer: Message type mismatch or no data", event.data);
 		}
@@ -318,8 +350,7 @@ class BibleView extends ItemView {
 		console.log("Bible Viewer: Data keys:", Object.keys(data));
 		console.log("Bible Viewer: Translation field:", data.translation);
 		
-		const activeView =
-			this.app.workspace.getActiveViewOfType(MarkdownView);
+		const activeView = this.getMarkdownViewForInsert();
 		
 		if (!activeView) {
 			console.log("Bible Viewer: No active markdown view");
@@ -381,6 +412,54 @@ class BibleView extends ItemView {
 		editor.replaceRange(formattedText, cursor);
 
 		new Notice(`Copied ${verses.length} verse${verses.length > 1 ? "s" : ""} to note`);
+	}
+
+	copyCommentaryToNote(data: {
+		sections: Array<{
+			reference: string;
+			text: string;
+			verse: number;
+		}>;
+		translation?: string;
+		book?: string;
+		chapter?: number;
+		bookId?: number | string;
+	}) {
+		const sections = data.sections || [];
+		if (sections.length === 0) {
+			new Notice("No commentary to copy.");
+			return;
+		}
+
+		const activeView = this.getMarkdownViewForInsert();
+		if (!activeView) {
+			new Notice("No active note to copy commentary to.");
+			return;
+		}
+
+		const translationCode = data?.translation || "BBE";
+		const bookId = data.bookId || 1;
+		const chapter = data.chapter || 1;
+
+		const blocks = sections.map((section) => {
+			const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${section.verse}`;
+			const header = `> [!cba] [${section.reference} - ${translationCode}](${url})`;
+			const body = section.text
+				.split(/\n+/)
+				.filter((line) => line.trim().length > 0)
+				.map((line) => `> ${line.trim()}`)
+				.join("\n");
+			return `${header}\n${body}`;
+		});
+
+		const formattedText = `${blocks.join("\n\n")}\n\n`;
+		const editor = activeView.editor;
+		const cursor = editor.getCursor();
+		editor.replaceRange(formattedText, cursor);
+
+		new Notice(
+			`Copied commentary for ${sections.length} verse${sections.length > 1 ? "s" : ""} to note`
+		);
 	}
 }
 

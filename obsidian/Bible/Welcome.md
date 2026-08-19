@@ -1,20 +1,7 @@
-> [!bible] [1 Chronicles 6:2 - YLT](http://localhost:8080/YLT/13/6/2)
-> 2. And the sons of Kohath; Amram, Izhar, and Hebron, and Uzziel.
 
+> [!cba] [Genesis 1:2 - YLT](https://bolls.familybravo.com/YLT/1/1/2)
+> Más exactamente "desolada y vacía", tóhu wabóhu.  Esto implica un estado de desolación y vacuidad, pero sin implicar que la tierra una vez fue perfecta y después quedó arruinada o desolada. 221
 
-> [!bible] [Genesis 1:5-8 - YLT](http://localhost:8080/YLT/1/1/5-8)
-> 5. and God calleth to the light 'Day,' and to the darkness He hath called 'Night;' and there is an evening, and there is a morning -- day one.
-> 6. And God saith, 'Let an expanse be in the midst of the waters, and let it be separating between waters and waters.'
-> 7. And God maketh the expanse, and it separateth between the waters which [are] under the expanse, and the waters which [are] above the expanse: and it is so.
-> 8. And God calleth to the expanse 'Heavens;' and there is an evening, and there is a morning -- day second.
-
-> [!bible] [1 Chronicles 6:9-15 - YLT](http://localhost:8080/YLT/13/6/9-15)
-> 9. and Ahimaaz begat Azariah, and Azariah begat Johanan,
-> 10. and Johanan begat Azariah, him who acted as priest in the house that Solomon built in Jerusalem.
-> 11. And Azariah begetteth Amariah, and Amariah begat Ahitub,
-> 12. and Ahitub begat Zadok, and Zadok begat Shallum,
-> 13. and Shallum begat Hilkiah, and Hilkiah begat Azariah,
-> 14. and Azariah begat Seraiah, and Seraiah begat Jehozadak;
-> 15. and Jehozadak hath gone in Jehovah's removing Judah and Jerusalem by the hand of Nebuchadnezzar.
-
+> [!cba] [Genesis 1:2 - YLT](https://bolls.familybravo.com/YLT/1/1/2)
+> Cuando aparecen juntas las palabras tóhu wabóhu en otros pasajes, tales como Isa_34:11; Jer_4:23, parecen ser prestadas de este texto, pero la palabra tóhu se emplea con frecuencia sola como sinónimo de inexistencia o la nada (Isa_40:17, Isa_40:23; Isa_49:4). Job_26:7 muestra el significado correcto de esta palabra.  La segunda parte de este versículo declara que Dios "cuelga la tierra sobre nada" y la primera mitad presenta el paralelo "él extiende el norte sobre tóhu [vacío]".  Este texto de Job muestra claramente el significado de tóhu en Gen_1:2, en el cual este vocablo y su sinónimo bóhu indican que la tierra estaba informe y sin vida.  Sus elementos estaban todos mezclados, sin ninguna organización e inanimados.
 
