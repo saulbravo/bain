@@ -795,10 +795,17 @@ tag reader
 			d:flex
 			fld@lt-sm:column
 			g:0
+			min-width: 0
+
+			@lt-sm
+				flex: 1
+				min-h: 0
+				w: 100%
 
 			.parallel-divider
 				flex: 0 0 2px
 				align-self: stretch
+				flex-shrink: 0
 				bgc: $acc-bgc
 				border: none
 				p: 0
@@ -813,8 +820,14 @@ tag reader
 			section
 				flex: 1 1 0
 				min-width: 0
+				min-h: 0
 				max-height@lt-sm: 50vh
 				-webkit-overflow-scrolling: touch
+
+				@lt-sm
+					flex: 0 0 auto
+					w: 100%
+					min-h: 0
 
 		.drawer-handle
 			w:2vw w:min(1.5rem, max(1rem, 2vw))
