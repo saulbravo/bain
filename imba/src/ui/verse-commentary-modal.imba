@@ -9,6 +9,7 @@ import X from 'lucide-static/icons/x.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import Obsidian from '../icons/obsidian.svg'
+import Split from 'lucide-static/icons/split.svg'
 
 tag verse-commentary-modal
 	loading = no
@@ -16,6 +17,7 @@ tag verse-commentary-modal
 	commentaryHtml = ''
 	commentaryBlocks = []
 	obsidianMode = no
+	compareMode = no
 	exportStartIdx = 0
 	exportEndIdx = 0
 	obsidianBoxTop = 0
@@ -135,9 +137,14 @@ tag verse-commentary-modal
 		stopObsidianDragListeners!
 		teardownObsidianUI!
 		obsidianMode = no
+		compareMode = no
 		resetExportRange!
 		lastLoadKey = ''
 		activities.activeVerseAction = 'options'
+		imba.commit!
+
+	def toggleCompareMode
+		compareMode = !compareMode
 		imba.commit!
 
 	def toggleObsidianMode
@@ -445,6 +452,7 @@ tag verse-commentary-modal
 		currentVerse = nums[next]
 		teardownObsidianUI!
 		obsidianMode = no
+		compareMode = no
 		resetExportRange!
 		imba.commit!
 		loadCommentary!
@@ -475,6 +483,7 @@ tag verse-commentary-modal
 		commentaryBlocks = []
 		teardownObsidianUI!
 		obsidianMode = no
+		compareMode = no
 		resetExportRange!
 		imba.commit!
 		try
@@ -503,10 +512,12 @@ tag verse-commentary-modal
 		<section.commentary-modal @click.stop>
 			<header>
 				<div.header-top>
-					<div.obsidian-slot>
+					<div.header-actions-slot>
 						if commentaryHtml and commentaryHtml.length
 							<button.obsidian-btn.header-action-btn .obsidian-active=obsidianMode @click.stop=toggleObsidianMode title="Obsidian">
 								<svg src=Obsidian aria-hidden=yes>
+							<button.compare-btn.header-action-btn .compare-active=compareMode @click.stop=toggleCompareMode title=(t.compare or "Compare")>
+								<svg src=Split aria-hidden=yes>
 						else
 							<span.header-spacer aria-hidden=yes>
 					<h3> commentaryTitle
@@ -585,16 +596,18 @@ tag verse-commentary-modal
 			g: 0.5rem
 			min-height: 2.125rem
 
-		.obsidian-slot
+		.header-actions-slot
 			d: flex
 			ai: center
+			g: 0.35rem
 			justify-self: start
-			size: 2.125rem
+			min-height: 2.125rem
 			flex-shrink: 0
 
 		.header-spacer
 			d: block
-			size: 2.125rem
+			width: calc(2.125rem * 2 + 0.35rem)
+			height: 2.125rem
 			flex-shrink: 0
 
 		.header-nav
@@ -649,6 +662,23 @@ tag verse-commentary-modal
 			opacity: 1
 			svg
 				c: #a855f7
+				opacity: 1
+
+		.compare-btn
+			bgc: transparent
+			c: $acc @hover:$acc-hover
+			border: none
+			opacity: 0.75 @hover:1
+			svg
+				size: 1.35rem
+				c: inherit
+				opacity: 0.75 @hover:1
+
+		.compare-btn.compare-active
+			c: GoldenRod
+			opacity: 1
+			svg
+				c: GoldenRod
 				opacity: 1
 
 		.close-btn
