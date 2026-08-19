@@ -11,6 +11,7 @@ import Trash2 from 'lucide-static/icons/trash-2.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Pen from 'lucide-static/icons/pen.svg'
+import Undo2 from 'lucide-static/icons/undo-2.svg'
 
 const DEFAULT_Y = 32
 
@@ -55,6 +56,42 @@ tag freehand-highlight-menu
 			return
 		activities.penLineWidth = Math.max(1, Math.min(24, n))
 		setValue('pen-line-width', activities.penLineWidth)
+
+	get canUndoFreehand
+		if activities.penToolMode
+			return no
+		if reader.freehandHighlights and reader.freehandHighlights.length > 0
+			return yes
+		if parallelReader.enabled and parallelReader.freehandHighlights and parallelReader.freehandHighlights.length > 0
+			return yes
+		return no
+
+	def undoReaders
+		let list = [reader]
+		if parallelReader.enabled
+			list.push(parallelReader)
+		return list
+
+	def undoLastFreehandHighlight e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if activities.penToolMode or !canUndoFreehand
+			return
+		let target = null
+		for r in undoReaders!
+			if !r.freehandHighlights or r.freehandHighlights.length == 0
+				continue
+			let last = r.freehandHighlights[r.freehandHighlights.length - 1]
+			let ts = last.date or 0
+			if !target or ts >= target.ts
+				target = { reader: r, ts: ts }
+		if !target
+			return
+		target.reader.freehandHighlights = target.reader.freehandHighlights.slice(0, -1)
+		target.reader.saveFreehandHighlights!
+		imba.commit!
 
 	get transitionDuration
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
@@ -105,7 +142,10 @@ tag freehand-highlight-menu
 						@click=(activities.penEraserMode = yes)
 						role="button" aria-label="Erase" title="Erase Tool">
 						<svg src=Eraser width="1.5rem" height="1.5rem">
-			if !activities.penToolMode
+			else
+				<li>
+					<button @click.stop.prevent=undoLastFreehandHighlight disabled=!canUndoFreehand role="button" aria-label="Undo" title="Undo">
+						<svg src=Undo2 width="1.5rem" height="1.5rem">
 				<li>
 					<button .active=!activities.freehandEraserMode 
 						@click=(activities.freehandEraserMode = no) 
@@ -197,6 +237,10 @@ tag freehand-highlight-menu
 			d:hcc
 			pos:relative
 			flw:wrap
+
+		button[disabled]
+			opacity: 0.35
+			cursor: not-allowed
 
 		button
 			display:hcc g:.25rem
