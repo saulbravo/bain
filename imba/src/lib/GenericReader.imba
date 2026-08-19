@@ -677,12 +677,19 @@ class GenericReader
 		if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
 			verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
 
+		if activities.commentaryCompareMode and me == 'main' and activities.selectedVersesPKs.length
+			let verseNum = Number(id)
+			if verseNum > 0
+				activities.commentaryCompareVerse = verseNum
+
 		if activities.selectedVersesPKs.length
 			showDeleteBookmark()
 			mergeNotes()
 			# Show slideup unless it was explicitly suppressed (from modal navigation)
 			# We use a special marker 'suppressed' to indicate suppression
-			if activities.activeVerseAction != 'suppressed'
+			if activities.commentaryCompareMode and me == 'main'
+				activities.activeVerseAction = 'suppressed'
+			elif activities.activeVerseAction != 'suppressed'
 				# Always set to 'options' for normal selections (not from modal)
 				activities.activeVerseAction = 'options'
 				activities.isVerseActionsMinimized = no

@@ -497,6 +497,8 @@ class Activities
 	newCategoryName = ''
 
 	@observable activeParallelAtBooksDrawer = no
+	@observable commentaryCompareMode = no
+	@observable commentaryCompareVerse = 0
 
 	# Clean all the variables in order to free space around the text
 	@action def cleanUp { onPopState, preserveBooksModal } = {}
@@ -569,6 +571,9 @@ class Activities
 			pageSearch.on  = no
 			pageSearch.matches = []
 			pageSearch.rects = []
+
+		commentaryCompareMode = no
+		commentaryCompareVerse = 0
 
 		unless keepBooksModal
 			activeModal = ''

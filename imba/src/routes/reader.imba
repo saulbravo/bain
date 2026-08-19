@@ -139,9 +139,8 @@ tag reader
 			if !article
 				return
 			
-			# FIRST: If verse-actions slider is open, don't clear selection on any click
-			# This is the most reliable check
-			if activities.activeVerseAction
+			# If verse-actions, commentary modal, or compare mode is open, don't clear selection on any click
+			if activities.activeVerseAction == 'options' or activities.activeVerseAction == 'commentary' or activities.activeVerseAction == 'suppressed'
 				return
 			
 			# SECOND: Check if we're clicking inside verse-actions or any UI element that should preserve selection
@@ -149,7 +148,7 @@ tag reader
 			const isVerseActions = clickTarget.closest('.verse-actions')
 			const isColorOption = clickTarget.closest('.color-option') or clickTarget.classList.contains('color-option')
 			const isButton = clickTarget.tagName == 'BUTTON' or clickTarget.closest('button')
-			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
+			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .commentary-pane, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle')
 			
 			# If clicking on color options or inside verse-actions, preserve selection
 			if isVerseActions or isColorOption or (isButton and clickTarget.closest('section.verse-actions'))
@@ -436,6 +435,13 @@ tag reader
 		(inClosingTouchZone || inTouchZone) ? '0' : '450ms'
 
 	def readerPadding mainReader = yes
+		if activities.commentaryCompareMode
+			# In compare mode the reader only owns half of the viewport,
+			# so the centering padding has to be computed against that half.
+			const available = (window.innerWidth - pageSearch.drawerOffset) / 2
+			const desired = Math.min(theme.maxWidth * theme.fontSize, available - 32)
+			const padding = Math.max(12, (available - desired) / 2)
+			return "{padding}px"
 		if parallelReader.enabled
 			# the padding is 0 on the side of the parallel reader
 			# the parallel should not have padding in between them. Take into account text direction
@@ -544,12 +550,16 @@ tag reader
 	def render
 		<self[d:flex] @touchstart=slidestart @touchmove=openingdrawer @touchend=slideend @touchcancel=slideend>
 			<main id="main"
-				.parallel_text=parallelReader.enabled .hide-comments=!settings.verse_commentary .parallels=parallelReader.enabled
-				[pos:{parallelReader.enabled ? 'relative' : 'static'} ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight} ta:{theme.align} fl:1]
+				.parallel_text=parallelReader.enabled .hide-comments=!settings.verse_commentary .parallels=(parallelReader.enabled or activities.commentaryCompareMode) .commentary-compare=activities.commentaryCompareMode
+				[pos:{(parallelReader.enabled or activities.commentaryCompareMode) ? 'relative' : 'static'} ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight} ta:{theme.align} fl:1]
+				[height:{activities.commentaryCompareMode ? '100vh' : 'auto'} max-height:{activities.commentaryCompareMode ? '100vh' : 'none'} min-height:0 overflow-y:{activities.commentaryCompareMode ? 'hidden' : 'visible'}]
 				[data-bm={((reader.bookmarks and reader.bookmarks.length) or 0) + '-' + (parallelReader.enabled ? ((parallelReader.bookmarks and parallelReader.bookmarks.length) or 0) : 0)}]
 				>
-				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!}] />
-				if parallelReader.enabled
+				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!} box-sizing:border-box height:{activities.commentaryCompareMode ? '100%' : 'auto'} max-height:{activities.commentaryCompareMode ? '100%' : '100vh'} min-height:0] />
+				if activities.commentaryCompareMode
+					<div.parallel-divider aria-hidden=yes>
+					<verse-commentary-modal />
+				elif parallelReader.enabled
 					<div.parallel-divider aria-hidden=yes>
 					<chapter id="parallel-reader" me=parallelReader [padding-inline:{readerPadding(no)}] versePrefix="p" />
 
@@ -592,7 +602,7 @@ tag reader
 
 				if activities.activeVerseAction == 'options' and activities.selectedVersesPKs.length > 0
 					<verse-actions />
-				if activities.activeVerseAction == 'commentary' and activities.selectedVersesPKs.length > 0
+				if activities.activeVerseAction == 'commentary' and activities.selectedVersesPKs.length > 0 and !activities.commentaryCompareMode
 					<verse-commentary-modal />
 
 				if (reader.loading || parallelReader.loading || dictionary.loading || search.loading || compare.loading) and !activities.isSwitchingTab
@@ -741,9 +751,19 @@ tag reader
 
 
 	css
+		min-h: 100vh
+		min-h: -webkit-fill-available
+
 		#main
 			min-width: 0
 			overflow-x: hidden
+
+		#main.commentary-compare
+			flex: 1
+			min-h: 0
+			overflow: hidden
+			h: 100vh
+			h@lt-lg: calc(100vh - 2.75rem)
 
 		.copy-select-active
 			c: #a855f7
@@ -796,11 +816,20 @@ tag reader
 			fld@lt-sm:column
 			g:0
 			min-width: 0
+			min-h: 0
+			align-self: stretch
 
 			@lt-sm
 				flex: 1
 				min-h: 0
 				w: 100%
+
+			&.commentary-compare
+				flex: 1
+				h: 100%
+				min-h: 0
+				max-h: 100%
+				overflow: hidden
 
 			.parallel-divider
 				flex: 0 0 2px
@@ -828,6 +857,11 @@ tag reader
 					flex: 0 0 auto
 					w: 100%
 					min-h: 0
+
+				@lt-sm
+					flex: 1 1 0
+					max-h: none
+					w: 100%
 
 		.drawer-handle
 			w:2vw w:min(1.5rem, max(1rem, 2vw))

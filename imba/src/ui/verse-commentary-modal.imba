@@ -17,7 +17,6 @@ tag verse-commentary-modal
 	commentaryHtml = ''
 	commentaryBlocks = []
 	obsidianMode = no
-	compareMode = no
 	exportStartIdx = 0
 	exportEndIdx = 0
 	obsidianBoxTop = 0
@@ -52,7 +51,10 @@ tag verse-commentary-modal
 		return "Comentario Bíblico Adventista"
 
 	get contentStyle
-		return "--cmt-pt:{commentaryLineHeight - 1}em;--cmt-pb:{0.8 * commentaryLineHeight}em"
+		const base = "--cmt-pt:{commentaryLineHeight - 1}em;--cmt-pb:{0.8 * commentaryLineHeight}em"
+		if embedded
+			return base + ";margin-left:0;margin-right:0;padding:1.25rem;box-sizing:border-box;overflow-wrap:anywhere"
+		return base
 
 	def applyCommentaryTypography
 		let content = getContentEl!
@@ -137,14 +139,34 @@ tag verse-commentary-modal
 		stopObsidianDragListeners!
 		teardownObsidianUI!
 		obsidianMode = no
-		compareMode = no
 		resetExportRange!
 		lastLoadKey = ''
-		activities.activeVerseAction = 'options'
+		if activities.commentaryCompareMode
+			activities.commentaryCompareMode = no
+			activities.commentaryCompareVerse = 0
+			if activities.selectedVersesPKs.length > 0
+				activities.activeVerseAction = 'options'
+			else
+				activities.activeVerseAction = ''
+		else
+			activities.activeVerseAction = 'options'
 		imba.commit!
 
 	def toggleCompareMode
-		compareMode = !compareMode
+		if activities.commentaryCompareMode
+			activities.commentaryCompareMode = no
+			activities.commentaryCompareVerse = 0
+			if activities.selectedVersesPKs.length > 0
+				activities.activeVerseAction = 'options'
+			else
+				activities.activeVerseAction = ''
+		else
+			clampCurrentVerse!
+			activities.commentaryCompareVerse = currentVerse
+			activities.commentaryCompareMode = yes
+			teardownObsidianUI!
+			obsidianMode = no
+			activities.activeVerseAction = 'suppressed'
 		imba.commit!
 
 	def toggleObsidianMode
@@ -450,9 +472,10 @@ tag verse-commentary-modal
 			idx = 0
 		let next = Math.max(0, Math.min(nums.length - 1, idx + delta))
 		currentVerse = nums[next]
+		if activities.commentaryCompareMode
+			activities.commentaryCompareVerse = currentVerse
 		teardownObsidianUI!
 		obsidianMode = no
-		compareMode = no
 		resetExportRange!
 		imba.commit!
 		loadCommentary!
@@ -483,7 +506,6 @@ tag verse-commentary-modal
 		commentaryBlocks = []
 		teardownObsidianUI!
 		obsidianMode = no
-		compareMode = no
 		resetExportRange!
 		imba.commit!
 		try
@@ -503,22 +525,47 @@ tag verse-commentary-modal
 		const action = activities.activeVerseAction
 		const selectedPKs = activities.selectedVersesPKs and activities.selectedVersesPKs.length
 		const versesLoaded = currentReader.verses and currentReader.verses.length
+
+		if activities.commentaryCompareMode and versesLoaded
+			if activities.commentaryCompareVerse > 0
+				currentVerse = activities.commentaryCompareVerse
+			clampCurrentVerse!
+			if activities.commentaryCompareVerse != currentVerse
+				activities.commentaryCompareVerse = currentVerse
+			loadCommentary!
+			return
+
 		if action == 'commentary' and selectedPKs > 0 and versesLoaded
 			clampCurrentVerse!
 			loadCommentary!
 
-	<self>
-		<div.commentary-overlay @click=close>
-		<section.commentary-modal @click.stop>
+	get embedded
+		return activities.commentaryCompareMode
+
+	get rootStyle
+		if embedded
+			return "position:relative;top:auto;left:auto;right:auto;bottom:auto;z-index:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;flex:1 1 0;width:auto;height:100%;min-width:0;min-height:0;overflow:hidden;padding:0;box-sizing:border-box"
+		return "position:fixed;top:0;left:0;right:0;bottom:0;z-index:1300;display:flex;flex-direction:row;align-items:center;justify-content:center;flex:0 0 auto;height:auto;min-width:0;min-height:0;overflow:visible;padding:1rem"
+
+	get paneStyle
+		if embedded
+			return "flex:1 1 auto;width:100%;height:100%;max-height:100%;min-width:0;min-height:0;border-radius:0;box-shadow:none;box-sizing:border-box"
+		return "flex:0 0 auto;width:min(56rem, 100%);height:auto;max-height:min(75vh, 42rem);min-height:0;border-radius:0.75rem;box-shadow:0 10px 30px rgba(0, 0, 0, 0.25)"
+
+	<self .commentary-root .commentary-embedded=embedded style=rootStyle>
+		unless embedded
+			<div.commentary-overlay @click=close>
+		<section .commentary-modal=!embedded .commentary-pane=embedded @click.stop style=paneStyle>
 			<header>
 				<div.header-top>
 					<div.header-actions-slot>
 						if commentaryHtml and commentaryHtml.length
 							<button.obsidian-btn.header-action-btn .obsidian-active=obsidianMode @click.stop=toggleObsidianMode title="Obsidian">
 								<svg src=Obsidian aria-hidden=yes>
-							<button.compare-btn.header-action-btn .compare-active=compareMode @click.stop=toggleCompareMode title=(t.compare or "Compare")>
+						if activities.commentaryCompareMode or loading or (commentaryHtml and commentaryHtml.length)
+							<button.compare-btn.header-action-btn .compare-active=activities.commentaryCompareMode @click.stop=toggleCompareMode title=(t.compare or "Compare")>
 								<svg src=Split aria-hidden=yes>
-						else
+						if !(commentaryHtml and commentaryHtml.length) and !activities.commentaryCompareMode and !loading
 							<span.header-spacer aria-hidden=yes>
 					<h3> commentaryTitle
 					<button.close-btn.header-action-btn @click=close title="Close">
@@ -564,6 +611,21 @@ tag verse-commentary-modal
 		jc: center
 		padding: 1rem
 
+		&.commentary-root--embedded
+			pos: static
+			inset: auto
+			zi: auto
+			d: flex
+			fld: column
+			flex: 1 1 0
+			min-width: 0
+			min-h: 0
+			overflow: hidden
+			padding: 0
+			w: auto
+			h: 100%
+			max-h: 100%
+
 		.commentary-overlay
 			pos: absolute
 			inset: 0
@@ -581,6 +643,23 @@ tag verse-commentary-modal
 			d: flex
 			fld: column
 			overflow: hidden
+
+		.commentary-pane
+			pos: relative
+			zi: 1
+			width: 100%
+			height: 100%
+			min-width: 0
+			min-h: 0
+			flex: 1 1 auto
+			bgc: $bgc
+			color: $c
+			d: flex
+			fld: column
+			overflow: hidden
+
+			@lt-sm
+				max-h: 50vh
 
 		header
 			d: flex
@@ -718,6 +797,8 @@ tag verse-commentary-modal
 			padding: 1.25rem 30px
 			margin-left: 20px
 			margin-right: 20px
+			flex: 1 1 auto
+			min-h: 0
 			-webkit-overflow-scrolling: touch
 
 		.content.commentary-obsidian-active
@@ -855,11 +936,25 @@ global css
 		padding-top: var(--cmt-pt, 0.5em)
 		padding-bottom: var(--cmt-pb, 1.2em)
 
+	.commentary-pane .commentary-text p
+		margin: 0
+		padding-top: var(--cmt-pt, 0.5em)
+		padding-bottom: var(--cmt-pb, 1.2em)
+
 	.commentary-modal .commentary-text p:first-child
+		padding-top: 0
+
+	.commentary-pane .commentary-text p:first-child
 		padding-top: 0
 
 	.commentary-modal .commentary-text p:last-child
 		padding-bottom: 0
 
+	.commentary-pane .commentary-text p:last-child
+		padding-bottom: 0
+
 	.commentary-modal .commentary-text [data-block-idx]
+		cursor: pointer
+
+	.commentary-pane .commentary-text [data-block-idx]
 		cursor: pointer
