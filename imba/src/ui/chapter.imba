@@ -871,6 +871,17 @@ tag chapter < section
 		
 		return verseText
 
+	def getVerseTextForObsidianExport verse
+		let text = getVerseText(verse)
+		# Freehand / inline marks are already embedded in getVerseText output.
+		if text.indexOf('<mark') >= 0
+			return text
+		let bookmark = me.getBookmark(verse.pk)
+		let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
+		if color != ''
+			return "<mark style=\"background: {color};\">{text}</mark>"
+		return text
+
 	def getPenStrokePath stroke
 		if !stroke or !stroke.points or stroke.points.length == 0
 			return ''
@@ -973,7 +984,7 @@ tag chapter < section
 												let reference = "{me.nameOfCurrentBook} {me.chapter}:{verse.verse}"
 												selectedVerses.push({
 													reference: reference,
-													text: verse.text,
+													text: getVerseTextForObsidianExport(verse)
 													verse: verse.verse
 												})
 									
