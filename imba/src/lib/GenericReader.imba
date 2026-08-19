@@ -714,6 +714,32 @@ class GenericReader
 			else
 				findVerse(id, endverse, highlight)
 
+	def goToAndSelectVerse verseNum, versePk\number = null
+		let id = typeof verseNum === 'string' ? verseNum.split('-')[0] : String(verseNum)
+		let num = parseInt(id)
+		let scrollId = me == 'main' ? String(num) : "p{num}"
+		activities.selectedVersesPKs = []
+		activities.selectedVerses = []
+		activities.selectedParallel = undefined
+		activities.activeVerseAction = ''
+		findVerse(scrollId, undefined, no)
+
+		const trySelect = do
+			let pk = versePk
+			unless pk
+				let v = verses.find(do |v| return v.verse == num)
+				unless v
+					setTimeout(trySelect, 250)
+					return
+				pk = v.pk
+				num = v.verse
+			let el = me == 'main' ? document.getElementById(String(num)) : document.getElementById("p{num}")
+			unless el
+				setTimeout(trySelect, 250)
+				return
+			selectVerse(pk, num)
+
+		setTimeout(trySelect, 250)
 
 	def highlightLinkedVerses verseNumber, endverse
 		if !window.getSelection

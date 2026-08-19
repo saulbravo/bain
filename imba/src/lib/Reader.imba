@@ -120,7 +120,7 @@ class Reader < GenericReader
 				const parts = verse.split('-')
 				findVerse(parts[0], parts[1], yes)
 			else
-				findVerse(verse, undefined, yes)
+				goToAndSelectVerse(verse)
 			verse = undefined
 		else
 			show_verse_picker = yes
@@ -129,7 +129,7 @@ class Reader < GenericReader
 
 		# if the pathname has one of 4 `/` in it then call the pushState
 		const pathnameSlices = window.location.pathname.split('/').filter(Boolean).length
-		if pathnameSlices == 0 or pathnameSlices > 2
+		if (pathnameSlices == 0 or pathnameSlices > 2) and activities.selectedVersesPKs.length == 0
 			const newLocation = window.location.origin + '/' + translation + '/' + book + '/' + chapter + '/'
 			if window.location.href != newLocation
 				window.history.pushState({
@@ -152,9 +152,15 @@ class Reader < GenericReader
 				if window.navigator.onLine
 					randomVerse = await API.getJson("/get-random-verse/{translation}/")
 			if randomVerse
-				chapter = randomVerse.chapter
-				book = randomVerse.book
-				verse = randomVerse.verse
+				const targetBook = randomVerse.book
+				const targetChapter = randomVerse.chapter
+				const targetVerse = randomVerse.verse
+				if book == targetBook and chapter == targetChapter
+					goToAndSelectVerse(targetVerse, randomVerse.pk)
+				else
+					book = targetBook
+					chapter = targetChapter
+					verse = targetVerse
 		catch error
 			console.error error
 			notifications.push('error')

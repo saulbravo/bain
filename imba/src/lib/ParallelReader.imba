@@ -106,7 +106,7 @@ class ParallelReader < GenericReader
 				const parts = verse.split('-')
 				findVerse(parts[0], parts[1], yes)
 			else
-				findVerse(verse, undefined, yes)
+				goToAndSelectVerse(verse)
 			verse = undefined
 		else
 			show_verse_picker = yes
