@@ -321,7 +321,7 @@ tag settings-drawer < aside
 				<a target="_blank" rel="noreferrer" href="https://docs.djangoproject.com"> "Django"
 
 			<p>
-				"v3.3.0 | "
+				"v3.4.0 | "
 				<time dateTime='2026-1-10'> "10.1.2026"
 
 			<p>
