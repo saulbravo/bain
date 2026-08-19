@@ -49,7 +49,7 @@ Enable the plugin under **Settings → Community plugins**.
 3. **Verses:** enable verse copy/select mode, select verses, use the ← arrow to insert.
 4. **Commentary:** open the commentary modal, select paragraph(s), use the ← arrow to insert.
 
-**Requirements for commentary:** Bible app **v2.7+** (Docker tag `maxivious/bolls:v2.7` or newer) and plugin **v0.3.1+**. Multi-paragraph selections are merged into a single callout.
+**Requirements for commentary:** Bible app **v2.8+** (Docker tag `maxivious/bolls:v2.8` or newer) and plugin **v0.3.1+**. Multi-paragraph selections are merged into a single callout.
 
 After updating the plugin on another device, copy the whole `bible-viewer` folder again (or pull latest from git) — `main.js` must include the `bible-commentary-selection` handler.
 
