@@ -710,6 +710,11 @@ tag reader
 								d:hcc
 								flex@lt-lg:1
 								w@lt-lg:calc(100% / 8)
+
+							button.parallel-active
+								c: var(--freehand-color, GoldenRod)
+								svg
+									c: var(--freehand-color, GoldenRod)
 							
 							svg
 								o@lt-lg:0.75 @hover:1
@@ -755,9 +760,9 @@ tag reader
 				c: var(--freehand-color, GoldenRod)
 
 		.parallel-active
-			c: $acc
+			c: var(--freehand-color, GoldenRod)
 			svg
-				c: $acc
+				c: var(--freehand-color, GoldenRod)
 		
 		nav, aside
 			h: 100vh
