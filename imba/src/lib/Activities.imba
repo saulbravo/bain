@@ -580,8 +580,8 @@ class Activities
 			pageSearch.matches = []
 			pageSearch.rects = []
 
-		commentaryCompareMode = no
-		commentaryCompareVerse = 0
+		# commentaryCompareMode is a persistent view mode, like parallel reading:
+		# it survives chapter loads and tab switches and is only closed from its own controls.
 
 		unless keepBooksModal
 			activeModal = ''

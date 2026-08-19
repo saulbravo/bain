@@ -527,7 +527,12 @@ tag verse-commentary-modal
 		const versesLoaded = currentReader.verses and currentReader.verses.length
 
 		if activities.commentaryCompareMode and versesLoaded
-			if activities.commentaryCompareVerse > 0
+			# A selection in the reader always wins, so switching tabs or picking
+			# another verse retargets the commentary instead of closing it.
+			const selected = getSelectedVerseNumbers!
+			if selected.length
+				currentVerse = selected[selected.length - 1]
+			elif activities.commentaryCompareVerse > 0
 				currentVerse = activities.commentaryCompareVerse
 			clampCurrentVerse!
 			if activities.commentaryCompareVerse != currentVerse
