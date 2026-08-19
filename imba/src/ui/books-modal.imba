@@ -2,14 +2,12 @@ import languages from '../data/languages.json'
 import ALL_BOOKS from '../data/translations_books.json'
 
 import Calendar from 'lucide-static/icons/calendar-1.svg'
-import Download from 'lucide-static/icons/download.svg'
 import Heart from 'lucide-static/icons/heart.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import ArrowLeft from 'lucide-static/icons/arrow-left.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import Palette from 'lucide-static/icons/palette.svg'
-import Search from 'lucide-static/icons/search.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 import TimelineIcon from '../icons/timeline.svg'
@@ -444,9 +442,6 @@ tag books-modal
 			<button.bible-mode-btn .active=(mode == 'history') @click=toggleMode('history') title="History">
 				<span.bible-mode-icon>
 					<svg src=Clock width="18" height="18" aria-hidden=true>
-			<button.bible-mode-btn .active=(activities.activeModal == 'gotobook') @click=(activities.openModal('gotobook')) title="Go to book">
-				<span.bible-mode-icon>
-					<svg src=Search width="18" height="18" aria-hidden=true>
 			<button.bible-mode-btn .active=colorsEnabled @click=toggleColors title="Color palette">
 				<span.bible-mode-icon>
 					<svg src=Palette width="18" height="18" aria-hidden=true>
@@ -460,10 +455,6 @@ tag books-modal
 			<button.bible-mode-btn .active=showFullBookNames @click=toggleFullBookNames title="Show full book names" aria-label="Show full book names">
 				<span.bible-mode-icon>
 					<svg src=NIcon width="18" height="18" aria-hidden=true>
-			if vault.available
-				<button.bible-mode-btn @click=activities.toggleDownloads title=t.download aria-label=t.download>
-					<span.bible-mode-icon>
-						<svg src=Download width="18" height="18" aria-hidden=true>
 		<header>
 			<[d:flex jc:center ai:center g:0.75rem]>
 				if selectedBook != null and books[selectedBook]

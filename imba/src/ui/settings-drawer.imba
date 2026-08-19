@@ -8,7 +8,6 @@ import MinimizeHorizontal from '../icons/minimize-horizontal.svg'
 import MaximizeHorizontal from '../icons/maximize-horizontal.svg'
 import Download from 'lucide-static/icons/download.svg'
 import BadgeInfo from 'lucide-static/icons/badge-info.svg'
-import HeartHandshake from 'lucide-static/icons/heart-handshake.svg'
 import Dices from 'lucide-static/icons/dices.svg'
 import Languages from 'lucide-static/icons/languages.svg'
 import Lollipop from 'lucide-static/icons/lollipop.svg'
@@ -280,22 +279,6 @@ tag settings-drawer < aside
 			<a.settings-btn href='/downloads/' target="_blank" @click=pwa.install>
 				<img[size:2rem rd:23% mr:0.75rem] src='/bolls.png' aria-hidden=true>
 				t.install_app
-		<button.settings-btn @click=activities.showHelp>
-			<svg src=ICONS.CARROT aria-hidden=true>
-			t.help
-		<button.settings-btn @click=activities.showSupport>
-			<svg src=HeartHandshake aria-hidden=true>
-			t.support
-
-		unless !"state.pswv"
-			<a.settings-btn route-to="/donate/">
-				<svg src=ICONS.TIP_JAR aria-hidden=true>
-				t.donate
-
-		<a.settings-btn target="_blank" href="/api">
-			<svg src=ICONS.CODE aria-hidden=true>
-			"API"
-
 		<button.settings-btn @click=purgeCache>
 			<svg src=ICONS.BROOM aria-hidden=true>
 			t.purge_cache
@@ -312,17 +295,9 @@ tag settings-drawer < aside
 					background-size: 100% 0.2em
 					background-image: linear-gradient($c 0px, $c 100%) @hover: linear-gradient($acc-hover 0px, $acc-hover 100%)
 
-			<p[d:flex jc:center ai:center flex-wrap:wrap g:0.5rem]>
-				<a target="_blank" rel="noreferrer" href="http://t.me/bollsbible"> "Official Telegram"
-				<a target="_blank" rel="noreferrer" href="https://github.com/Bolls-Bible/bain"> "GitHub"
-				<a target="_blank" href="/static/privacy_policy.html"> "Privacy Policy"
-				<a target="_blank" href="/static/disclaimer.html"> "Disclaimer"
-				<a target="_blank" rel="noreferrer" href="https://imba.io"> "Imba"
-				<a target="_blank" rel="noreferrer" href="https://docs.djangoproject.com"> "Django"
-
 			<p>
-				"v3.4.0 | "
-				<time dateTime='2026-1-10'> "10.1.2026"
+				"v3.5.0 | "
+				<time dateTime='2026-8-19'> "19.8.2026"
 
 			<p>
 				"© 2019-present Павлишинець Богуслав 🎻 Bohuslav Pavlyshynets"
