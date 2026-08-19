@@ -25,7 +25,7 @@ help:
 	@echo -e "    "${CYAN}"build"${RESET}"                 Build the docker images"
 	@echo -e "    "${CYAN}"build-no-cache"${RESET}"        Build the docker images without cache"
 	@echo -e "    "${CYAN}"build-all-in-one"${RESET}"      Build single TrueNAS/Docker Hub image"
-	@echo -e "    "${CYAN}"publish-all-in-one"${RESET}"    Build and push maxivious/bolls:v3.1"
+	@echo -e "    "${CYAN}"publish-all-in-one"${RESET}"    Build and push maxivious/bolls:v3.2"
 	@echo -e "    "${CYAN}"restore-db"${RESET}"            Restore the database"
 	@echo -e "    "${CYAN}"up"${RESET}"                    Start the docker containers"
 	@echo -e "    "${CYAN}"down"${RESET}"                  Stop the docker containers"
@@ -70,10 +70,10 @@ build-no-cache:
 	$(DOCKER) compose build --no-cache
 
 build-all-in-one:
-	$(DOCKER) build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v3.1 .
+	$(DOCKER) build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v3.2 .
 
 publish-all-in-one: build-all-in-one
-	$(DOCKER) push --format v2s2 docker.io/maxivious/bolls:v3.1
+	$(DOCKER) push --format v2s2 docker.io/maxivious/bolls:v3.2
 
 restore-db:
 	# first, make sure we have all migrations run

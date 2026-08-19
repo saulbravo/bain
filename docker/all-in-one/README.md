@@ -4,7 +4,7 @@ Deploy Bolls Bible as one Docker image: PostgreSQL, Django, Imba, and Nginx run 
 
 ## Docker Hub image
 
-`docker.io/maxivious/bolls:v3.1`
+`docker.io/maxivious/bolls:v3.2`
 
 Published from this repo via `make build-all-in-one` and `make publish-all-in-one`.
 
@@ -14,7 +14,7 @@ Published from this repo via `make build-all-in-one` and `make publish-all-in-on
 2. **Application name:** `bolls` (or any name you prefer).
 3. **Container image:**
    - Repository: `maxivious/bolls`
-   - Tag: `v3.1`
+   - Tag: `v3.2`
 4. Leave **Entrypoint**, **CMD**, and **Args** empty (use image defaults).
 5. **Port forwarding:**
 
