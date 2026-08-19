@@ -8,33 +8,33 @@ tag bible-tabs
 	touchInput = hasTouchEvents
 
 	def handleTabClick index
+		clearTouchHover!
 		if index == activities.activeTabIndex
 			activities.toggleBooksMenu!
 		else
 			activities.switchTab(index)
 
+	def clearTouchHover
+		if document.activeElement and document.activeElement.blur
+			document.activeElement.blur!
+		for el in self.querySelectorAll('.tab, .close-tab, .add-tab')
+			el.blur!
+
 	def releaseTouchHover e
 		if e.pointerType != 'touch' and e.pointerType != 'pen'
 			return
-		for el in self.querySelectorAll('.tab, .close-tab, .add-tab')
-			el.blur!
-		# Surface/hybrid touch leaves :hover stuck until the next tap elsewhere.
-		let body = document.body
-		let pe = body.style.pointerEvents
-		body.style.pointerEvents = 'none'
-		requestAnimationFrame do
-			body.style.pointerEvents = pe
+		clearTouchHover!
 
 	<self .touch-input=touchInput>
 		<div.tabs-container [padding-inline:{scale}rem]>
 			for tab, index in activities.tabs
-				<div.tab .active=(activities.activeTabIndex == index) @click=handleTabClick(index) @pointerup=releaseTouchHover [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
+				<div.tab .active=(activities.activeTabIndex == index) @click=handleTabClick(index) [padding:{scale * 0.5}rem {scale * 1}rem max-width:{scale * 12}rem]>
 					<span.tab-name [fs:{scale * 0.875}rem]> tab.name
 					if activities.tabs.length > 1
-						<div.close-tab @click.stop=activities.closeTab(index) @pointerup=releaseTouchHover [size:{scale * 1.25}rem]>
+						<div.close-tab @click.stop=(do clearTouchHover!; activities.closeTab(index)) [size:{scale * 1.25}rem]>
 							<svg src=X [size:{scale * 0.75}rem]>
 			
-			<button.add-tab @click=activities.addTab @pointerup=releaseTouchHover title="Add new tab" [size:{scale * 2}rem]>
+			<button.add-tab @click=(do clearTouchHover!; activities.addTab!) title="Add new tab" [size:{scale * 2}rem]>
 				<svg src=Plus [size:{scale * 1.25}rem]>
 
 	css
@@ -85,6 +85,7 @@ tag bible-tabs
 			flex: 1 1 0
 			min-width: 0
 			overflow: visible
+			touch-action: manipulation
 
 			@hover
 				bgc: $acc-bgc-hover
@@ -117,6 +118,7 @@ tag bible-tabs
 			d: hcc
 			rd: 50%
 			o: 0.5
+			touch-action: manipulation
 			@hover
 				o: 1
 				bgc: $acc-bgc-hover
@@ -129,6 +131,7 @@ tag bible-tabs
 			rd: 50%
 			flex: 0 0 auto
 			mb: 4px
+			touch-action: manipulation
 			@hover
 				bgc: $acc-bgc
 

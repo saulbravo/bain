@@ -97,6 +97,7 @@ class GenericReader
 			if books[current_index + 1]
 				book = books[current_index + 1].bookid
 				chapter = 1
+		syncMainTabState!
 
 	@action def prevChapter
 		freehandHighlights = []
@@ -107,6 +108,11 @@ class GenericReader
 			if books[current_index - 1]
 				book = books[current_index - 1].bookid
 				chapter = books[current_index - 1].chapters
+		syncMainTabState!
+
+	def syncMainTabState
+		if me == 'main' and activities and activities.applyTabStateFromReader
+			activities.applyTabStateFromReader(null, 'reader-nav')
 
 	@computed get prevChapterLink
 		if chapter - 1 > 0
@@ -132,6 +138,7 @@ class GenericReader
 		if books[current_index + 1]
 			book = books[current_index + 1].bookid
 			chapter = 1
+		syncMainTabState!
 
 	@action def prevBook
 		freehandHighlights = []
@@ -139,6 +146,7 @@ class GenericReader
 		if books[current_index - 1]
 			book = books[current_index - 1].bookid
 			chapter = 1
+		syncMainTabState!
 
 	def getBookmark verseNumber\number
 		if user.username

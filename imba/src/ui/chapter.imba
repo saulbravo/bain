@@ -1212,6 +1212,8 @@ tag chapter < section
 		.book-title
 			padding-inline: 0.5rem
 			display: inline-block
+			cursor: pointer
+			touch-action: manipulation
 		
 		.header-action
 			position: absolute
@@ -1226,6 +1228,7 @@ tag chapter < section
 			cursor: pointer
 			d: hcc
 			rd: 50%
+			touch-action: manipulation
 
 			svg
 				max-height: 100%

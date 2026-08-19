@@ -144,6 +144,7 @@ class Activities
 	switchSyncTimer = null
 	switchSyncAttempts = 0
 	switchSyncMaxAttempts = 20
+	switchSafetyTimer = null
 	# Short-lived guard to ignore stale routed events after a tab switch
 	routeLockUntil = 0
 	routeLockTab = null
@@ -175,6 +176,9 @@ class Activities
 				}
 				isSwitchingTab = no
 				switchSyncTimer = null
+				if switchSafetyTimer
+					clearTimeout(switchSafetyTimer)
+					switchSafetyTimer = null
 				imba.commit!
 				return
 			if switchSyncAttempts >= switchSyncMaxAttempts
@@ -185,12 +189,74 @@ class Activities
 				}
 				isSwitchingTab = no
 				switchSyncTimer = null
+				routeLockUntil = 0
+				routeLockTab = null
+				if switchSafetyTimer
+					clearTimeout(switchSafetyTimer)
+					switchSafetyTimer = null
 				imba.commit!
 				return
 			switchSyncTimer = setTimeout(&, 50) do
 				check!
 
 		check!
+
+	def ensureSwitchEnds maxMs = 1500
+		if switchSafetyTimer
+			clearTimeout(switchSafetyTimer)
+			switchSafetyTimer = null
+		switchSafetyTimer = setTimeout(&, maxMs) do
+			if isSwitchingTab
+				logTabDebug 'ensureSwitchEnds forced clear', {
+					activeTabIndex,
+					reader: readerSummary
+				}
+				isSwitchingTab = no
+				routeLockUntil = 0
+				routeLockTab = null
+				imba.commit!
+			switchSafetyTimer = null
+
+	# Persist reader location into a tab entry (immutable update for reliable UI refresh).
+	def applyTabStateFromReader index = null, source\string = 'unknown'
+		if !tabsHydrated
+			return no
+		let targetIndex = index
+		if targetIndex == null
+			if tabUpdateTargetIndex != null and tabUpdateTargetIndex != activeTabIndex and activeModal == ''
+				tabUpdateTargetIndex = null
+			targetIndex = tabUpdateTargetIndex != null ? tabUpdateTargetIndex : activeTabIndex
+		if targetIndex < 0 or targetIndex >= tabs.length
+			return no
+		let tab = tabs[targetIndex]
+		unless tab and reader..nameOfCurrentBook
+			return no
+		const newName = "{reader.nameOfCurrentBook} {reader.chapter}"
+		if tab.name == newName and tab.translation == reader.translation and tab.book == reader.book and tab.chapter == reader.chapter
+			if tabUpdateTargetIndex == targetIndex
+				tabUpdateTargetIndex = null
+			return no
+		logTabDebug 'applyTabStateFromReader', {
+			source,
+			targetIndex,
+			activeTabIndex,
+			tabUpdateTargetIndex,
+			newName,
+			reader: readerSummary
+		}
+		let nextTabs = tabs.slice()
+		nextTabs[targetIndex] = {
+			name: newName
+			translation: reader.translation
+			book: reader.book
+			chapter: reader.chapter
+		}
+		tabs = nextTabs
+		saveTabs!
+		if tabUpdateTargetIndex == targetIndex
+			tabUpdateTargetIndex = null
+		return yes
+
 	# When a navigation starts inside a tab (e.g. modal), keep a stable target
 	@observable tabUpdateTargetIndex = null
 
@@ -295,8 +361,14 @@ class Activities
 
 	def switchTab index
 		if index >= 0 and index < tabs.length
+			if isSwitchingTab
+				if switchSyncTimer
+					clearTimeout(switchSyncTimer)
+					switchSyncTimer = null
+				isSwitchingTab = no
 			# Switching tabs should always update the destination active tab only.
 			tabUpdateTargetIndex = null
+			applyTabStateFromReader(activeTabIndex, 'switchTab:persist')
 			const tab = tabs[index]
 			unless tab
 				return
@@ -314,14 +386,22 @@ class Activities
 				chapter: tab.chapter
 			}
 			isSwitchingTab = yes
-			applyTabToReader(tab, 'switchTab')
+			const fromIndex = activeTabIndex
+			applyTabStateFromReader(fromIndex, 'switchTab:persist')
 			activeTabIndex = index
+			applyTabToReader(tab, 'switchTab')
 			saveTabs!
+			ensureSwitchEnds!
 			finishSwitchWhenSynced(tab)
 			imba.commit!
 
 	def closeTab index
 		if tabs.length > 1
+			if isSwitchingTab
+				if switchSyncTimer
+					clearTimeout(switchSyncTimer)
+					switchSyncTimer = null
+				isSwitchingTab = no
 			# Closing tabs invalidates any pending targeted index.
 			tabUpdateTargetIndex = null
 			logTabDebug 'closeTab start', {
@@ -329,6 +409,7 @@ class Activities
 				activeTabIndex,
 				tabsLength: tabs.length
 			}
+			applyTabStateFromReader(activeTabIndex, 'closeTab:persist')
 			isSwitchingTab = yes
 			tabs.splice(index, 1)
 			let newIndex = activeTabIndex
@@ -347,72 +428,17 @@ class Activities
 				book: tab.book
 				chapter: tab.chapter
 			}
-			applyTabToReader(tab, 'closeTab')
 			activeTabIndex = newIndex
+			applyTabToReader(tab, 'closeTab')
 			saveTabs!
+			ensureSwitchEnds!
 			finishSwitchWhenSynced(tab)
 			imba.commit!
 
 	@autorun def updateCurrentTabName
-		if !tabsHydrated
-			logTabDebug 'updateCurrentTabName skipped (tabs not hydrated)', {
-				activeTabIndex,
-				tabUpdateTargetIndex
-			}
-			return
 		if isSwitchingTab
-			logTabDebug 'updateCurrentTabName skipped (switching)', {
-				activeTabIndex,
-				tabUpdateTargetIndex,
-				reader: readerSummary
-			}
 			return
-		# If a stale target points to another tab while no modal flow is active,
-		# clear it so normal navigation updates only the active tab.
-		if tabUpdateTargetIndex != null and tabUpdateTargetIndex != activeTabIndex and activeModal == ''
-			logTabDebug 'updateCurrentTabName clear stale target', {
-				activeTabIndex,
-				tabUpdateTargetIndex
-			}
-			tabUpdateTargetIndex = null
-		const index = tabUpdateTargetIndex != null ? tabUpdateTargetIndex : activeTabIndex
-		const tab = tabs[index]
-		unless tab and reader..nameOfCurrentBook
-			logTabDebug 'updateCurrentTabName skipped (missing)', {
-				index,
-				activeTabIndex,
-				tabUpdateTargetIndex,
-				reader: readerSummary
-			}
-			return
-		const newName = "{reader.nameOfCurrentBook} {reader.chapter}"
-		if tab.name == newName and tab.translation == reader.translation and tab.book == reader.book and tab.chapter == reader.chapter
-			if tabUpdateTargetIndex != null and tabUpdateTargetIndex == index
-				logTabDebug 'updateCurrentTabName clear target (already in sync)', {
-					index,
-					activeTabIndex,
-					tabUpdateTargetIndex,
-					tab: tabSummary(tab),
-					reader: readerSummary
-				}
-				tabUpdateTargetIndex = null
-			return
-		logTabDebug 'updateCurrentTabName', {
-			index,
-			tabUpdateTargetIndex,
-			tabBefore: tabSummary(tab),
-			reader: readerSummary,
-			newName
-		}
-		tabs[index] = {
-			name: newName
-			translation: reader.translation
-			book: reader.book
-			chapter: reader.chapter
-		}
-		saveTabs!
-		if tabUpdateTargetIndex != null and tabUpdateTargetIndex == index
-			tabUpdateTargetIndex = null
+		applyTabStateFromReader(null, 'autorun')
 
 	@observable selectedVerses\number[] = []
 	@observable selectedVersesPKs\number[] = []
