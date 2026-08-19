@@ -29,7 +29,10 @@ WORKDIR /usr/src/bolls
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update -y \
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+    && echo 'deb http://deb.debian.org/debian bookworm main' > /etc/apt/sources.list \
+    && printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99no-check-valid \
+    && apt-get update -y \
     && apt-get install -y --no-install-recommends libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -48,7 +51,10 @@ ENV HOME=/home/bolls
 ENV BOLLS_HOME=/home/bolls/web
 ENV PGDATA=/var/lib/postgresql/data
 
-RUN apt-get update -y \
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+    && echo 'deb http://deb.debian.org/debian bookworm main' > /etc/apt/sources.list \
+    && printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99no-check-valid \
+    && apt-get update -y \
     && apt-get install -y --no-install-recommends \
         nginx \
         postgresql \
