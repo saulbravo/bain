@@ -55,6 +55,8 @@ class Reader < GenericReader
 
 	@action def updateParallelReader book, chapter
 		if settings.parallel_sync && parallelReader.enabled && parallelReader.theChapterExistInThisTranslation(book, chapter)
+			unless parallelReader.book == book and parallelReader.chapter == chapter
+				parallelReader.verse = undefined
 			parallelReader.book = book
 			parallelReader.chapter = chapter
 
@@ -70,6 +72,7 @@ class Reader < GenericReader
 		const reqTranslation = translation
 		const reqBook = book
 		const reqChapter = chapter
+		const reqVerse = verse
 		
 		document.title = nameOfCurrentBook + ' ' + chapter + ' ' + translationNames[translation] + " Bolls Bible"
 		const cached = activities and activities.getCachedChapter ? activities.getCachedChapter(translation, book, chapter) : null
@@ -105,22 +108,26 @@ class Reader < GenericReader
 				return
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			loading = no
-			activities.cleanUp!
+			unless reqVerse
+				if activities.activeModal == 'books'
+					activities.cleanUp { preserveBooksModal: yes }
+				else
+					activities.cleanUp!
 
 		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
 			return
-		readingHistory.saveToHistory(translation, book, chapter, verse)
+		readingHistory.saveToHistory(translation, book, chapter, reqVerse)
 		getBookmarks!
 		getFreehandHighlights!
 
 		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
 			return
-		if verse
-			if typeof verse === 'string' and verse.includes('-')
-				const parts = verse.split('-')
+		if reqVerse
+			if typeof reqVerse === 'string' and reqVerse.includes('-')
+				const parts = reqVerse.split('-')
 				findVerse(parts[0], parts[1], yes)
 			else
-				goToAndSelectVerse(verse)
+				goToAndSelectVerse(reqVerse)
 			verse = undefined
 		else
 			show_verse_picker = yes
@@ -129,7 +136,7 @@ class Reader < GenericReader
 
 		# if the pathname has one of 4 `/` in it then call the pushState
 		const pathnameSlices = window.location.pathname.split('/').filter(Boolean).length
-		if (pathnameSlices == 0 or pathnameSlices > 2) and activities.selectedVersesPKs.length == 0
+		if (pathnameSlices == 0 or pathnameSlices > 2) and activities.selectedVersesPKs.length == 0 and not verse
 			const newLocation = window.location.origin + '/' + translation + '/' + book + '/' + chapter + '/'
 			if window.location.href != newLocation
 				window.history.pushState({

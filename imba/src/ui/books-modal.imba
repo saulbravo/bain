@@ -63,12 +63,12 @@ tag books-modal
 		).language
 
 	@computed get activeBook
-		if activeTranslation == parallelReader.translation
+		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
 			return parallelReader.book
 		return reader.book
 
 	@computed get activeChapter
-		if activeTranslation == parallelReader.translation
+		if activities.activeParallelAtBooksDrawer && parallelReader.enabled
 			return parallelReader.chapter
 		return reader.chapter
 
@@ -120,8 +120,15 @@ tag books-modal
 			book = books.find(do(b) return b.bookid == bookOrId)
 		return localizedBookAbbreviation(book, no)
 
-	def setActiveTranslation parallel\boolean
-		activities.activeParallelAtBooksDrawer = parallel
+	@action def setActiveTranslation parallel\boolean
+		if activities.activeParallelAtBooksDrawer == parallel and unfoldTranslationsList
+			unfoldTranslationsList = no
+		else
+			activities.activeParallelAtBooksDrawer = parallel
+			unfoldTranslationsList = yes
+			modalState = 'book'
+			selectedBook = null
+			selectedChapter = null
 
 	@action def swapTranslations
 		let main_translation = reader.translation
@@ -230,7 +237,7 @@ tag books-modal
 		return items
 
 	@action def changeTranslation translation\string
-		if parallelReader.enabled && activeTranslation == parallelReader.translation
+		if parallelReader.enabled && activities.activeParallelAtBooksDrawer
 			unless parallelReader.applyTranslationChange(translation)
 				return
 		else
@@ -299,144 +306,55 @@ tag books-modal
 			imba.commit!
 
 	@action def goToChapter bookid\number, chapter\number
-		# Bind this navigation to the currently active tab
 		activities.tabUpdateTargetIndex = activities.activeTabIndex
-		console.log('[TAB DEBUG] books-modal goToChapter', {
-			activeTabIndex: activities.activeTabIndex,
-			bookid,
-			chapter,
-			activeTranslation
-		})
-		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
-		if isParallel
-			parallelReader.book = bookid
-			parallelReader.chapter = chapter
-		else
-			activities.applyTabToReader({
-				translation: reader.translation
-				book: bookid
-				chapter: chapter
-			}, 'books-modal:goToChapter')
+		resetModalState!
 		activities.cleanUp { onPopState: yes }
+		navigateFromModal(bookid, chapter, null, 'books-modal:goToChapter')
+
+	@action def resetModalState
+		modalState = 'book'
+		selectedBook = null
+		selectedChapter = null
+		selectedChapterNumber = null
+		unfoldTranslationsList = no
+		verseCount = 0
 
 	@action def goToVerse bookid\number, chapter\number, verse\number
-		console.log('[DEBUG] goToVerse called:', { bookid, chapter, verse, activeTranslation })
-		# Bind this navigation to the currently active tab
 		activities.tabUpdateTargetIndex = activities.activeTabIndex
-		console.log('[TAB DEBUG] books-modal goToVerse', {
-			activeTabIndex: activities.activeTabIndex,
-			bookid,
-			chapter,
-			verse,
-			activeTranslation
-		})
-		
-		const isParallel = parallelReader.enabled && activeTranslation == parallelReader.translation
-		const targetReader = isParallel ? parallelReader : reader
-		
-		# Set the book/chapter/verse to trigger loading FIRST
-		if isParallel
-			parallelReader.book = bookid
-			parallelReader.chapter = chapter
-			parallelReader.verse = verse
-		else
+		resetModalState!
+		activities.cleanUp { onPopState: yes }
+		navigateFromModal(bookid, chapter, verse, 'books-modal:goToVerse')
+
+	@action def navigateFromModal bookid\number, chapter\number, verseNum\number = null, source\string = 'books-modal'
+		const isParallel = parallelReader.enabled && activities.activeParallelAtBooksDrawer
+		activities.lockReaderRoute(reader.translation, bookid, chapter)
+
+		if settings.parallel_sync && parallelReader.enabled
+			reader.verse = undefined
+			parallelReader.verse = undefined
+			if isParallel
+				parallelReader.navigateToPlace(bookid, chapter, verseNum)
+				if reader.theChapterExistInThisTranslation(bookid, chapter)
+					reader.navigateToPlace(bookid, chapter)
+			else
+				reader.navigateToPlace(bookid, chapter, verseNum)
+				if parallelReader.theChapterExistInThisTranslation(bookid, chapter)
+					parallelReader.navigateToPlace(bookid, chapter)
 			activities.applyTabToReader({
 				translation: reader.translation
 				book: bookid
 				chapter: chapter
-			}, 'books-modal:goToVerse')
-			reader.verse = verse
-		
-		console.log('[DEBUG] Set reader properties, closing modal')
-		# Close modal without changing history (keep tab state stable)
-		activities.cleanUp { onPopState: yes }
-		
-		# Wait for chapter to load, then select and scroll to verse smoothly
-		# fetchVerses calls cleanUp! which clears selections, so we need to select AFTER it completes
-		console.log('[DEBUG] Starting selectAndScroll retry logic')
-		
-		# Use a polling function that checks until verses are loaded
-		const pollForVerses = do
-			let attemptCount = 0
-			const maxAttempts = 20
-			const pollInterval = 200
-			
-			const checkAndSelect = do
-				attemptCount++
-				
-				# Safe access to verses array
-				const verses = targetReader.verses || []
-				const hasVerses = verses.length > 0
-				
-				console.log('[DEBUG] Poll attempt {attemptCount}:', {
-					loading: targetReader.loading,
-					hasVerses: hasVerses,
-					verseCount: verses.length,
-					targetVerse: verse,
-					currentBook: targetReader.book,
-					currentChapter: targetReader.chapter,
-					expectedChapter: chapter
-				})
-				
-				# Wait for loading to complete AND verses to be available AND correct chapter loaded
-				if !targetReader.loading and hasVerses and targetReader.chapter == chapter
-					# Find the verse by verse number
-					const verseObj = verses.find(do |v| return v.verse == verse)
-					if verseObj
-						console.log('[DEBUG] Found verse object, selecting:', { pk: verseObj.pk, verse: verseObj.verse })
-						
-						# Clear text selection but NOT verse selection
-						if window.getSelection
-							window.getSelection().removeAllRanges()
-						
-						# Prevent slideup from showing (use special marker instead of undefined)
-						activities.activeVerseAction = 'suppressed'
-						
-						# Select the verse (this will toggle if already selected)
-						# Note: cleanUp! was called by fetchVerses, so selection should be clear
-						targetReader.selectVerse(verseObj.pk, verse)
-						
-						# Ensure slideup doesn't show (selectVerse might set it)
-						activities.activeVerseAction = 'suppressed'
-						console.log('[DEBUG] Verse selected, slideup suppressed. Selected PKs:', activities.selectedVersesPKs.length)
-						
-						# Scroll to center it smoothly - wait a bit for DOM to update
-						setTimeout(&, 400) do
-							const verseId = String(verse)
-							const versePrefix = isParallel ? 'p' : ''
-							const fullVerseId = versePrefix + verseId
-							const verseElement = document.getElementById(fullVerseId)
-							if verseElement
-								console.log('[DEBUG] Scrolling to verse:', fullVerseId)
-								verseElement.scrollIntoView({behavior: 'smooth', block: 'center'})
-							else
-								console.log('[DEBUG] Verse element not found, retrying:', fullVerseId)
-								# Try again after a delay
-								setTimeout(&, 600) do
-									const retryElement = document.getElementById(fullVerseId)
-									if retryElement
-										console.log('[DEBUG] Found verse on retry, scrolling')
-										retryElement.scrollIntoView({behavior: 'smooth', block: 'center'})
-									else
-										console.log('[DEBUG] Verse element still not found:', fullVerseId)
-						return yes
-					else
-						console.log('[DEBUG] Verse object not found in verses array. Available verses:', verses.map(do |v| return v.verse).slice(0, 10))
-				
-				# Continue polling if not done and haven't exceeded max attempts
-				if attemptCount < maxAttempts
-					setTimeout(&, pollInterval) do
-						checkAndSelect()
-				else
-					console.log('[DEBUG] Max polling attempts reached, giving up')
-			
-			# Start polling
-			checkAndSelect()
-		
-		# Start polling after a short delay to let the modal close
-		setTimeout(&, 100) do
-			pollForVerses()
-	
+			}, source)
+		elif isParallel
+			parallelReader.navigateToPlace(bookid, chapter, verseNum)
+		else
+			reader.navigateToPlace(bookid, chapter, verseNum)
+			activities.applyTabToReader({
+				translation: reader.translation
+				book: bookid
+				chapter: chapter
+			}, source)
+
 	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string
 		# Change translation if needed
 		if translation != activeTranslation
@@ -555,10 +473,10 @@ tag books-modal
 							" {selectedChapterNumber}"
 					<span.bible-separator> "|"
 				if parallelReader.enabled
-					<[d:flex mih:2.25rem g:0.5rem]>
-						<button.btn title=translationFullName(reader.translation) .active=(activeTranslation == reader.translation) @click=setActiveTranslation(no)> reader.translation
+					<[d:flex mih:2.25rem g:0.5rem ai:center]>
+						<button.btn title=translationFullName(reader.translation) .active=(!activities.activeParallelAtBooksDrawer and unfoldTranslationsList) @click=setActiveTranslation(no)> reader.translation
 						<button.btn [fw:black] @click=swapTranslations title=t.swap_parallels> "⇄"
-						<button.btn title=translationFullName(parallelReader.translation) .active=(activeTranslation == parallelReader.translation) @click=setActiveTranslation(yes)> parallelReader.translation
+						<button.btn title=translationFullName(parallelReader.translation) .active=(activities.activeParallelAtBooksDrawer and unfoldTranslationsList) @click=setActiveTranslation(yes)> parallelReader.translation
 				else
 					<button.btn title=t.change_translation @click=(unfoldTranslationsList = !unfoldTranslationsList)>
 						activeTranslation
@@ -712,7 +630,8 @@ tag books-modal
 					elif verseCount > 0
 						<div.bible-verse-grid>
 							for i in [1 .. verseCount]
-								const isSelected = (book.bookid == activeBook and selectedChapterNumber == activeChapter and i == reader.verse)
+								const activeVerse = activities.activeParallelAtBooksDrawer && parallelReader.enabled ? parallelReader.verse : reader.verse
+								const isSelected = (book.bookid == activeBook and selectedChapterNumber == activeChapter and i == activeVerse)
 								<button.bible-verse-btn .active=isSelected @click=goToVerse(book.bookid, selectedChapterNumber, i)>
 									i
 					else

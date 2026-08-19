@@ -29,6 +29,7 @@ class GenericReader
 	freehandPendingSaveRequest = null
 	show_verse_picker\boolean = no
 	verse\number|string = 0
+	_verseNavToken = 0
 
 	me = '' # constant to indicate the main reader versus the parallel reader
 	def hasBookmarkMarker collection\string
@@ -112,11 +113,34 @@ class GenericReader
 		self.translation = nextTranslation
 		self.book = place.book
 		self.chapter = place.chapter
+		self.verse = undefined
 		if me == 'main' and activities
 			const path = activities.readerPath(nextTranslation, place.book, place.chapter)
 			window.history.replaceState({}, '', window.location.origin + path)
 			syncMainTabState!
 		return yes
+
+	# Navigate to book/chapter and optionally select a verse after load.
+	# When only the verse changes within the current chapter, fetchVerses does not
+	# re-run (verse is not observable), so we select immediately in that case.
+	@action def navigateToPlace bookid\number, chapter\number, verseNum\number|string = null
+		++self._verseNavToken
+		const wasSamePlace = self.book == bookid and self.chapter == chapter
+
+		if verseNum != null and verseNum != undefined and verseNum != ''
+			self.verse = verseNum
+		else
+			self.verse = undefined
+
+		unless wasSamePlace
+			self.book = bookid
+			self.chapter = chapter
+			return
+
+		if self.verse
+			const token = ++self._verseNavToken
+			goToAndSelectVerse(self.verse, null, token)
+			self.verse = undefined
 
 	@action def ensureValidChapterForTranslation
 		unless theChapterExistInThisTranslation book, chapter
@@ -562,9 +586,10 @@ class GenericReader
 				activities.selectedCategories.push(piece)
 
 
-	def selectVerse pk\number, id\number
-		if !document.getSelection().isCollapsed or activities.activeModal or activities.freehandHighlightMode or activities.penToolMode
-			return
+	def selectVerse pk\number, id\number, force = no
+		unless force
+			if !document.getSelection().isCollapsed or activities.activeModal or activities.freehandHighlightMode or activities.penToolMode
+				return
 
 		if activities.copySelectMode
 			let readerType = self.me or ''
@@ -714,17 +739,40 @@ class GenericReader
 			else
 				findVerse(id, endverse, highlight)
 
-	def goToAndSelectVerse verseNum, versePk\number = null
+	def goToAndSelectVerse verseNum, versePk\number = null, token\number = null
+		unless token
+			token = ++self._verseNavToken
 		let id = typeof verseNum === 'string' ? verseNum.split('-')[0] : String(verseNum)
 		let num = parseInt(id)
 		let scrollId = me == 'main' ? String(num) : "p{num}"
 		activities.selectedVersesPKs = []
 		activities.selectedVerses = []
+		activities.selectedCategories = []
 		activities.selectedParallel = undefined
 		activities.activeVerseAction = ''
-		findVerse(scrollId, undefined, no)
+		if window.getSelection
+			window.getSelection().removeAllRanges()
+
+		const scrollToVerse = do
+			if token != self._verseNavToken
+				return
+			setTimeout(&, 250) do
+				if token != self._verseNavToken
+					return
+				let el = me == 'main' ? document.getElementById(scrollId) : document.getElementById(scrollId)
+				if el and el.offsetParent
+					el.offsetParent.scrollTo({
+						behavior: theme.scrollBehavior,
+						top: el.offsetTop - theme.fontSize
+					})
+				else
+					scrollToVerse()
+
+		scrollToVerse()
 
 		const trySelect = do
+			if token != self._verseNavToken
+				return
 			let pk = versePk
 			unless pk
 				let v = verses.find(do |v| return v.verse == num)
@@ -737,7 +785,8 @@ class GenericReader
 			unless el
 				setTimeout(trySelect, 250)
 				return
-			selectVerse(pk, num)
+			selectVerse(pk, num, yes)
+			imba.commit!
 
 		setTimeout(trySelect, 250)
 

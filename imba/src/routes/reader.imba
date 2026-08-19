@@ -273,7 +273,7 @@ tag reader
 		const chapter = parseInt(params.chapter, 10)
 		if Number.isNaN(book) or Number.isNaN(chapter)
 			return
-		# Ignore stale routed events right after a tab switch
+		# Ignore stale routed events right after a tab switch or modal navigation
 		if activities.routeLockUntil and Date.now() < activities.routeLockUntil and activities.routeLockTab
 			const lock = activities.routeLockTab
 			if params.translation != lock.translation or book != lock.book or chapter != lock.chapter
@@ -282,9 +282,8 @@ tag reader
 					lock
 				})
 				return
-			# Clear lock once we see the expected route
-			activities.routeLockUntil = 0
-			activities.routeLockTab = null
+			# Reader was already updated programmatically — keep the lock until it expires
+			return
 		# Guard against stale router params (URL is source of truth)
 		const offset = link_segments[0] == 'international' ? 1 : 0
 		const actualTranslation = link_segments[offset]

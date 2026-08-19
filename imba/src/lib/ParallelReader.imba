@@ -42,10 +42,8 @@ class ParallelReader < GenericReader
 		document.getElementById('parallel-reader')
 
 	@action def updateMainReader book, chapter
-		# first check if that chapter and book exist in the main reader
-		if reader.theChapterExistInThisTranslation(book, chapter)
-			reader.book = book
-			reader.chapter = chapter
+		if activities and activities.syncMainReaderLocation
+			activities.syncMainReaderLocation(book, chapter, 'parallel-sync')
 
 	# Whenever translation, book or chapter changes, we need to fetch the verses for the current chapter.
 	@autorun
@@ -57,6 +55,7 @@ class ParallelReader < GenericReader
 		const reqTranslation = translation
 		const reqBook = book
 		const reqChapter = chapter
+		const reqVerse = verse
 		const cached = activities and activities.getCachedChapter ? activities.getCachedChapter(translation, book, chapter) : null
 		const keepExisting = activities and activities.isSwitchingTab
 		if cached
@@ -88,30 +87,30 @@ class ParallelReader < GenericReader
 				return
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 			loading = no
-			activities.cleanUp!
 
 		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
 			return
-		if settings.parallel_sync && enabled
-			readingHistory.saveToHistory(translation, book, chapter, verse)
-			updateMainReader book, chapter
 
 		getBookmarks!
 		getFreehandHighlights!
 
-		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
-			return
-		if verse
-			if typeof verse === 'string' and verse.includes('-')
-				const parts = verse.split('-')
+		if reqVerse
+			if typeof reqVerse === 'string' and reqVerse.includes('-')
+				const parts = reqVerse.split('-')
 				findVerse(parts[0], parts[1], yes)
 			else
-				goToAndSelectVerse(verse)
+				goToAndSelectVerse(reqVerse)
 			verse = undefined
 		else
 			show_verse_picker = yes
 			if myRenderer
 				myRenderer.scrollTop = 0
+
+		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
+			return
+		if settings.parallel_sync && enabled
+			readingHistory.saveToHistory(translation, book, chapter, reqVerse)
+			updateMainReader book, chapter
 
 
 

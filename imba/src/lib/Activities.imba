@@ -280,9 +280,35 @@ class Activities
 			return
 		const path = readerPath(tab.translation, tab.book, tab.chapter)
 		window.history.replaceState({}, '', window.location.origin + path)
+		const locationChanged = reader.translation != tab.translation or reader.book != tab.book or reader.chapter != tab.chapter
+		if locationChanged
+			reader.verse = undefined
 		reader.translation = tab.translation
 		reader.book = tab.book
 		reader.chapter = tab.chapter
+
+	# Ignore stale router events while a modal/sync navigation is in flight
+	def lockReaderRoute translation\string, book\number, chapter\number, ms = 2000
+		routeLockUntil = Date.now() + ms
+		routeLockTab = {
+			translation: translation
+			book: book
+			chapter: chapter
+		}
+
+	def syncMainReaderLocation book\number, chapter\number, source\string = 'parallel-sync'
+		unless reader.theChapterExistInThisTranslation(book, chapter)
+			return no
+		lockReaderRoute(reader.translation, book, chapter)
+		reader.verse = undefined
+		reader.book = book
+		reader.chapter = chapter
+		applyTabToReader({
+			translation: reader.translation
+			book: book
+			chapter: chapter
+		}, source)
+		return yes
 
 	# In-memory chapter cache to avoid blanking on tab switch
 	chapterCache = {}
@@ -473,7 +499,8 @@ class Activities
 	@observable activeParallelAtBooksDrawer = no
 
 	# Clean all the variables in order to free space around the text
-	@action def cleanUp { onPopState } = {}
+	@action def cleanUp { onPopState, preserveBooksModal } = {}
+		const keepBooksModal = activeModal == 'books' and preserveBooksModal
 		if activeModal == 'theme'
 			if theme.theme != 'custom'
 				customTheme.cleanUpCustomTheme!
@@ -485,7 +512,7 @@ class Activities
 			activeModal = ''
 			return
 
-		if (activeModal and not onPopState) or selectedVerses.length > 0
+		if (activeModal and not onPopState and not keepBooksModal) or (selectedVerses.length > 0 and not keepBooksModal)
 			window.history.back()
 
 		show_accents = no
@@ -538,13 +565,14 @@ class Activities
 		unless pageSearch.on 
 			# focus()
 			window.getSelection().removeAllRanges()
-		if pageSearch.on || activeModal
+		if pageSearch.on || (activeModal and not keepBooksModal)
 			pageSearch.on  = no
 			pageSearch.matches = []
 			pageSearch.rects = []
 
-		activeModal = ''
-		activeVerseAction = ''
+		unless keepBooksModal
+			activeModal = ''
+			activeVerseAction = ''
 		selectedParallel = undefined
 		imba.commit!
 
@@ -667,6 +695,12 @@ class Activities
 			# Open the modal first
 			openModal 'books'
 			
+			# Track which pane (main vs parallel) this navigation targets
+			if typeof parallel == 'boolean'
+				activeParallelAtBooksDrawer = parallel
+			else
+				activeParallelAtBooksDrawer = no
+			
 			# Restore selections if they existed (after opening modal)
 			if hadSelectedVerses
 				selectedVersesPKs = preservedSelectedVerses
@@ -677,9 +711,6 @@ class Activities
 					selectedVerses: selectedVerses.length
 				})
 		
-		if typeof parallel == 'boolean'
-			activeParallelAtBooksDrawer = parallel
-
 	def toggleSettingsMenu
 		if settingsDrawerOffset
 			if !booksDrawerOffset && hasTouchEvents
