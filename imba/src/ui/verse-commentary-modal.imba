@@ -46,6 +46,9 @@ tag verse-commentary-modal
 	get commentaryReference
 		return "{bookName} {currentReader.chapter}:{currentVerse}"
 
+	get commentaryTitle
+		return "Comentario Bíblico Adventista"
+
 	get contentStyle
 		return "--cmt-pt:{commentaryLineHeight - 1}em;--cmt-pb:{0.8 * commentaryLineHeight}em"
 
@@ -330,6 +333,8 @@ tag verse-commentary-modal
 		let messageData = {
 			type: String(message.type)
 			sections: Array.from(message.sections or [])
+			commentaryTitle: String(message.commentaryTitle or commentaryTitle)
+			reference: String(message.reference or commentaryReference)
 			translation: String(message.translation or '')
 			book: String(message.book or '')
 			chapter: Number(message.chapter or 1)
@@ -358,6 +363,8 @@ tag verse-commentary-modal
 		postObsidianSelection({
 			type: 'bible-commentary-selection'
 			sections: sections
+			commentaryTitle: String(commentaryTitle)
+			reference: String(commentaryReference)
 			translation: String(currentReader.translation or '')
 			book: String(bookName or '')
 			chapter: Number(currentReader.chapter or 1)
@@ -502,7 +509,7 @@ tag verse-commentary-modal
 								<svg src=Obsidian aria-hidden=yes>
 						else
 							<span.header-spacer aria-hidden=yes>
-					<h3> "Comentario Bíblico Adventista"
+					<h3> commentaryTitle
 					<button.close-btn.header-action-btn @click=close title="Close">
 						<svg src=X>
 				<div.header-nav>

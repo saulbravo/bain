@@ -420,6 +420,8 @@ class BibleView extends ItemView {
 			text: string;
 			verse: number;
 		}>;
+		commentaryTitle?: string;
+		reference?: string;
 		translation?: string;
 		book?: string;
 		chapter?: number;
@@ -440,26 +442,33 @@ class BibleView extends ItemView {
 		const translationCode = data?.translation || "BBE";
 		const bookId = data.bookId || 1;
 		const chapter = data.chapter || 1;
+		const verse = sections[0]?.verse || 1;
+		const title = data.commentaryTitle || "Comentario Bíblico Adventista";
+		const reference =
+			data.reference || sections[0]?.reference || `${data.book || "Genesis"} ${chapter}:${verse}`;
+		const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verse}`;
 
-		const blocks = sections.map((section) => {
-			const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${section.verse}`;
-			const header = `> [!cba] [${section.reference} - ${translationCode}](${url})`;
-			const body = section.text
-				.split(/\n+/)
-				.filter((line) => line.trim().length > 0)
-				.map((line) => `> ${line.trim()}`)
-				.join("\n");
-			return `${header}\n${body}`;
-		});
+		const body = sections
+			.map((section) => section.text.trim())
+			.filter((text) => text.length > 0)
+			.map((text) =>
+				text
+					.split(/\n+/)
+					.filter((line) => line.trim().length > 0)
+					.map((line) => `> ${line.trim()}`)
+					.join("\n")
+			)
+			.join("\n>\n");
 
-		const formattedText = `${blocks.join("\n\n")}\n\n`;
+		const calloutHeader = `> [!note] [${title}](${url})`;
+		const subtitleLine = `> ${reference}`;
+		const formattedText = `${calloutHeader}\n${subtitleLine}\n${body}\n\n`;
+
 		const editor = activeView.editor;
 		const cursor = editor.getCursor();
 		editor.replaceRange(formattedText, cursor);
 
-		new Notice(
-			`Copied commentary for ${sections.length} verse${sections.length > 1 ? "s" : ""} to note`
-		);
+		new Notice(`Copied commentary to note`);
 	}
 }
 

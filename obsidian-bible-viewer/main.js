@@ -311,6 +311,7 @@ ${verseTexts}
     new import_obsidian.Notice(`Copied ${verses.length} verse${verses.length > 1 ? "s" : ""} to note`);
   }
   copyCommentaryToNote(data) {
+    var _a, _b;
     const sections = data.sections || [];
     if (sections.length === 0) {
       new import_obsidian.Notice("No commentary to copy.");
@@ -324,22 +325,24 @@ ${verseTexts}
     const translationCode = (data == null ? void 0 : data.translation) || "BBE";
     const bookId = data.bookId || 1;
     const chapter = data.chapter || 1;
-    const blocks = sections.map((section) => {
-      const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${section.verse}`;
-      const header = `> [!cba] [${section.reference} - ${translationCode}](${url})`;
-      const body = section.text.split(/\n+/).filter((line) => line.trim().length > 0).map((line) => `> ${line.trim()}`).join("\n");
-      return `${header}
-${body}`;
-    });
-    const formattedText = `${blocks.join("\n\n")}
+    const verse = ((_a = sections[0]) == null ? void 0 : _a.verse) || 1;
+    const title = data.commentaryTitle || "Comentario B\xEDblico Adventista";
+    const reference = data.reference || ((_b = sections[0]) == null ? void 0 : _b.reference) || `${data.book || "Genesis"} ${chapter}:${verse}`;
+    const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verse}`;
+    const body = sections.map((section) => section.text.trim()).filter((text) => text.length > 0).map(
+      (text) => text.split(/\n+/).filter((line) => line.trim().length > 0).map((line) => `> ${line.trim()}`).join("\n")
+    ).join("\n>\n");
+    const calloutHeader = `> [!note] [${title}](${url})`;
+    const subtitleLine = `> ${reference}`;
+    const formattedText = `${calloutHeader}
+${subtitleLine}
+${body}
 
 `;
     const editor = activeView.editor;
     const cursor = editor.getCursor();
     editor.replaceRange(formattedText, cursor);
-    new import_obsidian.Notice(
-      `Copied commentary for ${sections.length} verse${sections.length > 1 ? "s" : ""} to note`
-    );
+    new import_obsidian.Notice(`Copied commentary to note`);
   }
 };
 var BibleViewerSettingTab = class extends import_obsidian.PluginSettingTab {

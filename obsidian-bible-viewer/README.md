@@ -6,7 +6,7 @@ Embed [Bolls Bible](https://github.com/saulbravo/bain) in Obsidian’s right sid
 
 - Bible app embedded in an iframe (right sidebar)
 - Copy selected verses from the reader into the current note (markdown with bold references)
-- Copy commentary paragraphs from the commentary modal into the active note (`[!cba]` callouts)
+- Copy commentary paragraphs from the commentary modal into the active note (one blue `[!note]` callout with commentary title and verse reference)
 - Configurable app URL (local Docker, TrueNAS, or public domain)
 
 ## Install from GitHub
@@ -49,7 +49,7 @@ Enable the plugin under **Settings → Community plugins**.
 3. **Verses:** enable verse copy/select mode, select verses, use the ← arrow to insert.
 4. **Commentary:** open the commentary modal, select paragraph(s), use the ← arrow to insert.
 
-**Requirements for commentary:** Bible app **v2.4+** (Docker tag `maxivious/bolls:v2.4` or newer) and plugin **v0.3.0+**. Older plugin builds only handle verse selection.
+**Requirements for commentary:** Bible app **v2.5+** (Docker tag `maxivious/bolls:v2.5` or newer) and plugin **v0.3.1+**. Multi-paragraph selections are merged into a single callout.
 
 After updating the plugin on another device, copy the whole `bible-viewer` folder again (or pull latest from git) — `main.js` must include the `bible-commentary-selection` handler.
 
