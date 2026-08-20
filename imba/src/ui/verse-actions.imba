@@ -11,7 +11,7 @@ import Bookmark from 'lucide-static/icons/bookmark.svg'
 import Facebook from 'lucide-static/icons/facebook.svg'
 import Eraser from 'lucide-static/icons/eraser.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
-import BookOpenText from 'lucide-static/icons/book-open-text.svg'
+import Lightbulb from 'lucide-static/icons/lightbulb.svg'
 import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
@@ -290,7 +290,7 @@ tag verse-actions < section
 					<svg src=Bookmark aria-hidden=yes>
 			<li>
 				<button @click.stop.prevent=openCommentary title=(t.verse_commentary or "Verse commentary")>
-					<svg src=BookOpenText aria-hidden=yes>
+					<svg src=Lightbulb aria-hidden=yes>
 			<li>
 				<button @click.stop.prevent=clearAllHighlights role="button" aria-label="Clear all" title=(t.delete_all or "Clear All")>
 					<svg src=Trash2 aria-hidden=yes>
