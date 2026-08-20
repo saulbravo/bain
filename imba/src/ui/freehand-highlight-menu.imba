@@ -4,7 +4,7 @@ import parallelReader from '../lib/ParallelReader'
 import { hasTouchEvents } from '../constants'
 import { setValue } from '../utils'
 import X from 'lucide-static/icons/x.svg'
-import Dices from 'lucide-static/icons/dices.svg'
+import PatternFill from '../icons/pattern-fill.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
@@ -104,13 +104,24 @@ tag freehand-highlight-menu
 			<button.tab.close @click=close title="Close">
 				<svg src=X>
 		<svg.chevron src=ChevronDown @click=close>
-		<header>
-			<span> ""
+		<ul.underline-options>
+			for style in activities.underlineStyles
+				<li.underline-option
+					role="button"
+					aria-label=style.label
+					title=style.label
+					.disabled=!activities.patternHighlightMode
+					.selected=(activities.patternHighlightMode and activities.underlineStyle == style.id)
+					@click.stop.prevent=(if activities.patternHighlightMode then activities.setUnderlineStyle(style.id))>
+					<span.preview data-style=style.id>
 
 		<ul.color-options>
-			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
-				<svg src=Dices width="2rem" height="2rem" role="button" aria-label="Random"
-				@click=(activities.freehandHighlightColor = activities.randomColor)>
+			<li.color-option.pattern-option
+				role="button"
+				aria-label="Underline pattern" title="Underline pattern"
+				.selected=activities.patternHighlightMode
+				@click.stop.prevent=activities.togglePatternHighlightMode>
+				<svg src=PatternFill aria-hidden=yes>
 
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.freehandHighlightColor @change=setHighlightColor>
@@ -175,7 +186,7 @@ tag freehand-highlight-menu
 			pointer-events: none
 			.control-tabs
 				pointer-events: auto
-			header, ul, menu
+			header, .underline-options, ul, menu
 				o: 0
 
 		.chevron
@@ -213,6 +224,57 @@ tag freehand-highlight-menu
 			d:hcs
 			g:0.5rem
 
+		.underline-options
+			d: flex
+			flw: nowrap
+			jc: center
+			ai: center
+			g: 0.35rem
+			pb: 0.35rem
+			max-width: 100%
+			padding-inline: 0.5rem
+
+		.underline-option
+			list-style: none
+			size: 2rem 1.15rem
+			d: hcc
+			cursor: pointer
+			fls: 0
+			c: $acc @hover:$acc-hover
+			rd: 0.25rem
+			p: 0 0.15rem
+			scale@hover: 1.15
+
+			&.disabled
+				opacity: 0.28
+				cursor: default
+				c: $c
+				scale@hover: 1
+
+			&.selected
+				bgc: $acc-bgc-hover
+
+			.preview
+				d: block
+				w: 100%
+				h: 0
+				border-bottom: 2px solid currentColor
+
+				&[data-style="dotted"]
+					border-bottom-style: dotted
+
+				&[data-style="dashed"]
+					border-bottom-style: dashed
+
+				&[data-style="double"]
+					border-bottom-width: 3px
+					border-bottom-style: double
+
+				&[data-style="wavy"]
+					border-bottom: none
+					h: 3px
+					background: repeating-linear-gradient(135deg, currentColor, currentColor 1px, transparent 1px, transparent 3px) bottom / 4px 3px repeat-x
+
 		.color-options
 			white-space: nowrap
 			padding-block: 1rem .5rem
@@ -230,8 +292,25 @@ tag freehand-highlight-menu
 			cursor: pointer
 			fls:0
 			scale@hover: 1.2
-			&.selected
+			&.selected:not(.pattern-option)
 				border: 3px solid $acc
+
+			&.pattern-option
+				bgc: transparent
+				bd: none
+				p: 0
+				overflow: hidden
+				d: block
+				c: $acc @hover:$acc-hover
+
+				&.selected
+					bgc: $acc-bgc-hover
+					c: $acc-hover
+
+				svg
+					d: block
+					size: 2rem
+					c: inherit
 
 		menu
 			d:hcc
