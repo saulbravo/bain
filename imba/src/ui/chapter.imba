@@ -1,5 +1,6 @@
 import GenericReader from '../lib/GenericReader'
 import activities from '../lib/Activities'
+import { canvasLineDash, freehandWrapClose, freehandWrapOpen } from '../lib/highlightStyles'
 
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
@@ -280,8 +281,13 @@ tag chapter < section
 		ctx.scale(ratio, ratio)
 		ctx.lineJoin = 'round'
 		ctx.lineCap = 'round'
-		# Keep preview stroke visually close to final applied block size.
-		ctx.lineWidth = 24
+		if activities.patternHighlightMode
+			ctx.lineWidth = 3
+			ctx.setLineDash(canvasLineDash(activities.underlineStyle))
+		else
+			# Keep preview stroke visually close to final applied block size.
+			ctx.lineWidth = 24
+			ctx.setLineDash([])
 		ctx.strokeStyle = activities.freehandHighlightColor or '#eab308'
 		# Keep preview color identical to applied color.
 		ctx.globalAlpha = 1
@@ -297,6 +303,8 @@ tag chapter < section
 		freehandStrokePoints = []
 
 	def redrawFreehandStrokePreview
+		# Underline mode draws straight onto the text, so no canvas preview.
+		return if activities.patternHighlightMode
 		return unless freehandStrokeCtx and freehandStrokeCanvas
 		let width = getDrawingSurfaceWidth!
 		let height = getDrawingSurfaceHeight!
@@ -312,56 +320,38 @@ tag chapter < section
 
 	def beginFreehandStroke e
 		return unless activities.freehandHighlightMode
-		ensureFreehandStrokeCanvas!
-		return unless freehandStrokeCtx
 		let p = getPointerCoords(e)
 		return unless p
 		freehandStrokePoints = [p]
 		freehandStrokeDrawing = yes
 		freehandStrokeStartedAt = Date.now()
 		freehandMoveDebugCount = 0
-		const canvasW = freehandStrokeCanvas ? freehandStrokeCanvas.width : 0
-		const canvasH = freehandStrokeCanvas ? freehandStrokeCanvas.height : 0
-		const canvasTop = freehandStrokeCanvas ? freehandStrokeCanvas.style.top : 'n/a'
-		const canvasLeft = freehandStrokeCanvas ? freehandStrokeCanvas.style.left : 'n/a'
-		console.log("[FREEHAND DEBUG] stroke start x={Math.round(p.x)} y={Math.round(p.y)} canvasW={canvasW} canvasH={canvasH} top={canvasTop} left={canvasLeft}")
-		if p.x < 30 or p.y < 30
-			console.log('[FREEHAND DEBUG] stroke starts near top-left', {
-				point: p,
-				raw: getRawPointerSnapshot(e)
-			})
-		redrawFreehandStrokePreview!
+		unless activities.patternHighlightMode
+			ensureFreehandStrokeCanvas!
+			return unless freehandStrokeCtx
+			redrawFreehandStrokePreview!
 
 	def drawFreehandStroke e
-		return unless freehandStrokeDrawing and freehandStrokeCtx
+		return unless freehandStrokeDrawing
 		let p = getPointerCoords(e)
 		return unless p
-		const prev = freehandStrokePoints.length ? freehandStrokePoints[freehandStrokePoints.length - 1] : null
-		if freehandStrokePoints.length == 1
-			console.log("[FREEHAND DEBUG] first move x={Math.round(p.x)} y={Math.round(p.y)}")
-		if prev
-			const dx = Math.abs(p.x - prev.x)
-			const dy = Math.abs(p.y - prev.y)
-			# Log suspicious jumps that look like "fly-in from corner" behavior.
-			if (dx > 260 or dy > 260) and freehandMoveDebugCount < 6
-				console.log('[FREEHAND DEBUG] suspicious jump', {
-					dx, dy,
-					from: prev,
-					to: p,
-					raw: getRawPointerSnapshot(e),
-					points: freehandStrokePoints.length
-				})
-				freehandMoveDebugCount++
 		freehandStrokePoints.push(p)
+		return if activities.patternHighlightMode
+		return unless freehandStrokeCtx
 		redrawFreehandStrokePreview!
 
 	def endFreehandStroke
-		if freehandStrokeStartedAt
-			console.log("[FREEHAND DEBUG] stroke end durationMs={Date.now() - freehandStrokeStartedAt} points={freehandStrokePoints.length}")
 		freehandStrokeStartedAt = 0
 		freehandSelectionAnchor = null
 		freehandSelectionFocus = null
-		clearFreehandStrokeCanvas!
+		freehandStrokeDrawing = no
+		freehandStrokePoints = []
+		if activities.patternHighlightMode
+			return
+		if freehandStrokeCtx and freehandStrokeCanvas
+			let width = getDrawingSurfaceWidth!
+			let height = getDrawingSurfaceHeight!
+			freehandStrokeCtx.clearRect(0, 0, width, height)
 
 	def beginPenStroke e
 		if e and e.preventDefault
@@ -496,6 +486,7 @@ tag chapter < section
 				ev.preventDefault()
 			drawFreehandStroke(ev)
 			updateFreehandTextSelection(ev, no)
+			commitFreehandHighlightFromStrokePoints(no)
 		window.addEventListener('pointermove', globalPointerMoveHandler, { passive: false })
 		window.addEventListener('touchmove', globalPointerMoveHandler, { passive: false })
 
@@ -707,6 +698,8 @@ tag chapter < section
 						endVerse: Math.floor(sPos / 1000000)
 						endOffset: sPos % 1000000
 						color: h.color
+						decoration: h.decoration or 'fill'
+						underlineStyle: h.underlineStyle or 'solid'
 						date: h.date or Date.now()
 					})
 				if hEnd > ePos
@@ -716,6 +709,8 @@ tag chapter < section
 						endVerse: h.endVerse
 						endOffset: h.endOffset
 						color: h.color
+						decoration: h.decoration or 'fill'
+						underlineStyle: h.underlineStyle or 'solid'
 						date: h.date or Date.now()
 					})
 			if changed
@@ -724,12 +719,15 @@ tag chapter < section
 					me.saveFreehandHighlights!
 		else
 			const now = Date.now()
+			let decoration = activities.patternHighlightMode ? 'underline' : 'fill'
 			let highlight = {
 				startVerse: startVerse
 				startOffset: startOffset
 				endVerse: endVerse
 				endOffset: endOffset
 				color: activities.freehandHighlightColor or '#eab308'
+				decoration: decoration
+				underlineStyle: activities.underlineStyle or 'solid'
 				date: now
 			}
 			if currentDragHighlight
@@ -798,10 +796,6 @@ tag chapter < section
 		# Sort highlights by start offset ascending
 		highlights.sort(do |a, b| return a.start - b.start)
 
-		# Keep highlight text white for consistent contrast
-		def getContrastColor color
-			return 'black'
-
 		let result = ""
 		let currentChar = 0
 		let highlightIndex = 0
@@ -819,8 +813,7 @@ tag chapter < section
 				# Check for highlights starting here
 				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 					let h = highlights[highlightIndex]
-					let textColor = getContrastColor(h.color)
-					result += "<mark style=\"background-color:{h.color}; color: {textColor}\">"
+					result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 					activeHighlights.push(h)
 					highlightIndex++
 
@@ -828,14 +821,14 @@ tag chapter < section
 				let highlightsEnding = activeHighlights.filter(do |h| return h.end == currentChar)
 				if highlightsEnding.length > 0
 					for j in [0 ... highlightsEnding.length]
-						result += "</mark>"
+						let h = highlightsEnding[j]
+						result += freehandWrapClose(h.color, h.decoration or 'fill')
 					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 					
 					# Re-check for new highlights starting exactly here
 					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 						let h = highlights[highlightIndex]
-						let textColor = getContrastColor(h.color)
-						result += "<mark style=\"background-color:{h.color}; color: {textColor}\">"
+						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 						activeHighlights.push(h)
 						highlightIndex++
 
@@ -847,7 +840,8 @@ tag chapter < section
 			let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
 			if highlightsEndingAtEnd.length > 0
 				for j in [0 ... highlightsEndingAtEnd.length]
-					result += "</mark>"
+					let h = highlightsEndingAtEnd[j]
+					result += freehandWrapClose(h.color, h.decoration or 'fill')
 				activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 
 		return result
@@ -857,14 +851,25 @@ tag chapter < section
 		let relevantHighlights = []
 		
 		for h in me.freehandHighlights
+			let entry = {
+				start: h.startOffset
+				end: h.endOffset
+				color: h.color
+				decoration: h.decoration or 'fill'
+				underlineStyle: h.underlineStyle or 'solid'
+			}
 			if h.startVerse == verse.verse and h.endVerse == verse.verse
-				relevantHighlights.push({ start: h.startOffset, end: h.endOffset, color: h.color })
+				relevantHighlights.push(entry)
 			elif h.startVerse == verse.verse
-				relevantHighlights.push({ start: h.startOffset, end: 999999, color: h.color })
+				entry.end = 999999
+				relevantHighlights.push(entry)
 			elif h.endVerse == verse.verse
-				relevantHighlights.push({ start: 0, end: h.endOffset, color: h.color })
+				entry.start = 0
+				relevantHighlights.push(entry)
 			elif h.startVerse < verse.verse and h.endVerse > verse.verse
-				relevantHighlights.push({ start: 0, end: 999999, color: h.color })
+				entry.start = 0
+				entry.end = 999999
+				relevantHighlights.push(entry)
 		
 		if relevantHighlights.length > 0
 			verseText = self.applyHighlightsToHtml(verseText, relevantHighlights)

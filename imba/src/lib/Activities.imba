@@ -15,6 +15,7 @@ import user from './User'
 import theme from './Theme'
 import customTheme from './CustomTheme'
 import settings from './Settings'
+import { UNDERLINE_STYLES } from './highlightStyles'
 
 import type { CopyObject, Verse } from './types'
 
@@ -492,6 +493,10 @@ class Activities
 	isVerseActionsMinimized = no
 	isFreehandHighlightMinimized = no
 	highlight_color\string = ''
+	# Underline pattern applies to freehand strokes only.
+	@observable patternHighlightMode = no
+	@observable underlineStyle = 'solid'
+	underlineStyles = UNDERLINE_STYLES
 
 	note = ''
 	newCategoryName = ''
@@ -809,6 +814,16 @@ class Activities
 		const randomH = Math.random() * 360 # Range [0, 360)
 		const randomColor = new Color('oklch', [randomL, randomC, randomH])
 		return randomColor.to('hsl').toString()
+
+	@action def togglePatternHighlightMode
+		patternHighlightMode = !patternHighlightMode
+		if patternHighlightMode
+			underlineStyle = 'solid'
+		imba.commit!
+
+	@action def setUnderlineStyle style\string
+		underlineStyle = style
+		imba.commit!
 
 	def changeHighlightColor color\string
 		# get tag with title = color

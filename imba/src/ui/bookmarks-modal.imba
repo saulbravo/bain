@@ -5,6 +5,7 @@ import parallelReader from '../lib/ParallelReader'
 import vault from '../lib/Vault'
 import user from '../lib/User'
 import { getBookName } from '../utils'
+import { UNDERLINE_STYLES } from '../lib/highlightStyles'
 
 import BookmarkIcon from 'lucide-static/icons/bookmark.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
@@ -23,6 +24,8 @@ tag bookmarks-modal
 	loading = yes
 	error = ''
 	highlightFilter = 'all'
+	# 'all' | 'fill' | one of UNDERLINE_STYLES ids - highlight list decoration filter
+	highlightStyleFilter = 'all'
 	groupedBookmarks = []
 	highlightEntries = []
 	fetchToken = 0
@@ -204,6 +207,8 @@ tag bookmarks-modal
 			entries.push({
 				date: 0
 				color: color
+				decoration: h.decoration == 'underline' ? 'underline' : 'fill'
+				underlineStyle: h.underlineStyle or 'solid'
 				translation: r.translation
 				book: r.book
 				chapter: r.chapter
@@ -324,6 +329,8 @@ tag bookmarks-modal
 						highlights.push({
 							date: toDateMs(entry.date)
 							color: color
+							decoration: entry.decoration == 'underline' ? 'underline' : 'fill'
+							underlineStyle: entry.underlineStyle or 'solid'
 							translation: entry.translation
 							book: entry.book
 							chapter: entry.chapter
@@ -367,6 +374,8 @@ tag bookmarks-modal
 						fallbackHighlights.push({
 							date: entry.date
 							color: entry.color
+							decoration: entry.decoration or 'fill'
+							underlineStyle: entry.underlineStyle or 'solid'
 							translation: entry.translation
 							book: entry.book
 							chapter: entry.chapter
@@ -384,6 +393,8 @@ tag bookmarks-modal
 						console.log('[HIGHLIGHTS] loadBookmarks: fallback set highlightEntries.length=', highlightEntries.length)
 			if highlightFilter != 'all' and highlightEntries.length and !highlightEntries.some(do |e| return (e.color or '') == highlightFilter)
 				highlightFilter = 'all'
+			if highlightStyleFilter != 'all' and highlightEntries.length and !highlightEntries.some(do |e| return matchesHighlightStyleFilter(e))
+				highlightStyleFilter = 'all'
 			if typeof console != 'undefined' and console.log
 				const listLen = highlightEntries.length
 				console.log('[HIGHLIGHTS] loadBookmarks done; highlights count =', listLen)
@@ -460,11 +471,24 @@ tag bookmarks-modal
 				colors.add(entry.color)
 		return Array.from(colors)
 
+	def matchesHighlightStyleFilter entry
+		if highlightStyleFilter == 'all'
+			return yes
+		const decoration = entry.decoration == 'underline' ? 'underline' : 'fill'
+		if highlightStyleFilter == 'fill'
+			return decoration == 'fill'
+		return decoration == 'underline' and (entry.underlineStyle or 'solid') == highlightStyleFilter
+
+	def matchesHighlightFilters entry
+		if highlightFilter != 'all' and entry.color != highlightFilter
+			return no
+		return matchesHighlightStyleFilter(entry)
+
 	@computed get filteredHighlights
 		const base = effectiveHighlightEntries
-		if highlightFilter == 'all'
+		if highlightFilter == 'all' and highlightStyleFilter == 'all'
 			return base
-		return base.filter(do |entry| return entry.color == highlightFilter)
+		return base.filter(do |entry| return matchesHighlightFilters(entry))
 
 	# Display list for Highlights pane: use instance state or fall back to module cache so UI is correct when computed lags
 	def groupContinuousHighlights entries
@@ -472,7 +496,7 @@ tag bookmarks-modal
 		for entry in entries
 			if !entry or entry.verse == null
 				continue
-			const key = "{entry.translation}:{entry.book}:{entry.chapter}:{entry.color or ''}"
+			const key = "{entry.translation}:{entry.book}:{entry.chapter}:{entry.color or ''}:{entry.decoration or 'fill'}:{entry.underlineStyle or 'solid'}"
 			unless buckets[key]
 				buckets[key] = []
 			buckets[key].push(entry)
@@ -497,6 +521,8 @@ tag bookmarks-modal
 					run = {
 						date: toDateMs(item.date)
 						color: item.color
+						decoration: item.decoration or 'fill'
+						underlineStyle: item.underlineStyle or 'solid'
 						translation: item.translation
 						book: item.book
 						chapter: item.chapter
@@ -522,6 +548,8 @@ tag bookmarks-modal
 						grouped.push({
 							date: run.date
 							color: run.color
+							decoration: run.decoration
+							underlineStyle: run.underlineStyle
 							translation: run.translation
 							book: run.book
 							chapter: run.chapter
@@ -534,6 +562,8 @@ tag bookmarks-modal
 						run = {
 							date: toDateMs(item.date)
 							color: item.color
+							decoration: item.decoration or 'fill'
+							underlineStyle: item.underlineStyle or 'solid'
 							translation: item.translation
 							book: item.book
 							chapter: item.chapter
@@ -550,6 +580,8 @@ tag bookmarks-modal
 				grouped.push({
 					date: run.date
 					color: run.color
+					decoration: run.decoration
+					underlineStyle: run.underlineStyle
 					translation: run.translation
 					book: run.book
 					chapter: run.chapter
@@ -561,9 +593,14 @@ tag bookmarks-modal
 				})
 		return grouped.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
+	def baseHighlightEntries
+		if highlightEntries.length > 0
+			return highlightEntries
+		return _cachedHighlightEntries
+
 	def getDisplayHighlights
-		const base = if highlightEntries.length > 0 then highlightEntries else _cachedHighlightEntries
-		const filtered = if highlightFilter == 'all' then base else base.filter(do |entry| return entry.color == highlightFilter)
+		const base = baseHighlightEntries()
+		const filtered = base.filter(do |entry| return matchesHighlightFilters(entry))
 		return groupContinuousHighlights(filtered)
 
 	def visibleBookmarks
@@ -598,6 +635,13 @@ tag bookmarks-modal
 
 	def setHighlightFilter filter\string
 		highlightFilter = filter
+		if filter == 'all'
+			highlightStyleFilter = 'all'
+		highlightVisibleCount = TEST_PAGE_SIZE
+		imba.commit!
+
+	def setHighlightStyleFilter style\string
+		highlightStyleFilter = highlightStyleFilter == style ? 'all' : style
 		highlightVisibleCount = TEST_PAGE_SIZE
 		imba.commit!
 
@@ -648,6 +692,31 @@ tag bookmarks-modal
 				colors.add(entry.color)
 		return Array.from(colors)
 
+	# Highlights matching the color filter only, so the decoration buttons stay visible while one is active
+	def highlightsForStyleOptions
+		return baseHighlightEntries().filter(do |entry| return highlightFilter == 'all' or entry.color == highlightFilter)
+
+	# Underline styles present in the current highlights, in the canonical palette order
+	def getDisplayHighlightStyles
+		const present = new Set()
+		for entry in highlightsForStyleOptions()
+			if entry.decoration == 'underline'
+				present.add(entry.underlineStyle or 'solid')
+		return UNDERLINE_STYLES.filter(do |style| return present.has(style.id))
+
+	# Only worth offering a "fill" filter when both kinds of highlights exist
+	def hasMixedHighlightDecorations
+		let hasFill = no
+		let hasUnderline = no
+		for entry in highlightsForStyleOptions()
+			if entry.decoration == 'underline'
+				hasUnderline = yes
+			else
+				hasFill = yes
+			if hasFill and hasUnderline
+				return yes
+		return no
+
 	def openBookBookmark entry
 		const translation = entry.translation
 		const book = entry.book
@@ -665,18 +734,39 @@ tag bookmarks-modal
 		const book = entry.book
 		const chapter = entry.chapter
 		const verse = entry.verse or (entry.verses and entry.verses[0])
+		const samePlace = reader.translation == translation and reader.book == book and reader.chapter == chapter
 		activities.tabUpdateTargetIndex = activities.activeTabIndex
 		activities.applyTabToReader({
 			translation: translation
 			book: book
 			chapter: chapter
 		}, 'bookmarks-modal:verse')
-		if verse != undefined and verse != null
+		const hasVerse = verse != undefined and verse != null
+		# On a chapter change the verse is selected once the new chapter finishes loading;
+		# within the current chapter nothing reloads, so select it directly.
+		if hasVerse and !samePlace
 			reader.verse = verse
+			reader.centerNextVerseNav = yes
 		activities.cleanUp { onPopState: yes }
-		if verse != undefined and verse != null
-			setTimeout(&, 400) do
-				reader.findVerse(String(verse))
+		if !hasVerse
+			return
+		if samePlace
+			reader.goToAndSelectVerse(verse, null, null, yes)
+		else
+			ensureVerseSelected(translation, book, chapter, verse)
+
+	# Safety net for the chapter-change path: if the freshly loaded chapter did not select
+	# the verse itself, do it here once the verses are on screen.
+	def ensureVerseSelected translation, book, chapter, verse, attempts = 0
+		if attempts > 20
+			return
+		setTimeout(&, 600) do
+			const ready = reader.translation == translation and reader.book == book and reader.chapter == chapter and !reader.loading and reader.verses and reader.verses.length > 0
+			unless ready
+				return ensureVerseSelected(translation, book, chapter, verse, attempts + 1)
+			if activities.selectedVersesPKs.length > 0
+				return
+			reader.goToAndSelectVerse(verse, null, null, yes)
 
 	def openBookmark entry
 		if entry.type == 'book'
@@ -814,10 +904,15 @@ tag bookmarks-modal
 
 		if activeTab == 'highlights' and getDisplayHighlights().length > 0
 			<div.highlight-filter>
-				<button .active=(highlightFilter == 'all') @click=setHighlightFilter('all')> "All"
+				<button .active=(highlightFilter == 'all' and highlightStyleFilter == 'all') @click=setHighlightFilter('all')> "All"
 				for color in getDisplayHighlightColors()
 					<button .active=(highlightFilter == color) @click=setHighlightFilter(color) title=color>
 						<span.color-swatch [bgc:{color}]>
+				if hasMixedHighlightDecorations()
+					<button.style-btn .active=(highlightStyleFilter == 'fill') @click=setHighlightStyleFilter('fill') title="Fill highlights"> "Fill"
+				for style in getDisplayHighlightStyles()
+					<button.style-btn .active=(highlightStyleFilter == style.id) @click=setHighlightStyleFilter(style.id) title="{style.label} underline">
+						<span.underline-swatch data-style=style.id>
 				<div.search-expand .open=highlightSearchOpen>
 					<button.search-toggle-btn .active=highlightSearchOpen @click=toggleHighlightSearch title="Search highlights">
 						<svg src=Search aria-hidden=yes>
@@ -871,7 +966,10 @@ tag bookmarks-modal
 						for entry in visibleHighlights()
 							<button.bookmark-item @click=openVerseBookmark(entry)>
 								<div.bookmark-icon>
-									<span.color-swatch [bgc:{entry.color or '#eab308'}]>
+									if entry.decoration == 'underline'
+										<span.underline-swatch data-style=(entry.underlineStyle or 'solid') [c:{entry.color or '#eab308'}]>
+									else
+										<span.color-swatch [bgc:{entry.color or '#eab308'}]>
 								<div.bookmark-text>
 									<div.bookmark-title> highlightTitle(entry)
 									<div.bookmark-meta> entry.translation
@@ -1211,3 +1309,33 @@ tag bookmarks-modal
 			rd:50%
 			bd:1px solid $acc-bgc-hover
 			flex-shrink:0
+
+		.underline-swatch
+			d:inline-block
+			w:1.1rem
+			h:0
+			border-bottom:3px solid currentColor
+			flex-shrink:0
+
+			&[data-style="dotted"]
+				border-bottom-style:dotted
+
+			&[data-style="dashed"]
+				border-bottom-style:dashed
+
+			&[data-style="double"]
+				border-bottom-width:5px
+				border-bottom-style:double
+
+			&[data-style="wavy"]
+				border-bottom:none
+				h:7px
+				background-color:currentColor
+				-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M0 5.5 Q 3 1.5 6 5.5 T 12 5.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")
+				mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M0 5.5 Q 3 1.5 6 5.5 T 12 5.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")
+				-webkit-mask-repeat:repeat-x
+				mask-repeat:repeat-x
+				-webkit-mask-size:12px 8px
+				mask-size:12px 8px
+				-webkit-mask-position:bottom
+				mask-position:bottom

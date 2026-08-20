@@ -180,6 +180,10 @@ tag settings-drawer < aside
 								t.createTheme
 								<svg src=Pipette [miw:1rem size:1rem mr:0] aria-hidden=true>
 
+		<button.settings-btn @click=activities.showBookmarksModal>
+			<svg src=BookmarkIcon aria-hidden=true>
+			"Highlights and Bookmarks"
+
 		<.btnbox>
 			<button[p:0.75rem fs:1.25rem].cbtn @click=theme.decreaseFontSize title=t.decrease_font_size> "B-"
 			<button[p:.5rem fs:1.5rem].cbtn @click=theme.increaseFontSize title=t.increase_font_size> "B+"
@@ -231,10 +235,6 @@ tag settings-drawer < aside
 						<button .active-butt=('pt'==language) @click=(language = 'pt')> "Portuguese"
 						<button .active-butt=('es'==language) @click=(language = 'es')> "Español"
 						<button .active-butt=('ru'==language) @click=(language = 'ru')> "русский"
-
-		<button.settings-btn @click=activities.showBookmarksModal>
-			<svg src=BookmarkIcon aria-hidden=true>
-			"Highlights and Bookmarks"
 
 		<button.option-box.checkbox-parent @click=(settings.parallel_sync = !settings.parallel_sync) .checkbox-turned=settings.parallel_sync>
 			t.parallel_sync

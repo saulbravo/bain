@@ -104,24 +104,26 @@ tag freehand-highlight-menu
 			<button.tab.close @click=close title="Close">
 				<svg src=X>
 		<svg.chevron src=ChevronDown @click=close>
-		<ul.underline-options>
-			for style in activities.underlineStyles
-				<li.underline-option
-					role="button"
-					aria-label=style.label
-					title=style.label
-					.disabled=!activities.patternHighlightMode
-					.selected=(activities.patternHighlightMode and activities.underlineStyle == style.id)
-					@click.stop.prevent=(if activities.patternHighlightMode then activities.setUnderlineStyle(style.id))>
-					<span.preview data-style=style.id>
+		unless activities.penToolMode
+			<ul.underline-options>
+				for style in activities.underlineStyles
+					<li.underline-option
+						role="button"
+						aria-label=style.label
+						title=style.label
+						.disabled=!activities.patternHighlightMode
+						.selected=(activities.patternHighlightMode and activities.underlineStyle == style.id)
+						@click.stop.prevent=(if activities.patternHighlightMode then activities.setUnderlineStyle(style.id))>
+						<span.preview data-style=style.id>
 
 		<ul.color-options>
-			<li.color-option.pattern-option
-				role="button"
-				aria-label="Underline pattern" title="Underline pattern"
-				.selected=activities.patternHighlightMode
-				@click.stop.prevent=activities.togglePatternHighlightMode>
-				<svg src=PatternFill aria-hidden=yes>
+			unless activities.penToolMode
+				<li.color-option.pattern-option
+					role="button"
+					aria-label="Underline pattern" title="Underline pattern"
+					.selected=activities.patternHighlightMode
+					@click.stop.prevent=activities.togglePatternHighlightMode>
+					<svg src=PatternFill aria-hidden=yes>
 
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.freehandHighlightColor @change=setHighlightColor>
@@ -177,6 +179,7 @@ tag freehand-highlight-menu
 		bdt:1px solid $acc-bgc
 		ta:center
 		d:vcc
+		cursor: default
 		padding-block:1rem 2.5rem
 		transition-property: transform, opacity
 
@@ -229,25 +232,25 @@ tag freehand-highlight-menu
 			flw: nowrap
 			jc: center
 			ai: center
-			g: 0.35rem
-			pb: 0.35rem
+			g: 0.6rem
+			pb: 0.5rem
 			max-width: 100%
 			padding-inline: 0.5rem
 
 		.underline-option
 			list-style: none
-			size: 2rem 1.15rem
+			size: 3.25rem 1.9rem
 			d: hcc
 			cursor: pointer
 			fls: 0
 			c: $acc @hover:$acc-hover
-			rd: 0.25rem
-			p: 0 0.15rem
+			rd: 0.35rem
+			p: 0 0.35rem
 			scale@hover: 1.15
 
 			&.disabled
 				opacity: 0.28
-				cursor: default
+				cursor: pointer
 				c: $c
 				scale@hover: 1
 
@@ -258,7 +261,7 @@ tag freehand-highlight-menu
 				d: block
 				w: 100%
 				h: 0
-				border-bottom: 2px solid currentColor
+				border-bottom: 4px solid currentColor
 
 				&[data-style="dotted"]
 					border-bottom-style: dotted
@@ -267,17 +270,26 @@ tag freehand-highlight-menu
 					border-bottom-style: dashed
 
 				&[data-style="double"]
-					border-bottom-width: 3px
+					border-bottom-width: 6px
 					border-bottom-style: double
 
+				# A real sine wave, masked so it still follows currentColor.
 				&[data-style="wavy"]
 					border-bottom: none
-					h: 3px
-					background: repeating-linear-gradient(135deg, currentColor, currentColor 1px, transparent 1px, transparent 3px) bottom / 4px 3px repeat-x
+					h: 8px
+					background-color: currentColor
+					-webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M0 5.5 Q 3 1.5 6 5.5 T 12 5.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")
+					mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M0 5.5 Q 3 1.5 6 5.5 T 12 5.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E")
+					-webkit-mask-repeat: repeat-x
+					mask-repeat: repeat-x
+					-webkit-mask-size: 12px 8px
+					mask-size: 12px 8px
+					-webkit-mask-position: bottom
+					mask-position: bottom
 
 		.color-options
 			white-space: nowrap
-			padding-block: 1rem .5rem
+			padding-block: 0rem .5rem
 			padding-inline: 0.5rem
 			max-width: 100%
 			d:flex

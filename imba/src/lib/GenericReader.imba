@@ -30,6 +30,8 @@ class GenericReader
 	show_verse_picker\boolean = no
 	verse\number|string = 0
 	_verseNavToken = 0
+	# Set before a chapter change to center the verse once the new chapter has loaded
+	centerNextVerseNav = no
 
 	me = '' # constant to indicate the main reader versus the parallel reader
 	def hasBookmarkMarker collection\string
@@ -452,6 +454,8 @@ class GenericReader
 				endVerse: item.endVerse
 				endOffset: item.endOffset
 				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
 				date: item.date or Date.now()
 			}
 		)
@@ -465,6 +469,8 @@ class GenericReader
 				endVerse: item.endVerse
 				endOffset: item.endOffset
 				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
 				date: item.date or now
 			}
 		)
@@ -488,6 +494,8 @@ class GenericReader
 				endVerse: item.endVerse
 				endOffset: item.endOffset
 				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
 				date: item.date or now
 			}
 		)
@@ -512,6 +520,8 @@ class GenericReader
 					endVerse: item.endVerse
 					endOffset: item.endOffset
 					color: item.color
+					decoration: item.decoration or 'fill'
+					underlineStyle: item.underlineStyle or 'solid'
 					date: item.date
 				}
 			)
@@ -746,9 +756,11 @@ class GenericReader
 			else
 				findVerse(id, endverse, highlight)
 
-	def goToAndSelectVerse verseNum, versePk\number = null, token\number = null
+	def goToAndSelectVerse verseNum, versePk\number = null, token\number = null, center\boolean = no
 		unless token
 			token = ++self._verseNavToken
+		const shouldCenter = center or self.centerNextVerseNav
+		self.centerNextVerseNav = no
 		let id = typeof verseNum === 'string' ? verseNum.split('-')[0] : String(verseNum)
 		let num = parseInt(id)
 		let scrollId = me == 'main' ? String(num) : "p{num}"
@@ -768,9 +780,13 @@ class GenericReader
 					return
 				let el = me == 'main' ? document.getElementById(scrollId) : document.getElementById(scrollId)
 				if el and el.offsetParent
-					el.offsetParent.scrollTo({
+					const container = el.offsetParent
+					let top = el.offsetTop - theme.fontSize
+					if shouldCenter
+						top = el.offsetTop - Math.max(theme.fontSize, (container.clientHeight - el.offsetHeight) / 2)
+					container.scrollTo({
 						behavior: theme.scrollBehavior,
-						top: el.offsetTop - theme.fontSize
+						top: Math.max(0, top)
 					})
 				else
 					scrollToVerse()

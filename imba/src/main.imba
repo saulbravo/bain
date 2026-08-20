@@ -49,7 +49,9 @@ tag app
 			<style> "
 				body, body * \{ cursor: {cursorSvg} !important; \}
 				button, a, svg, .chevron, [role='button'], .color-option, .action-button, header, header *, .arrow \{ cursor: pointer !important; \}
-				freehand-highlight-menu \{ cursor: auto; \}
+				freehand-highlight-menu, freehand-highlight-menu * \{ cursor: default !important; \}
+				freehand-highlight-menu button, freehand-highlight-menu svg, freehand-highlight-menu [role='button'], freehand-highlight-menu .color-option, freehand-highlight-menu .underline-option, freehand-highlight-menu .tab, freehand-highlight-menu .chevron, freehand-highlight-menu input \{ cursor: pointer !important; \}
+				freehand-highlight-menu button[disabled] \{ cursor: not-allowed !important; \}
 			"
 		if activities.freehandHighlightMode or activities.penToolMode
 			<style> "
