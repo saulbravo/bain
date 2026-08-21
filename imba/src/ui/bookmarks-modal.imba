@@ -667,7 +667,7 @@ tag bookmarks-modal
 		let list = activities.verseNoteLinks or []
 		const focus = activities.obsidianLinkFocus
 		if focus
-			list = activities.linksForStartVerse(focus.translation, focus.book, focus.chapter, focus.verse)
+			list = activities.linksCoveringVerse(focus.translation, focus.book, focus.chapter, focus.verse)
 		if obsidianStatusFilter == 'linked'
 			list = list.filter(do |link| return !isBrokenLink(link))
 		elif obsidianStatusFilter == 'broken'

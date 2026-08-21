@@ -235,7 +235,7 @@ class GenericReader
 		return b
 
 	def startVerseNoteLinks verseNumber\number
-		return activities.linksForStartVerse(translation, book, chapter, verseNumber)
+		return activities.linksCoveringVerse(translation, book, chapter, verseNumber)
 
 	def openVerseNoteLinks verseNumber\number
 		activities.openVerseNoteLinks(translation, book, chapter, verseNumber)

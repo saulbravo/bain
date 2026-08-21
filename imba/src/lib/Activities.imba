@@ -1026,9 +1026,24 @@ class Activities
 			return no
 
 	def linksForStartVerse translation, book, chapter, verse
-		return verseNoteLinks.filter(do |link|
-			return link and link.translation == translation and Number(link.book) == Number(book) and Number(link.chapter) == Number(chapter) and Number(link.start_verse) == Number(verse)
+		return linksCoveringVerse(translation, book, chapter, verse).filter(do |link|
+			return Number(link.start_verse) == Number(verse)
 		)
+
+	def linksCoveringVerse translation, book, chapter, verse
+		let v = Number(verse)
+		return verseNoteLinks.filter(do |link|
+			unless link and link.translation == translation and Number(link.book) == Number(book) and Number(link.chapter) == Number(chapter)
+				return no
+			let start = Number(link.start_verse)
+			let end = Number(link.end_verse or start)
+			if end < start
+				end = start
+			return v >= start and v <= end
+		)
+
+	def isBrokenLink link
+		return link and (link.broken == yes or link.broken == true)
 
 	def upsertLocalVerseNoteLink link
 		unless link and link.block_id
@@ -1115,6 +1130,17 @@ class Activities
 			}
 		)
 		imba.commit!
+		if broken
+			let link = verseNoteLinks.find(do |item| return item.block_id == blockId)
+			if link
+				obsidianLinkFocus = {
+					translation: link.translation
+					book: link.book
+					chapter: link.chapter
+					verse: link.start_verse
+				}
+				if activeModal != 'bookmarks'
+					showBookmarksModal('obsidian')
 		unless user.username and window.navigator.onLine
 			return
 		API.post("/save-verse-note-link/", { block_id: blockId, broken: broken })
@@ -1130,9 +1156,10 @@ class Activities
 			}, '*')
 
 	def openVerseNoteLinks translation, book, chapter, verse
-		let links = linksForStartVerse(translation, book, chapter, verse)
-		if links.length == 1 and inObsidianFrame!
-			openObsidianNote(links[0])
+		let links = linksCoveringVerse(translation, book, chapter, verse)
+		let only = links.length == 1 ? links[0] : null
+		if only and !isBrokenLink(only) and inObsidianFrame!
+			openObsidianNote(only)
 			return
 		obsidianLinkFocus = {
 			translation: translation
