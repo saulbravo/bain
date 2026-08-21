@@ -39,6 +39,8 @@ tag bookmarks-modal
 	bookmarkSearchQuery = ''
 	highlightSearchOpen = no
 	highlightSearchQuery = ''
+	obsidianSearchOpen = no
+	obsidianSearchQuery = ''
 	bookmarkVisibleCount = TEST_PAGE_SIZE
 	highlightVisibleCount = TEST_PAGE_SIZE
 	_bookmarksUpdatedHandler = null
@@ -640,6 +642,42 @@ tag bookmarks-modal
 		imba.commit!
 		activities.loadVerseNoteLinks(yes)
 
+	def clearObsidianLinkFilter
+		activities.clearObsidianLinkFocus!
+		obsidianSearchQuery = ''
+		imba.commit!
+
+	def toggleObsidianSearch
+		obsidianSearchOpen = !obsidianSearchOpen
+		if !obsidianSearchOpen
+			obsidianSearchQuery = ''
+		imba.commit!
+
+	def displayedObsidianLinks
+		let list = activities.verseNoteLinks or []
+		const focus = activities.obsidianLinkFocus
+		if focus
+			list = activities.linksForStartVerse(focus.translation, focus.book, focus.chapter, focus.verse)
+		const q = normalizeSearch(obsidianSearchQuery)
+		if !q
+			return list
+		return list.filter(do |link|
+			const haystack = [obsidianLinkTitle(link), link.note_name or '', link.note_path or '', link.translation or ''].join(' ').toLowerCase()
+			return haystack.includes(q)
+		)
+
+	def obsidianFocusTitle
+		const focus = activities.obsidianLinkFocus
+		unless focus
+			return ''
+		return obsidianLinkTitle({
+			translation: focus.translation
+			book: focus.book
+			chapter: focus.chapter
+			start_verse: focus.verse
+			end_verse: focus.verse
+		})
+
 	def setHighlightFilter filter\string
 		highlightFilter = filter
 		if filter == 'all'
@@ -958,6 +996,23 @@ tag bookmarks-modal
 						placeholder='Search highlights'
 						bind=highlightSearchQuery>
 
+		if activeTab == 'obsidian'
+			<div.bookmark-filter>
+				<button.filter-btn .active=!activities.obsidianLinkFocus @click=clearObsidianLinkFilter title="All links">
+					<svg src=List aria-hidden=yes>
+					"All"
+				if activities.obsidianLinkFocus
+					<button.filter-btn .active=yes title="Links for this verse">
+						<svg src=Link2 aria-hidden=yes>
+						obsidianFocusTitle!
+				<div.search-expand .open=obsidianSearchOpen>
+					<button.filter-btn.search-toggle-btn .active=obsidianSearchOpen @click=toggleObsidianSearch title="Search links">
+						<svg src=Search aria-hidden=yes>
+					<input.filter-search-input
+						type='text'
+						placeholder='Search links'
+						bind=obsidianSearchQuery>
+
 		<div.bookmarks-content @wheel.stop @touchmove.stop>
 			if activeTab == 'bookmarks'
 				if loading
@@ -1015,9 +1070,11 @@ tag bookmarks-modal
 			else
 				if !activities.verseNoteLinks.length
 					<p.bookmarks-empty> "No Obsidian links yet. Insert verses into a note to create one."
+				elif !displayedObsidianLinks().length
+					<p.bookmarks-empty> (normalizeSearch(obsidianSearchQuery) ? "No matching links" : "No links for this verse")
 				else
 					<div.bookmarks-list>
-						for link in activities.verseNoteLinks
+						for link in displayedObsidianLinks()
 							<div.bookmark-item.obsidian-link-item>
 								<button.obsidian-link-open @click=openObsidianLink(link)>
 									<div.bookmark-icon>

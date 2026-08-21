@@ -7,6 +7,8 @@ import {
 	MarkdownView,
 	Notice,
 	ItemView,
+	Editor,
+	EditorPosition,
 } from "obsidian";
 
 interface BibleViewerSettings {
@@ -104,6 +106,7 @@ class BibleView extends ItemView {
 	iframe: HTMLIFrameElement;
 	messageHandler: (event: MessageEvent) => void;
 	lastMarkdownLeaf: WorkspaceLeaf | null = null;
+	lastEditorCursor: { path: string; line: number; ch: number } | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: BibleViewerPlugin) {
 		super(leaf);
@@ -111,9 +114,26 @@ class BibleView extends ItemView {
 		this.messageHandler = this.handleMessage.bind(this);
 	}
 
+	snapshotMarkdownCursor(view: MarkdownView | null) {
+		if (!view) {
+			return;
+		}
+		this.lastMarkdownLeaf = view.leaf;
+		try {
+			const cursor = view.editor.getCursor();
+			this.lastEditorCursor = {
+				path: view.file?.path ?? "",
+				line: cursor.line,
+				ch: cursor.ch,
+			};
+		} catch {
+			// Editor may not be ready yet.
+		}
+	}
+
 	rememberMarkdownLeaf(leaf: WorkspaceLeaf | null) {
 		if (leaf?.view instanceof MarkdownView) {
-			this.lastMarkdownLeaf = leaf;
+			this.snapshotMarkdownCursor(leaf.view);
 		}
 	}
 
@@ -139,6 +159,68 @@ class BibleView extends ItemView {
 		return null;
 	}
 
+	clampEditorPosition(editor: Editor, pos: { line: number; ch: number }): EditorPosition {
+		const lastLine = Math.max(0, editor.lastLine());
+		const line = Math.max(0, Math.min(pos.line, lastLine));
+		const lineLength = editor.getLine(line)?.length ?? 0;
+		const ch = Math.max(0, Math.min(pos.ch, lineLength));
+		return { line, ch };
+	}
+
+	getInsertPosition(view: MarkdownView): EditorPosition {
+		const editor = view.editor;
+		const path = view.file?.path ?? "";
+		const activeMarkdown = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (activeMarkdown === view) {
+			return editor.getCursor();
+		}
+		if (this.lastEditorCursor && this.lastEditorCursor.path === path) {
+			return this.clampEditorPosition(editor, this.lastEditorCursor);
+		}
+		return { line: 0, ch: 0 };
+	}
+
+	positionAfterInsert(from: EditorPosition, text: string): EditorPosition {
+		const lines = text.split("\n");
+		return {
+			line: from.line + lines.length - 1,
+			ch: lines[lines.length - 1].length,
+		};
+	}
+
+	isolateBlockText(editor: Editor, pos: EditorPosition, block: string): string {
+		let text = block.replace(/\s+$/, "") + "\n\n";
+		const line = editor.getLine(pos.line) ?? "";
+		const atDocStart = pos.line === 0 && pos.ch === 0;
+		const atLineStart = pos.ch === 0;
+
+		if (!atLineStart) {
+			text = (line.startsWith(">") ? "\n\n" : "\n") + text;
+		} else if (!atDocStart) {
+			const prevLine = editor.getLine(pos.line - 1) ?? "";
+			if (prevLine.startsWith(">")) {
+				text = "\n" + text;
+			}
+		}
+
+		return text;
+	}
+
+	insertBlockIntoNote(view: MarkdownView, block: string) {
+		const editor = view.editor;
+		const from = this.getInsertPosition(view);
+		const text = this.isolateBlockText(editor, from, block);
+		editor.replaceRange(text, from);
+		const end = this.positionAfterInsert(from, text);
+		editor.setCursor(end);
+		this.lastEditorCursor = {
+			path: view.file?.path ?? "",
+			line: end.line,
+			ch: end.ch,
+		};
+		this.lastMarkdownLeaf = view.leaf;
+	}
+
 	getViewType() {
 		return "bible-viewer";
 	}
@@ -153,12 +235,31 @@ class BibleView extends ItemView {
 
 	async onOpen() {
 		this.rememberMarkdownLeaf(this.app.workspace.activeLeaf);
+		const openMarkdown = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (openMarkdown) {
+			this.snapshotMarkdownCursor(openMarkdown);
+		}
 
 		this.registerEvent(
 			this.app.workspace.on("active-leaf-change", (leaf) => {
 				this.rememberMarkdownLeaf(leaf);
 			})
 		);
+
+		this.registerEvent(
+			this.app.workspace.on("editor-change", (_editor, info) => {
+				if (info instanceof MarkdownView) {
+					this.snapshotMarkdownCursor(info);
+				}
+			})
+		);
+
+		this.registerDomEvent(document, "click", () => {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (view) {
+				this.snapshotMarkdownCursor(view);
+			}
+		});
 
 		const container = this.containerEl.children[1];
 		container.empty();
@@ -444,12 +545,9 @@ class BibleView extends ItemView {
 		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
 		const verseTexts = verses.map((v) => `> ${v.verse}. ${v.text}`).join("\n");
 		const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
-		const formattedText = `${calloutHeader}\n${verseTexts}\n> ^${blockId}\n\n`;
+		const formattedText = `${calloutHeader}\n${verseTexts}\n> ^${blockId}`;
 
-		// Insert at cursor position
-		const editor = activeView.editor;
-		const cursor = editor.getCursor();
-		editor.replaceRange(formattedText, cursor);
+		this.insertBlockIntoNote(activeView, formattedText);
 
 		const file = activeView.file;
 		if (file) {
@@ -518,11 +616,9 @@ class BibleView extends ItemView {
 
 		const calloutHeader = `> [!note] [${title}](${url})`;
 		const subtitleLine = `> ${reference}`;
-		const formattedText = `${calloutHeader}\n${subtitleLine}\n${body}\n\n`;
+		const formattedText = `${calloutHeader}\n${subtitleLine}\n${body}`;
 
-		const editor = activeView.editor;
-		const cursor = editor.getCursor();
-		editor.replaceRange(formattedText, cursor);
+		this.insertBlockIntoNote(activeView, formattedText);
 
 		new Notice(`Copied commentary to note`);
 	}

@@ -85,12 +85,29 @@ var BibleView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.lastMarkdownLeaf = null;
+    this.lastEditorCursor = null;
     this.plugin = plugin;
     this.messageHandler = this.handleMessage.bind(this);
   }
+  snapshotMarkdownCursor(view) {
+    var _a, _b;
+    if (!view) {
+      return;
+    }
+    this.lastMarkdownLeaf = view.leaf;
+    try {
+      const cursor = view.editor.getCursor();
+      this.lastEditorCursor = {
+        path: (_b = (_a = view.file) == null ? void 0 : _a.path) != null ? _b : "",
+        line: cursor.line,
+        ch: cursor.ch
+      };
+    } catch (e) {
+    }
+  }
   rememberMarkdownLeaf(leaf) {
     if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian.MarkdownView) {
-      this.lastMarkdownLeaf = leaf;
+      this.snapshotMarkdownCursor(leaf.view);
     }
   }
   getMarkdownViewForInsert() {
@@ -112,6 +129,65 @@ var BibleView = class extends import_obsidian.ItemView {
     }
     return null;
   }
+  clampEditorPosition(editor, pos) {
+    var _a, _b;
+    const lastLine = Math.max(0, editor.lastLine());
+    const line = Math.max(0, Math.min(pos.line, lastLine));
+    const lineLength = (_b = (_a = editor.getLine(line)) == null ? void 0 : _a.length) != null ? _b : 0;
+    const ch = Math.max(0, Math.min(pos.ch, lineLength));
+    return { line, ch };
+  }
+  getInsertPosition(view) {
+    var _a, _b;
+    const editor = view.editor;
+    const path = (_b = (_a = view.file) == null ? void 0 : _a.path) != null ? _b : "";
+    const activeMarkdown = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+    if (activeMarkdown === view) {
+      return editor.getCursor();
+    }
+    if (this.lastEditorCursor && this.lastEditorCursor.path === path) {
+      return this.clampEditorPosition(editor, this.lastEditorCursor);
+    }
+    return { line: 0, ch: 0 };
+  }
+  positionAfterInsert(from, text) {
+    const lines = text.split("\n");
+    return {
+      line: from.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    };
+  }
+  isolateBlockText(editor, pos, block) {
+    var _a, _b;
+    let text = block.replace(/\s+$/, "") + "\n\n";
+    const line = (_a = editor.getLine(pos.line)) != null ? _a : "";
+    const atDocStart = pos.line === 0 && pos.ch === 0;
+    const atLineStart = pos.ch === 0;
+    if (!atLineStart) {
+      text = (line.startsWith(">") ? "\n\n" : "\n") + text;
+    } else if (!atDocStart) {
+      const prevLine = (_b = editor.getLine(pos.line - 1)) != null ? _b : "";
+      if (prevLine.startsWith(">")) {
+        text = "\n" + text;
+      }
+    }
+    return text;
+  }
+  insertBlockIntoNote(view, block) {
+    var _a, _b;
+    const editor = view.editor;
+    const from = this.getInsertPosition(view);
+    const text = this.isolateBlockText(editor, from, block);
+    editor.replaceRange(text, from);
+    const end = this.positionAfterInsert(from, text);
+    editor.setCursor(end);
+    this.lastEditorCursor = {
+      path: (_b = (_a = view.file) == null ? void 0 : _a.path) != null ? _b : "",
+      line: end.line,
+      ch: end.ch
+    };
+    this.lastMarkdownLeaf = view.leaf;
+  }
   getViewType() {
     return "bible-viewer";
   }
@@ -123,11 +199,28 @@ var BibleView = class extends import_obsidian.ItemView {
   }
   async onOpen() {
     this.rememberMarkdownLeaf(this.app.workspace.activeLeaf);
+    const openMarkdown = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+    if (openMarkdown) {
+      this.snapshotMarkdownCursor(openMarkdown);
+    }
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
         this.rememberMarkdownLeaf(leaf);
       })
     );
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (_editor, info) => {
+        if (info instanceof import_obsidian.MarkdownView) {
+          this.snapshotMarkdownCursor(info);
+        }
+      })
+    );
+    this.registerDomEvent(document, "click", () => {
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+      if (view) {
+        this.snapshotMarkdownCursor(view);
+      }
+    });
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("bible-viewer-container");
@@ -335,12 +428,8 @@ var BibleView = class extends import_obsidian.ItemView {
     const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
     const formattedText = `${calloutHeader}
 ${verseTexts}
-> ^${blockId}
-
-`;
-    const editor = activeView.editor;
-    const cursor = editor.getCursor();
-    editor.replaceRange(formattedText, cursor);
+> ^${blockId}`;
+    this.insertBlockIntoNote(activeView, formattedText);
     const file = activeView.file;
     if (file) {
       this.postToIframe({
@@ -384,12 +473,8 @@ ${verseTexts}
     const subtitleLine = `> ${reference}`;
     const formattedText = `${calloutHeader}
 ${subtitleLine}
-${body}
-
-`;
-    const editor = activeView.editor;
-    const cursor = editor.getCursor();
-    editor.replaceRange(formattedText, cursor);
+${body}`;
+    this.insertBlockIntoNote(activeView, formattedText);
     new import_obsidian.Notice(`Copied commentary to note`);
   }
 };

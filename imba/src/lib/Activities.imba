@@ -510,6 +510,7 @@ class Activities
 	@observable verseNoteLinks = []
 	verseNoteLinksLoaded = no
 	bookmarksModalTab = 'bookmarks'
+	obsidianLinkFocus = null
 
 	@action def setSplitRatio value\number
 		splitRatio = Math.min(0.85, Math.max(0.15, value))
@@ -768,6 +769,8 @@ class Activities
 	@action def showBookmarksModal tab = 'bookmarks'
 		cleanUp!
 		bookmarksModalTab = tab or 'bookmarks'
+		if tab != 'obsidian'
+			obsidianLinkFocus = null
 		openModal 'bookmarks'
 
 	@action def showSearch
@@ -1101,7 +1104,17 @@ class Activities
 		if links.length == 1 and inObsidianFrame!
 			openObsidianNote(links[0])
 			return
+		obsidianLinkFocus = {
+			translation: translation
+			book: book
+			chapter: chapter
+			verse: verse
+		}
 		showBookmarksModal('obsidian')
+
+	def clearObsidianLinkFocus
+		obsidianLinkFocus = null
+		imba.commit!
 
 
 const activities = new Activities()
