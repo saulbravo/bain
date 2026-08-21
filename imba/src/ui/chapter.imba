@@ -1343,7 +1343,7 @@ tag chapter < section
 			text-align: center
 
 		.verse-marker-slot.has-both
-			height: 1.15em
+			height: 1.4em
 
 		.verse-marker-btn
 			all: unset
@@ -1369,15 +1369,12 @@ tag chapter < section
 			height: 100%
 
 		.verse-bookmark-icon
-			width: 0.85em
-			height: 0.85em
+			width: 0.7em
+			height: 0.7em
+			margin-right: 5px
 			pointer-events: none
 			d: block
 			flex: 0 0 auto
-
-		.verse-marker-slot.has-both .verse-bookmark-icon
-			width: 0.55em
-			height: 0.55em
 
 		.verse-link-icon
 			c: #dc2626
