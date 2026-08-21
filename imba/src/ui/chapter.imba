@@ -1112,15 +1112,12 @@ tag chapter < section
 											me.findVerse("{versePrefix}{verse.verse}")
 										)>
 										<span.verse-number-group>
-											<span.verse-marker-slot aria-hidden=yes>
+											<span.verse-marker-slot .has-both=(hasNoteLink and bookmarkOnly) aria-hidden=yes>
 												if hasNoteLink and bookmarkOnly
-													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
-														<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" aria-hidden=yes>
-															<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="#dc2626" stroke="none" />
-															<g transform="rotate(90 12 12)">
-																<path d="M9 17H7A5 5 0 0 1 7 7h2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-																<path d="M15 7h2a5 5 0 1 1 0 10h-2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-																<path d="M8 12h8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+													<button.verse-marker-btn.stacked type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
+														<svg.verse-bookmark-icon.verse-link-icon src=Link2 aria-hidden=yes>
+														<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
+															<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
 												elif hasNoteLink
 													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
 														<svg.verse-bookmark-icon.verse-link-icon src=Link2 aria-hidden=yes>
@@ -1326,21 +1323,27 @@ tag chapter < section
 			padding: 0
 
 		.verse-number-group
-			d: inline-block
+			d: inline-flex
+			ai: center
 			white-space: nowrap
-			vertical-align: baseline
+			vertical-align: middle
 			text-align: left
 			line-height: 1
 
 		.verse-marker-slot
-			d: inline-block
+			d: inline-flex
+			ai: center
+			jc: center
+			flex: 0 0 auto
 			width: 0.85em
 			min-width: 0.85em
 			height: 0.85em
-			vertical-align: baseline
 			line-height: 1
-			overflow: hidden
+			overflow: visible
 			text-align: center
+
+		.verse-marker-slot.has-both
+			height: 1.15em
 
 		.verse-marker-btn
 			all: unset
@@ -1353,6 +1356,13 @@ tag chapter < section
 			pointer-events: auto
 			c: #dc2626
 
+		.verse-marker-btn.stacked
+			d: flex
+			fld: column
+			ai: center
+			jc: center
+			gap: 0
+
 		.verse-marker-spacer
 			d: inline-block
 			width: 100%
@@ -1362,15 +1372,18 @@ tag chapter < section
 			width: 0.85em
 			height: 0.85em
 			pointer-events: none
-			d: inline-block
-			vertical-align: baseline
+			d: block
+			flex: 0 0 auto
+
+		.verse-marker-slot.has-both .verse-bookmark-icon
+			width: 0.55em
+			height: 0.55em
 
 		.verse-link-icon
 			c: #dc2626
-			transform: rotate(90deg)
 
 		.verse-number-text
-			vertical-align: baseline
+			vertical-align: middle
 			d: inline
 
 		note-tooltip svg
