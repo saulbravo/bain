@@ -685,6 +685,12 @@ class Activities
 			return parseFloat(parts[5]) or 0
 		return 0
 
+	def visibleViewBottom
+		const vv = window.visualViewport
+		if vv
+			return Math.round(vv.offsetTop + vv.height)
+		return window.innerHeight
+
 	def neededLiftForScroller scroller
 		unless scroller
 			return 0
@@ -692,12 +698,16 @@ class Activities
 		unless toolbarH > 0
 			return 0
 		const visualBottom = scrollerContentBottom(scroller)
-		unless visualBottom > 0 and visualBottom <= window.innerHeight + 40
+		unless visualBottom > 0
 			return 0
+		const viewBottom = visibleViewBottom!
+		unless visualBottom <= viewBottom + 40
+			unless isScrollerAtBottom(scroller)
+				return 0
 		const article = scroller.querySelector('article')
 		const layoutBottom = visualBottom - articleTranslateY(article)
 		const gap = (freehandHighlightMode or penToolMode) ? 28 : 12
-		const raw = Math.ceil(layoutBottom - (window.innerHeight - toolbarH) + gap)
+		const raw = Math.ceil(layoutBottom - (viewBottom - toolbarH) + gap)
 		const cap = Math.min(toolbarH + gap + 64, 240)
 		return Math.max(0, Math.min(raw, cap))
 

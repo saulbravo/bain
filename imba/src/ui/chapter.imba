@@ -1221,6 +1221,8 @@ tag chapter < section
 
 	css
 		mah: 100vh
+		mah: 100svh
+		mah@lt-lg: calc(100svh - 2.75rem)
 		overflow-y: auto
 		overscroll-behavior: contain
 		overflow-anchor: none
@@ -1242,7 +1244,6 @@ tag chapter < section
 
 		article
 			padding-bottom: 70px
-			padding-bottom@lt-lg: calc(2.75rem + 12px + env(safe-area-inset-bottom, 0px))
 			box-sizing: border-box
 			position: relative
 			z-index: 0

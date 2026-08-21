@@ -39,11 +39,16 @@ tag reader
 	get isStackedSplit
 		return window.innerWidth < 640
 
+	get chapterViewportHeight
+		if window.innerWidth < 1024
+			return 'calc(100svh - 2.75rem)'
+		return '100svh'
+
 	get splitMainHeight
-		return isSplitView ? '100vh' : 'auto'
+		return isSplitView ? chapterViewportHeight : 'auto'
 
 	get splitMainMaxHeight
-		return isSplitView ? '100vh' : 'none'
+		return isSplitView ? chapterViewportHeight : 'none'
 
 	def splitFlex first = yes
 		unless isSplitView
@@ -656,7 +661,7 @@ tag reader
 				[height:{splitMainHeight} max-height:{splitMainMaxHeight} min-height:0 overflow:{isSplitView ? 'hidden' : 'visible'}]
 				[data-bm={((reader.bookmarks and reader.bookmarks.length) or 0) + '-' + (parallelReader.enabled ? ((parallelReader.bookmarks and parallelReader.bookmarks.length) or 0) : 0)}]
 				>
-				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!} box-sizing:border-box flex:{splitFlex(yes)} height:auto max-height:{isSplitView ? 'none' : '100vh'} min-width:0 min-height:0] />
+				<chapter id="main-reader" me=reader [padding-inline:{readerPadding!} box-sizing:border-box flex:{splitFlex(yes)} height:auto max-height:{isSplitView ? 'none' : chapterViewportHeight} min-width:0 min-height:0] />
 				if isSplitView
 					<div.parallel-divider>
 						<span.parallel-divider-line aria-hidden=yes>
