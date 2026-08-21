@@ -10,9 +10,11 @@ import { UNDERLINE_STYLES } from '../lib/highlightStyles'
 import BookmarkIcon from 'lucide-static/icons/bookmark.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
+import Link2 from 'lucide-static/icons/link-2.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import List from 'lucide-static/icons/list.svg'
 import Search from 'lucide-static/icons/search.svg'
+import Trash2 from 'lucide-static/icons/trash-2.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 # Shared cache so highlights persist when parent re-renders and creates a new modal instance
@@ -29,8 +31,8 @@ tag bookmarks-modal
 	groupedBookmarks = []
 	highlightEntries = []
 	fetchToken = 0
-	# 'bookmarks' | 'highlights' - which list is shown
-	activeTab = 'bookmarks'
+	# 'bookmarks' | 'highlights' | 'obsidian' - which list is shown
+	activeTab = activities.bookmarksModalTab or 'bookmarks'
 	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
 	bookmarkFilter = 'recent'
 	bookmarkSearchOpen = no
@@ -633,6 +635,11 @@ tag bookmarks-modal
 		highlightVisibleCount = TEST_PAGE_SIZE
 		imba.commit!
 
+	def switchToObsidianTab
+		activeTab = 'obsidian'
+		imba.commit!
+		activities.loadVerseNoteLinks(yes)
+
 	def setHighlightFilter filter\string
 		highlightFilter = filter
 		if filter == 'all'
@@ -755,6 +762,28 @@ tag bookmarks-modal
 		else
 			ensureVerseSelected(translation, book, chapter, verse)
 
+	def obsidianLinkTitle link
+		let bookName = getBookName(link.translation, link.book) or "Book {link.book}"
+		if Number(link.start_verse) == Number(link.end_verse)
+			return "{bookName} {link.chapter}:{link.start_verse}"
+		return "{bookName} {link.chapter}:{link.start_verse}-{link.end_verse}"
+
+	def openObsidianLink link
+		unless link
+			return
+		openVerseBookmark({
+			translation: link.translation
+			book: link.book
+			chapter: link.chapter
+			verse: link.start_verse
+		})
+		activities.openObsidianNote(link)
+
+	def unlinkObsidianLink link
+		unless link and link.block_id
+			return
+		activities.deleteVerseNoteLink(link.block_id)
+
 	# Safety net for the chapter-change path: if the freshly loaded chapter did not select
 	# the verse itself, do it here once the verses are on screen.
 	def ensureVerseSelected translation, book, chapter, verse, attempts = 0
@@ -838,7 +867,11 @@ tag bookmarks-modal
 		groupedBookmarks = []
 		bookmarkVisibleCount = TEST_PAGE_SIZE
 		highlightVisibleCount = TEST_PAGE_SIZE
+		if activities.bookmarksModalTab
+			activeTab = activities.bookmarksModalTab
+			activities.bookmarksModalTab = 'bookmarks'
 		loadBookmarks!
+		activities.loadVerseNoteLinks(yes)
 		# One delayed refresh helps when auth/session initializes shortly after mount.
 		setTimeout(&, 500) do
 			loadBookmarks!
@@ -879,6 +912,10 @@ tag bookmarks-modal
 				<svg src=Highlighter aria-hidden=yes>
 				"Highlights"
 				<span.toggle-count> getDisplayHighlights().length
+			<button.toggle-btn .active=(activeTab == 'obsidian') @click=switchToObsidianTab>
+				<svg src=Link2 aria-hidden=yes>
+				"Obsidian Links"
+				<span.toggle-count> activities.verseNoteLinks.length
 
 		if activeTab == 'bookmarks' and combinedBookmarksList().length
 			<div.bookmark-filter>
@@ -954,9 +991,8 @@ tag bookmarks-modal
 											new Date(entry.date).toLocaleString()
 					if canLoadMoreBookmarks()
 						<button.load-more-btn @click=loadMoreBookmarks> "Load More"
-			else
-				if activeTab == 'highlights'
-					ensureHighlightsFromReader!
+			elif activeTab == 'highlights'
+				ensureHighlightsFromReader!
 				if loading
 					<p.bookmarks-empty> "Loading highlights..."
 				elif !searchedHighlights().length
@@ -976,6 +1012,24 @@ tag bookmarks-modal
 									<div.bookmark-snippet innerHTML=(entry.text or '')>
 					if canLoadMoreHighlights()
 						<button.load-more-btn @click=loadMoreHighlights> "Load More"
+			else
+				if !activities.verseNoteLinks.length
+					<p.bookmarks-empty> "No Obsidian links yet. Insert verses into a note to create one."
+				else
+					<div.bookmarks-list>
+						for link in activities.verseNoteLinks
+							<div.bookmark-item.obsidian-link-item>
+								<button.obsidian-link-open @click=openObsidianLink(link)>
+									<div.bookmark-icon>
+										<svg src=Link2 aria-hidden=yes>
+									<div.bookmark-text>
+										<div.bookmark-title> obsidianLinkTitle(link)
+										<div.bookmark-meta> (link.note_name or link.note_path)
+										<div.bookmark-date>
+											if link.date
+												new Date(link.date).toLocaleString()
+								<button.unlink-btn type="button" @click.stop.prevent=(do unlinkObsidianLink(link)) title="Remove link">
+									<svg src=Trash2 aria-hidden=yes>
 
 	css
 		.bookmarks-modal-root
@@ -1084,15 +1138,18 @@ tag bookmarks-modal
 		.toggle-btn
 			d:flex
 			ai:center
-			g:0.5rem
+			jc:center
+			g:0.35rem
 			flex:1
-			p:0.6rem 1rem
+			p:0.5rem 0.4rem
 			rd:0.5rem
 			bgc:$acc-bgc
 			c:inherit
 			bd:1px solid $acc-bgc-hover
 			cursor:pointer
-			fs:0.95rem
+			fs:0.8rem
+			lh:1.15
+			ta:center
 
 		.toggle-btn@hover
 			bgc:$acc-bgc-hover
@@ -1165,6 +1222,42 @@ tag bookmarks-modal
 			c:inherit
 			cursor:pointer
 			b:1px solid transparent
+
+		.obsidian-link-item
+			ai:center
+			cursor:default
+
+		.obsidian-link-open
+			d:flex
+			ai:flex-start
+			g:0.5rem
+			flex:1
+			min-width:0
+			bgc:transparent
+			c:inherit
+			ta:left
+			cursor:pointer
+			p:0
+			bd:none
+
+		.unlink-btn
+			bgc:transparent
+			c:inherit
+			o:0.55
+			p:0.25rem
+			rd:0.35rem
+			cursor:pointer
+			fls:0
+			d:flex
+			ai:center
+			jc:center
+
+		.unlink-btn@hover
+			o:1
+			bgc:$acc-bgc
+
+		.unlink-btn svg
+			size:1rem
 
 		.bookmark-item@hover
 			bgc:$acc-bgc-hover

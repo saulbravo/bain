@@ -328,8 +328,39 @@ class BibleView extends ItemView {
 		} else if (event.data && event.data.type === "bible-commentary-selection") {
 			console.log("Bible Viewer: Processing commentary selection", event.data);
 			this.copyCommentaryToNote(event.data);
+		} else if (event.data && event.data.type === "bible-open-note") {
+			this.openNoteAtBlock(event.data.path, event.data.blockId);
 		} else {
 			console.log("Bible Viewer: Message type mismatch or no data", event.data);
+		}
+	}
+
+	postToIframe(payload: Record<string, unknown>) {
+		this.iframe?.contentWindow?.postMessage(payload, "*");
+	}
+
+	newBlockId(): string {
+		const bytes = new Uint8Array(6);
+		crypto.getRandomValues(bytes);
+		return `bolls-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+	}
+
+	sanitizeBlockId(id: string): string {
+		const cleaned = String(id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+		return cleaned || this.newBlockId();
+	}
+
+	async openNoteAtBlock(path?: string, blockId?: string) {
+		if (!path) {
+			new Notice("No note path to open.");
+			return;
+		}
+		const target = blockId ? `${path}#^${blockId}` : path;
+		try {
+			await this.app.workspace.openLinkText(target, path, false);
+		} catch (error) {
+			console.log("Bible Viewer: Failed to open note", error);
+			new Notice(`Could not open note: ${path}`);
 		}
 	}
 
@@ -344,11 +375,19 @@ class BibleView extends ItemView {
 		book?: string;
 		chapter?: number;
 		bookId?: number | string;
+		blockId?: string;
+		startVerse?: number;
+		endVerse?: number;
 	}) {
 		const verses = data.verses;
 		console.log("Bible Viewer: copyVersesToNote called with", data);
 		console.log("Bible Viewer: Data keys:", Object.keys(data));
 		console.log("Bible Viewer: Translation field:", data.translation);
+
+		if (!verses || verses.length === 0) {
+			new Notice("No verses selected to copy.");
+			return;
+		}
 		
 		const activeView = this.getMarkdownViewForInsert();
 		
@@ -404,12 +443,29 @@ class BibleView extends ItemView {
 		// > verse text
 		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
 		const verseTexts = verses.map((v) => `> ${v.verse}. ${v.text}`).join("\n");
-		const formattedText = `${calloutHeader}\n${verseTexts}\n\n`;
+		const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
+		const formattedText = `${calloutHeader}\n${verseTexts}\n> ^${blockId}\n\n`;
 
 		// Insert at cursor position
 		const editor = activeView.editor;
 		const cursor = editor.getCursor();
 		editor.replaceRange(formattedText, cursor);
+
+		const file = activeView.file;
+		if (file) {
+			this.postToIframe({
+				type: "bible-verse-linked",
+				blockId,
+				notePath: file.path,
+				noteName: file.basename,
+				vault: this.app.vault.getName(),
+				translation: translationCode,
+				bookId: Number(bookId),
+				chapter: Number(chapter),
+				startVerse: Number(data.startVerse || firstVerse.verse),
+				endVerse: Number(data.endVerse || lastVerse.verse),
+			});
+		}
 
 		new Notice(`Copied ${verses.length} verse${verses.length > 1 ? "s" : ""} to note`);
 	}

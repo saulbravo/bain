@@ -234,6 +234,12 @@ class GenericReader
 			return null
 		return b
 
+	def startVerseNoteLinks verseNumber\number
+		return activities.linksForStartVerse(translation, book, chapter, verseNumber)
+
+	def openVerseNoteLinks verseNumber\number
+		activities.openVerseNoteLinks(translation, book, chapter, verseNumber)
+
 	def getHighlight pk\number
 		# Don't return background for selected verses - they use text color instead
 		let highlight = bookmarks.find(do |element| return element.verse == pk)
@@ -424,6 +430,8 @@ class GenericReader
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		# So bookmark list modal shows items on load without needing another action
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		if activities and activities.loadVerseNoteLinks
+			activities.loadVerseNoteLinks!
 		imba.commit!
 
 	def getFreehandHighlights

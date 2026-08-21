@@ -5,6 +5,7 @@ import unicodedata
 import json
 import sqlite3
 import html
+import time
 from django.db.models import Count, Q
 from django.contrib.postgres.search import (
     SearchQuery,
@@ -24,7 +25,7 @@ from django.http import JsonResponse, HttpResponse
 from bolls.books_map import books_map
 from bolls.forms import SignUpForm
 
-from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary, FreehandHighlight
+from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary, FreehandHighlight, VerseNoteLink
 
 from .utils.books import BOOKS, get_book_id, is_number
 
@@ -1015,6 +1016,102 @@ def save_freehand_highlights(request):
         return HttpResponse(status=200)
     except Exception as e:
         print(f"Error saving freehand highlights: {e}")
+        return HttpResponse(status=400, content=str(e))
+
+
+BLOCK_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def serialize_verse_note_link(link):
+    return {
+        "block_id": link.block_id,
+        "translation": link.translation,
+        "book": link.book,
+        "chapter": link.chapter,
+        "start_verse": link.start_verse,
+        "end_verse": link.end_verse,
+        "note_path": link.note_path,
+        "note_name": link.note_name,
+        "vault": link.vault,
+        "date": link.date,
+    }
+
+
+def get_verse_note_links(request, translation, book, chapter):
+    if not request.user.is_authenticated:
+        return JsonResponse([], safe=False)
+    links = request.user.versenotelink_set.filter(
+        translation=translation, book=book, chapter=chapter
+    ).order_by("start_verse", "-date")
+    return JsonResponse([serialize_verse_note_link(link) for link in links], safe=False)
+
+
+def get_profile_verse_note_links(request):
+    if not request.user.is_authenticated:
+        return JsonResponse([], safe=False)
+    links = request.user.versenotelink_set.all().order_by("-date")
+    return JsonResponse([serialize_verse_note_link(link) for link in links], safe=False)
+
+
+@require_POST
+@csrf_exempt
+def save_verse_note_link(request):
+    if not request.user.is_authenticated:
+        return HttpResponse(status=401)
+
+    try:
+        data = json.loads(request.body)
+        block_id = str(data.get("block_id") or "").strip()
+        translation = str(data.get("translation") or "").strip()
+        note_path = str(data.get("note_path") or "").strip()
+        if not BLOCK_ID_RE.match(block_id) or not translation or not note_path:
+            return HttpResponse(status=400, content="Missing required fields")
+
+        start_verse = int(data.get("start_verse") or 0)
+        end_verse = int(data.get("end_verse") or start_verse)
+        book = int(data.get("book") or 0)
+        chapter = int(data.get("chapter") or 0)
+        if book < 1 or chapter < 1 or start_verse < 1:
+            return HttpResponse(status=400, content="Invalid verse location")
+        if end_verse < start_verse:
+            end_verse = start_verse
+
+        link, _created = VerseNoteLink.objects.update_or_create(
+            user=request.user,
+            block_id=block_id,
+            defaults={
+                "translation": translation,
+                "book": book,
+                "chapter": chapter,
+                "start_verse": start_verse,
+                "end_verse": end_verse,
+                "note_path": note_path,
+                "note_name": str(data.get("note_name") or "")[:255],
+                "vault": str(data.get("vault") or "")[:255],
+                "date": int(data.get("date") or 0) or int(time.time() * 1000),
+            },
+        )
+        return JsonResponse(serialize_verse_note_link(link))
+    except Exception as e:
+        print(f"Error saving verse note link: {e}")
+        return HttpResponse(status=400, content=str(e))
+
+
+@require_POST
+@csrf_exempt
+def delete_verse_note_link(request):
+    if not request.user.is_authenticated:
+        return HttpResponse(status=401)
+
+    try:
+        data = json.loads(request.body)
+        block_id = str(data.get("block_id") or "").strip()
+        if not BLOCK_ID_RE.match(block_id):
+            return HttpResponse(status=400, content="Invalid block id")
+        request.user.versenotelink_set.filter(block_id=block_id).delete()
+        return HttpResponse(status=200)
+    except Exception as e:
+        print(f"Error deleting verse note link: {e}")
         return HttpResponse(status=400, content=str(e))
 
 

@@ -66,6 +66,7 @@ class User
 					username = ''
 					name = ''
 					categories = []
+				window.dispatchEvent(new CustomEvent('user-session'))
 			catch err
 				console.warn(err)
 	

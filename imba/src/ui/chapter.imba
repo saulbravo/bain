@@ -4,6 +4,7 @@ import { canvasLineDash, freehandWrapClose, freehandWrapOpen } from '../lib/high
 
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
+import Link2 from 'lucide-static/icons/link-2.svg'
 import Search from 'lucide-static/icons/search.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
@@ -1006,13 +1007,19 @@ tag chapter < section
 										
 										# Create message data object with explicit values - ensure all are set
 										# Use object literal to ensure proper serialization
+										let firstVerseNum = selectedVerses[0].verse
+										let lastVerseNum = selectedVerses[selectedVerses.length - 1].verse
+										let blockId = activities.newBlockId()
 										let messageData = {
-													type: 'bible-verse-selection',
+											type: 'bible-verse-selection',
 											verses: selectedVerses,
 											translation: translationCode,
 											book: bookName,
 											chapter: chapterNum,
-											bookId: bookIdNum
+											bookId: bookIdNum,
+											blockId: blockId,
+											startVerse: firstVerseNum,
+											endVerse: lastVerseNum
 										}
 										
 										# Always try to send - let the parent decide if it wants to handle it
@@ -1026,7 +1033,10 @@ tag chapter < section
 												translation: String(messageData.translation),
 												book: String(messageData.book),
 												chapter: Number(messageData.chapter),
-												bookId: Number(messageData.bookId)
+												bookId: Number(messageData.bookId),
+												blockId: String(messageData.blockId),
+												startVerse: Number(messageData.startVerse),
+												endVerse: Number(messageData.endVerse)
 											}
 											window.parent.postMessage(messageToSend, '*')
 											sent = yes
@@ -1079,6 +1089,8 @@ tag chapter < section
 					for verse, verse_index in (me.verses or [])
 						let bookmark = me.getBookmark(verse.pk)
 						let bookmarkOnly = me.getBookmarkOnly(verse.pk)
+						let noteLinks = me.startVerseNoteLinks(verse.verse)
+						let hasNoteLink = noteLinks.length > 0
 						let displayCollection = bookmark ? me.stripBookmarkMarker(bookmark.collection) : ''
 						let showBookmarkNote = bookmark and (displayCollection or bookmark.note) and not me.nextVerseHasTheSameBookmark(verse_index)
 						let superStyle = "scroll-margin-top:1.4rem;"
@@ -1101,7 +1113,17 @@ tag chapter < section
 										)>
 										<span.verse-number-group>
 											<span.verse-marker-slot aria-hidden=yes>
-												if bookmarkOnly
+												if hasNoteLink and bookmarkOnly
+													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
+														<svg.verse-bookmark-icon.verse-link-icon width="24" height="24" viewBox="0 0 24 24" aria-hidden=yes>
+															<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="#dc2626" stroke="none" />
+															<path d="M9 17H7A5 5 0 0 1 7 7h2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+															<path d="M15 7h2a5 5 0 1 1 0 10h-2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+															<path d="M8 12h8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+												elif hasNoteLink
+													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
+														<svg.verse-bookmark-icon.verse-link-icon src=Link2 aria-hidden=yes>
+												elif bookmarkOnly
 													if showBookmarkNote
 														<note-tooltip compact style=superStyle bookmark=bookmark>
 															<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" fill="#dc2626" stroke="none" aria-hidden=yes>
@@ -1319,6 +1341,17 @@ tag chapter < section
 			overflow: hidden
 			text-align: center
 
+		.verse-marker-btn
+			all: unset
+			d: inline-flex
+			ai: center
+			jc: center
+			w: 100%
+			h: 100%
+			cursor: pointer
+			pointer-events: auto
+			c: #dc2626
+
 		.verse-marker-spacer
 			d: inline-block
 			width: 100%
@@ -1330,6 +1363,9 @@ tag chapter < section
 			pointer-events: none
 			d: inline-block
 			vertical-align: baseline
+
+		.verse-link-icon
+			c: #dc2626
 
 		.verse-number-text
 			vertical-align: baseline

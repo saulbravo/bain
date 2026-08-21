@@ -15,6 +15,7 @@ import user from './User'
 import theme from './Theme'
 import customTheme from './CustomTheme'
 import settings from './Settings'
+import API from './Api'
 import { UNDERLINE_STYLES } from './highlightStyles'
 
 import type { CopyObject, Verse } from './types'
@@ -506,6 +507,9 @@ class Activities
 	@observable commentaryCompareVerse = 0
 	# Fraction of the split view taken by the first (main) pane.
 	@observable splitRatio\number = getValue('split_ratio') ?? 0.5
+	@observable verseNoteLinks = []
+	verseNoteLinksLoaded = no
+	bookmarksModalTab = 'bookmarks'
 
 	@action def setSplitRatio value\number
 		splitRatio = Math.min(0.85, Math.max(0.15, value))
@@ -761,8 +765,9 @@ class Activities
 		readingHistory.syncHistory!
 		openModal 'history'
 	
-	@action def showBookmarksModal
+	@action def showBookmarksModal tab = 'bookmarks'
 		cleanUp!
+		bookmarksModalTab = tab or 'bookmarks'
 		openModal 'bookmarks'
 
 	@action def showSearch
@@ -1000,8 +1005,107 @@ class Activities
 		else
 			parallelReader.saveBookmark!
 
+	def newBlockId
+		let hex = ''
+		const bytes = new Uint8Array(6)
+		if window.crypto and window.crypto.getRandomValues
+			window.crypto.getRandomValues(bytes)
+			for b in Array.from(bytes)
+				hex += (b < 16 ? '0' : '') + Number(b).toString(16)
+		else
+			hex = Date.now().toString(16) + Math.floor(Math.random() * 1e6).toString(16)
+		return "bolls-{hex}"
+
+	def inObsidianFrame
+		try
+			return window.parent != window
+		catch
+			return no
+
+	def linksForStartVerse translation, book, chapter, verse
+		return verseNoteLinks.filter(do |link|
+			return link and link.translation == translation and Number(link.book) == Number(book) and Number(link.chapter) == Number(chapter) and Number(link.start_verse) == Number(verse)
+		)
+
+	def upsertLocalVerseNoteLink link
+		unless link and link.block_id
+			return
+		verseNoteLinks = [link].concat(verseNoteLinks.filter(do |item| return item.block_id != link.block_id))
+		imba.commit!
+
+	@action def loadVerseNoteLinks force = no
+		if !user.username
+			verseNoteLinks = []
+			verseNoteLinksLoaded = no
+			return
+		if !window.navigator.onLine
+			return
+		if verseNoteLinksLoaded and !force
+			return
+		try
+			let data = await API.getJson("/get-profile-verse-note-links/")
+			if Array.isArray(data)
+				verseNoteLinks = data
+				verseNoteLinksLoaded = yes
+				imba.commit!
+		catch err
+			console.warn(err)
+
+	@action def recordVerseNoteLink data
+		unless data
+			return
+		let startVerse = Number(data.startVerse or data.start_verse or 0)
+		let endVerse = Number(data.endVerse or data.end_verse or startVerse)
+		let book = Number(data.bookId or data.book or 0)
+		let chapter = Number(data.chapter or 0)
+		let link = {
+			block_id: String(data.blockId or data.block_id or '')
+			translation: String(data.translation or '')
+			book: book
+			chapter: chapter
+			start_verse: startVerse
+			end_verse: endVerse
+			note_path: String(data.notePath or data.note_path or '')
+			note_name: String(data.noteName or data.note_name or '')
+			vault: String(data.vault or '')
+			date: Number(data.date or Date.now())
+		}
+		unless link.block_id and link.note_path and link.translation and link.book and link.chapter and link.start_verse
+			return
+		upsertLocalVerseNoteLink(link)
+		unless user.username and window.navigator.onLine
+			return
+		API.post("/save-verse-note-link/", link)
+
+	@action def deleteVerseNoteLink blockId
+		unless blockId
+			return
+		verseNoteLinks = verseNoteLinks.filter(do |item| return item.block_id != blockId)
+		imba.commit!
+		unless user.username and window.navigator.onLine
+			return
+		API.post("/delete-verse-note-link/", { block_id: blockId })
+
+	def openObsidianNote link
+		unless link and link.note_path
+			return
+		if inObsidianFrame!
+			window.parent.postMessage({
+				type: 'bible-open-note'
+				path: link.note_path
+				blockId: link.block_id or ''
+			}, '*')
+
+	def openVerseNoteLinks translation, book, chapter, verse
+		let links = linksForStartVerse(translation, book, chapter, verse)
+		if links.length == 1 and inObsidianFrame!
+			openObsidianNote(links[0])
+			return
+		showBookmarksModal('obsidian')
+
 
 const activities = new Activities()
 activities.loadTabs()
+window.addEventListener('user-session', do activities.loadVerseNoteLinks(yes))
 
 export default activities

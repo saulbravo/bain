@@ -7,16 +7,32 @@ import * as Sentry from "@sentry/browser";
 # Listen for cache clearing messages from parent (e.g., Obsidian plugin)
 # But don't do anything - the cache-busting URL parameters should be enough
 # Removing automatic cache clearing to prevent reload loops
-window.addEventListener('message', do |event|
-	# Only accept messages from same origin or localhost
+def isTrustedParentMessage event
+	if event.source == window.parent
+		return yes
+	if !event.origin
+		return no
 	if event.origin.includes('localhost') or event.origin.includes('127.0.0.1') or event.origin == window.location.origin
-		if event.data and event.data.type == 'clear-cache' and event.data.force
-			console.log('Bible App: Received clear-cache message (ignoring to prevent reload loops)')
-			# Just log - don't actually clear cache or reload
-			# The cache-busting URL parameters should be sufficient
-		elif event.data and event.data.type == 'unregister-sw' and event.data.force
-			console.log('Bible App: Received unregister-sw message (ignoring to prevent reload loops)')
-			# Just log - don't actually unregister
+		return yes
+	if event.origin.includes('obsidian.md') or event.origin.startsWith('app://')
+		return yes
+	return no
+
+window.addEventListener('message', do |event|
+	unless isTrustedParentMessage(event)
+		return
+	unless event.data
+		return
+	# Only accept messages from same origin or localhost
+	if event.data.type == 'clear-cache' and event.data.force
+		console.log('Bible App: Received clear-cache message (ignoring to prevent reload loops)')
+		# Just log - don't actually clear cache or reload
+		# The cache-busting URL parameters should be sufficient
+	elif event.data.type == 'unregister-sw' and event.data.force
+		console.log('Bible App: Received unregister-sw message (ignoring to prevent reload loops)')
+		# Just log - don't actually unregister
+	elif event.data.type == 'bible-verse-linked'
+		activities.recordVerseNoteLink(event.data)
 )
 
 tag app

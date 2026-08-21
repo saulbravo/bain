@@ -68,6 +68,29 @@ class FreehandHighlight(models.Model):
         ]
 
 
+class VerseNoteLink(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    block_id = models.CharField(max_length=64)
+    translation = models.CharField(max_length=120)
+    book = models.PositiveSmallIntegerField()
+    chapter = models.PositiveSmallIntegerField()
+    start_verse = models.PositiveSmallIntegerField()
+    end_verse = models.PositiveSmallIntegerField()
+    note_path = models.TextField()
+    note_name = models.CharField(max_length=255, blank=True, default="")
+    vault = models.CharField(max_length=255, blank=True, default="")
+    date = models.BigIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "block_id"], name="uniq_user_verse_note_link"),
+        ]
+        indexes = [
+            models.Index(fields=["user", "translation", "book", "chapter"], name="bolls_verse_user_id_note_idx"),
+            models.Index(fields=["user", "block_id"], name="bolls_verse_user_block_idx"),
+        ]
+
+
 class Dictionary(models.Model):
     dictionary = models.CharField(max_length=8)
     topic = models.TextField()
