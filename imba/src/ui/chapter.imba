@@ -17,14 +17,6 @@ tag chapter < section
 	prop versePrefix = ''
 	minHeaderFont = 0 # rem
 
-	get liftShift
-		const raw = versePrefix == 'p' ? activities.parallelLiftShift : activities.mainLiftShift
-		if raw > 240
-			return 240
-		if raw < 0
-			return 0
-		return raw
-
 	get main
 		return document.getElementById "main"
 
@@ -962,8 +954,7 @@ tag chapter < section
 				[mt: 30px]
 					[pl: 30px]
 					[pr: 30px]
-					[position: relative]
-					[transform: translateY({-liftShift}px)]>
+					[position: relative]>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
 					# Render if this reader has copy-select active (check per-reader PKs)
@@ -1240,7 +1231,6 @@ tag chapter < section
 			box-sizing: border-box
 			position: relative
 			z-index: 0
-			transition: transform 0.6s ease
 
 		header
 			position: relative

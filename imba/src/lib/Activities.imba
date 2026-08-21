@@ -414,7 +414,6 @@ class Activities
 				chapter: tab.chapter
 			}
 			isSwitchingTab = yes
-			clearBottomToolbarLift!
 			const fromIndex = activeTabIndex
 			applyTabStateFromReader(fromIndex, 'switchTab:persist')
 			activeTabIndex = index
@@ -494,10 +493,6 @@ class Activities
 	@observable activeVerseAction = ''
 	isVerseActionsMinimized = no
 	isFreehandHighlightMinimized = no
-	@observable mainLiftShift = 0
-	@observable parallelLiftShift = 0
-	mainLiftArmed = no
-	parallelLiftArmed = no
 	highlight_color\string = ''
 	# Underline pattern applies to freehand strokes only.
 	@observable patternHighlightMode = no
@@ -604,111 +599,9 @@ class Activities
 			activeModal = ''
 			activeVerseAction = ''
 		selectedParallel = undefined
-		clearBottomToolbarLift!
 		imba.commit!
 
-	def chapterScroller id
-		return document.getElementById(id)
-
-	def isScrollerAtBottom scroller
-		unless scroller
-			return no
-		return (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) <= 80
-
-	def isChapterEndVisible scroller
-		unless scroller
-			return no
-		const article = scroller.querySelector('article')
-		unless article
-			return no
-		const nodes = article.querySelectorAll('span[id]')
-		unless nodes.length
-			return no
-		# Last verse is on screen (or just under the bar). Mid-chapter stays false.
-		return nodes[nodes.length - 1].getBoundingClientRect().top < window.innerHeight + 8
-
-	# Freehand: only at the true scroll end.
-	# Verse select: also when the last verse is visible, so adding the last
-	# verse to a second-to-last selection can lift both into view.
-	def armBottomToolbarLift forVerseSelect = no
-		const main = chapterScroller('main-reader')
-		const par = chapterScroller('parallel-reader')
-		mainLiftArmed = isScrollerAtBottom(main) or (forVerseSelect and isChapterEndVisible(main))
-		parallelLiftArmed = isScrollerAtBottom(par) or (forVerseSelect and isChapterEndVisible(par))
-
-	def toolbarLiftFromHeight offsetHeight, fallback = 150
-		if offsetHeight > 80
-			return offsetHeight - 32
-		return fallback
-
-	def toolbarTargetVisibleHeight
-		if activeVerseAction == 'options' and !isVerseActionsMinimized
-			const va = document.querySelector('verse-actions, section.verse-actions')
-			return toolbarLiftFromHeight(va ? va.offsetHeight : 0, 150)
-		if (freehandHighlightMode or penToolMode) and !isFreehandHighlightMinimized
-			const fh = document.querySelector('freehand-highlight-menu')
-			return toolbarLiftFromHeight(fh ? fh.offsetHeight : 0, 130)
-		return 0
-
-	def scrollerContentBottom scroller
-		unless scroller
-			return 0
-		const prefix = scroller.id == 'parallel-reader' ? 'p' : ''
-		let bottom = 0
-		for id in selectedVerses
-			const el = document.getElementById("{prefix}{id}")
-			if el and scroller.contains(el)
-				const b = el.getBoundingClientRect().bottom
-				if b > bottom
-					bottom = b
-		if bottom > 0
-			return bottom
-		const article = scroller.querySelector('article')
-		unless article
-			return 0
-		const nodes = article.querySelectorAll('span[id]')
-		if nodes.length
-			return nodes[nodes.length - 1].getBoundingClientRect().bottom
-		return 0
-
-	def neededLiftForScroller scroller
-		unless scroller
-			return 0
-		const toolbarH = toolbarTargetVisibleHeight!
-		unless toolbarH > 0
-			return 0
-		const shift = scroller.id == 'parallel-reader' ? parallelLiftShift : mainLiftShift
-		const bottom = scrollerContentBottom(scroller) + shift
-		unless bottom > 0 and bottom <= window.innerHeight + 40
-			return 0
-		const gap = (freehandHighlightMode or penToolMode) ? 28 : 12
-		let raw = Math.ceil(bottom - (window.innerHeight - toolbarH) + gap)
-		const cap = Math.min(toolbarH + gap + 64, 240)
-		return Math.max(0, Math.min(raw, cap))
-
-	def playContentLift
-		unless mainLiftArmed or parallelLiftArmed
-			return
-		# Allow the lift to grow when another bottom verse is added.
-		if mainLiftArmed
-			const mainNeed = neededLiftForScroller(chapterScroller('main-reader'))
-			if mainNeed > mainLiftShift
-				mainLiftShift = mainNeed
-		if parallelLiftArmed
-			const parNeed = neededLiftForScroller(chapterScroller('parallel-reader'))
-			if parNeed > parallelLiftShift
-				parallelLiftShift = parNeed
-
-	def clearBottomToolbarLift
-		mainLiftArmed = no
-		parallelLiftArmed = no
-		mainLiftShift = 0
-		parallelLiftShift = 0
-
 	def toggleFreehandHighlightMode
-		const opening = !freehandHighlightMode
-		if opening
-			armBottomToolbarLift!
 		freehandHighlightMode = !freehandHighlightMode
 		isFreehandHighlightMinimized = no
 		if freehandHighlightMode
@@ -730,16 +623,9 @@ class Activities
 			reader.refreshFreehandHighlightDisplay!
 			if parallelReader.enabled
 				parallelReader.refreshFreehandHighlightDisplay!
-		if freehandHighlightMode
-			playContentLift!
 		imba.commit!
-		unless freehandHighlightMode
-			clearBottomToolbarLift!
 
 	def togglePenToolMode
-		const opening = !penToolMode
-		if opening
-			armBottomToolbarLift!
 		penToolMode = !penToolMode
 		isFreehandHighlightMinimized = no
 		if penToolMode
@@ -756,11 +642,7 @@ class Activities
 			show_bookmarks = no
 			show_add_bookmark = no
 			window.getSelection().removeAllRanges()
-		if penToolMode
-			playContentLift!
 		imba.commit!
-		unless penToolMode
-			clearBottomToolbarLift!
 
 	def penSketchKey translation\string, book\number, chapter\number
 		return "{translation}:{book}:{chapter}"

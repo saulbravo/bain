@@ -50,8 +50,6 @@ tag verse-actions < section
 	get transitionDuration
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
 
-	def mount
-		activities.playContentLift!
 
 	def byteCount s\string
 		window.encodeURI(s).split(/%..|./).length - 1
@@ -127,14 +125,7 @@ tag verse-actions < section
 		@touch.fit(self)=touchHandler
 	>
 		<div.control-tabs>
-			<button.tab.minimize @click=(do
-				activities.isVerseActionsMinimized = !activities.isVerseActionsMinimized
-				if activities.isVerseActionsMinimized
-					activities.clearBottomToolbarLift!
-				else
-					activities.armBottomToolbarLift!
-					activities.playContentLift!
-			) title=(activities.isVerseActionsMinimized ? "Restore" : "Minimize")>
+			<button.tab.minimize @click=(activities.isVerseActionsMinimized = !activities.isVerseActionsMinimized) title=(activities.isVerseActionsMinimized ? "Restore" : "Minimize")>
 				<svg src=(activities.isVerseActionsMinimized ? ChevronUp : ChevronDown)>
 			<button.tab.close @click=close title="Close">
 				<svg src=X>
@@ -311,7 +302,6 @@ tag verse-actions < section
 		ta:center
 		d:vcc
 		padding-block:1rem 2.5rem
-		transition-property: transform, opacity
 		
 		&.is-minimized
 			bgc: transparent
