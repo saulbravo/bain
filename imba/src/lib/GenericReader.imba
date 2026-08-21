@@ -714,7 +714,7 @@ class GenericReader
 				# Always set to 'options' for normal selections (not from modal)
 				activities.activeVerseAction = 'options'
 				activities.isVerseActionsMinimized = no
-				activities.armBottomToolbarLift(verseElement)
+				activities.armBottomToolbarLift(yes)
 				activities.playContentLift!
 				console.log('[DEBUG] Showing verse-actions slideup')
 			else
@@ -824,10 +824,13 @@ class GenericReader
 					if shouldCenter
 						top = el.offsetTop - Math.max(theme.fontSize, (container.clientHeight - el.offsetHeight) / 2)
 					container.scrollTo({
-						behavior: 'auto',
+						behavior: shouldCenter ? theme.scrollBehavior : 'auto',
 						top: Math.max(0, top)
 					})
-					afterScroll!
+					if shouldCenter and theme.scrollBehavior == 'smooth'
+						setTimeout(afterScroll, 350)
+					else
+						afterScroll!
 				else
 					scrollToVerse()
 

@@ -17,13 +17,10 @@ tag chapter < section
 	prop versePrefix = ''
 	minHeaderFont = 0 # rem
 
-	get bottomLift
-		return versePrefix == 'p' ? activities.parallelBottomLift : activities.mainBottomLift
-
 	get liftShift
 		const raw = versePrefix == 'p' ? activities.parallelLiftShift : activities.mainLiftShift
-		if raw > 180
-			return 180
+		if raw > 240
+			return 240
 		if raw < 0
 			return 0
 		return raw
@@ -1177,7 +1174,6 @@ tag chapter < section
 								<br>
 								unless settings.verse_number
 									<span.ws> '	'
-					<div.bottom-toolbar-lift [height:{bottomLift}px min-height:{bottomLift}px flex:0 0 {bottomLift}px]>
 				
 			if !me.verses..length
 				if !window.navigator.onLine && vault.downloaded_translations.indexOf(me.translation) == -1
@@ -1224,7 +1220,6 @@ tag chapter < section
 	css
 		mah: 100vh
 		overflow-y: auto
-		overflow-anchor: none
 		w:100% max-width:100%
 		pos:relative
 
@@ -1241,17 +1236,11 @@ tag chapter < section
 			padding-inline: 0.25rem
 
 		article
-			padding-bottom: 12px
+			padding-bottom: 70px
 			box-sizing: border-box
 			position: relative
 			z-index: 0
 			transition: transform 0.6s ease
-
-		.bottom-toolbar-lift
-			w: 100%
-			pointer-events: none
-			d: block
-			overflow-anchor: none
 
 		header
 			position: relative
