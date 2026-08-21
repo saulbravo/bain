@@ -493,6 +493,17 @@ class Activities
 	@observable activeVerseAction = ''
 	isVerseActionsMinimized = no
 	isFreehandHighlightMinimized = no
+	@observable mainBottomLift = 0
+	@observable parallelBottomLift = 0
+	@observable mainLiftShift = 0
+	@observable parallelLiftShift = 0
+	mainLiftArmed = no
+	parallelLiftArmed = no
+	mainLiftFrom = -1
+	parallelLiftFrom = -1
+	liftPinRaf = null
+	liftRetry = null
+	liftAnimating = no
 	highlight_color\string = ''
 	# Underline pattern applies to freehand strokes only.
 	@observable patternHighlightMode = no
@@ -599,9 +610,155 @@ class Activities
 			activeModal = ''
 			activeVerseAction = ''
 		selectedParallel = undefined
+		clearBottomToolbarLift!
 		imba.commit!
 
+	def chapterScroller id
+		return document.getElementById(id)
+
+	def isScrollerAtBottom scroller
+		unless scroller
+			return no
+		return (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) <= 80
+
+	def armBottomToolbarLift verseEl = null
+		const main = chapterScroller('main-reader')
+		const par = chapterScroller('parallel-reader')
+		mainLiftArmed = isScrollerAtBottom(main)
+		parallelLiftArmed = isScrollerAtBottom(par)
+		if verseEl
+			const zone = (toolbarTargetVisibleHeight! or 150) + 16
+			if verseEl.getBoundingClientRect().bottom > window.innerHeight - zone
+				if verseEl.closest('#parallel-reader')
+					parallelLiftArmed = yes
+				else
+					mainLiftArmed = yes
+		mainLiftFrom = mainLiftArmed and main ? main.scrollTop : -1
+		parallelLiftFrom = parallelLiftArmed and par ? par.scrollTop : -1
+		liftAnimating = no
+
+	def toolbarLiftFromHeight offsetHeight, fallback = 150
+		if offsetHeight > 80
+			return offsetHeight - 32
+		return fallback
+
+	def toolbarTargetVisibleHeight
+		if activeVerseAction == 'options' and !isVerseActionsMinimized
+			const va = document.querySelector('verse-actions, section.verse-actions')
+			return toolbarLiftFromHeight(va ? va.offsetHeight : 0, 150)
+		if (freehandHighlightMode or penToolMode) and !isFreehandHighlightMinimized
+			const fh = document.querySelector('freehand-highlight-menu')
+			return toolbarLiftFromHeight(fh ? fh.offsetHeight : 0, 130)
+		return 0
+
+	def visibleToolbarHeight
+		return toolbarTargetVisibleHeight!
+
+	def cssEase t
+		return t * t * (3 - 2 * t)
+
+	def writeSpacerHeight id, height
+		const el = chapterScroller(id)
+		const spacer = el and el.querySelector('.bottom-toolbar-lift')
+		unless spacer
+			return no
+		spacer.style.height = "{height}px"
+		spacer.style.minHeight = "{height}px"
+		return spacer.offsetHeight >= height - 2
+
+	def scrollerContentBottom scroller
+		unless scroller
+			return 0
+		const prefix = scroller.id == 'parallel-reader' ? 'p' : ''
+		let bottom = 0
+		for id in selectedVerses
+			const el = document.getElementById("{prefix}{id}")
+			if el and scroller.contains(el)
+				const b = el.getBoundingClientRect().bottom
+				if b > bottom
+					bottom = b
+		if bottom > 0
+			return bottom
+		const article = scroller.querySelector('article')
+		unless article
+			return 0
+		const nodes = article.querySelectorAll('span[id]')
+		if nodes.length
+			return nodes[nodes.length - 1].getBoundingClientRect().bottom
+		return 0
+
+	def neededLiftForScroller scroller
+		unless scroller
+			return 0
+		const toolbarH = toolbarTargetVisibleHeight!
+		unless toolbarH > 0
+			return 0
+		const shift = scroller.id == 'parallel-reader' ? parallelLiftShift : mainLiftShift
+		const bottom = scrollerContentBottom(scroller) + shift
+		# Off-screen lines (page still scrolling, other tab, etc.) must not
+		# produce a multi-thousand-pixel translateY that empties the view.
+		unless bottom > 0 and bottom <= window.innerHeight + 40
+			return 0
+		const gap = (freehandHighlightMode or penToolMode) ? 28 : 12
+		const raw = Math.ceil(bottom - (window.innerHeight - toolbarH) + gap)
+		const cap = Math.min(toolbarH + gap, 180)
+		return Math.max(0, Math.min(raw, cap))
+
+	def playContentLift
+		if mainLiftShift > 0 or parallelLiftShift > 0
+			return
+		const mainNeed = neededLiftForScroller(chapterScroller('main-reader'))
+		const parNeed = neededLiftForScroller(chapterScroller('parallel-reader'))
+		if mainNeed > 0
+			mainLiftShift = mainNeed
+		if parNeed > 0
+			parallelLiftShift = parNeed
+
+	def beginBottomToolbarLift
+		playContentLift!
+
+	def applyLiftToScroller id, height
+		const scroller = chapterScroller(id)
+		const current = id == 'parallel-reader' ? parallelBottomLift : mainBottomLift
+		const armed = id == 'parallel-reader' ? parallelLiftArmed : mainLiftArmed
+		let next = 0
+		if scroller and height > 0 and (current > 0 or armed)
+			next = height
+		if current == next
+			return no
+		if id == 'parallel-reader'
+			parallelBottomLift = next
+		else
+			mainBottomLift = next
+		return yes
+
+	def applyBottomToolbarLift
+		playContentLift!
+
+	def clearBottomToolbarLift
+		if liftPinRaf
+			window.cancelAnimationFrame(liftPinRaf)
+			liftPinRaf = null
+		if liftRetry
+			clearTimeout(liftRetry)
+			liftRetry = null
+		liftAnimating = no
+		mainLiftArmed = no
+		parallelLiftArmed = no
+		mainLiftFrom = -1
+		parallelLiftFrom = -1
+		mainLiftShift = 0
+		parallelLiftShift = 0
+		if mainBottomLift or parallelBottomLift
+			mainBottomLift = 0
+			parallelBottomLift = 0
+		writeSpacerHeight('main-reader', 0)
+		writeSpacerHeight('parallel-reader', 0)
+
 	def toggleFreehandHighlightMode
+		const opening = !freehandHighlightMode
+		if opening
+			armBottomToolbarLift!
 		freehandHighlightMode = !freehandHighlightMode
 		isFreehandHighlightMinimized = no
 		if freehandHighlightMode
@@ -623,9 +780,16 @@ class Activities
 			reader.refreshFreehandHighlightDisplay!
 			if parallelReader.enabled
 				parallelReader.refreshFreehandHighlightDisplay!
+		if freehandHighlightMode
+			playContentLift!
 		imba.commit!
+		unless freehandHighlightMode
+			clearBottomToolbarLift!
 
 	def togglePenToolMode
+		const opening = !penToolMode
+		if opening
+			armBottomToolbarLift!
 		penToolMode = !penToolMode
 		isFreehandHighlightMinimized = no
 		if penToolMode
@@ -642,7 +806,11 @@ class Activities
 			show_bookmarks = no
 			show_add_bookmark = no
 			window.getSelection().removeAllRanges()
+		if penToolMode
+			playContentLift!
 		imba.commit!
+		unless penToolMode
+			clearBottomToolbarLift!
 
 	def penSketchKey translation\string, book\number, chapter\number
 		return "{translation}:{book}:{chapter}"
