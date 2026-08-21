@@ -51,7 +51,9 @@ tag verse-actions < section
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
 
 	def mount
-		activities.playContentLift!
+		window.requestAnimationFrame do
+			activities.playContentLift!
+			imba.commit!
 
 	def byteCount s\string
 		window.encodeURI(s).split(/%..|./).length - 1

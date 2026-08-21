@@ -712,10 +712,14 @@ class GenericReader
 				activities.activeVerseAction = 'suppressed'
 			elif activities.activeVerseAction != 'suppressed'
 				# Always set to 'options' for normal selections (not from modal)
+				const toolbarAlreadyOpen = activities.activeVerseAction == 'options'
 				activities.activeVerseAction = 'options'
 				activities.isVerseActionsMinimized = no
-				activities.armBottomToolbarLift(yes)
-				activities.playContentLift!
+				activities.armBottomToolbarLift!
+				# First open: verse-actions.mount measures the real bar once.
+				# Later verses: grow the lift if the new selection needs more room.
+				if toolbarAlreadyOpen
+					activities.playContentLift!
 				console.log('[DEBUG] Showing verse-actions slideup')
 			else
 				console.log('[DEBUG] Verse selected but slideup suppressed (from modal navigation)')

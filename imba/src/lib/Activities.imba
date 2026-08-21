@@ -496,6 +496,7 @@ class Activities
 	isFreehandHighlightMinimized = no
 	@observable mainLiftShift = 0
 	@observable parallelLiftShift = 0
+	@observable bottomBarReserve = 0
 	mainLiftArmed = no
 	parallelLiftArmed = no
 	highlight_color\string = ''
@@ -615,26 +616,13 @@ class Activities
 			return no
 		return (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) <= 80
 
-	def isChapterEndVisible scroller
-		unless scroller
-			return no
-		const article = scroller.querySelector('article')
-		unless article
-			return no
-		const nodes = article.querySelectorAll('span[id]')
-		unless nodes.length
-			return no
-		# Last verse is on screen (or just under the bar). Mid-chapter stays false.
-		return nodes[nodes.length - 1].getBoundingClientRect().top < window.innerHeight + 8
-
-	# Freehand: only at the true scroll end.
-	# Verse select: also when the last verse is visible, so adding the last
-	# verse to a second-to-last selection can lift both into view.
-	def armBottomToolbarLift forVerseSelect = no
+	# Lift only at the true scroll end. Mid-chapter, extra article padding
+	# (bottomBarReserve) lets the user scroll the last verse above the bar.
+	def armBottomToolbarLift
 		const main = chapterScroller('main-reader')
 		const par = chapterScroller('parallel-reader')
-		mainLiftArmed = isScrollerAtBottom(main) or (forVerseSelect and isChapterEndVisible(main))
-		parallelLiftArmed = isScrollerAtBottom(par) or (forVerseSelect and isChapterEndVisible(par))
+		mainLiftArmed = isScrollerAtBottom(main)
+		parallelLiftArmed = isScrollerAtBottom(par)
 
 	def toolbarLiftFromHeight offsetHeight, fallback = 150
 		if offsetHeight > 80
@@ -649,6 +637,16 @@ class Activities
 			const fh = document.querySelector('freehand-highlight-menu')
 			return toolbarLiftFromHeight(fh ? fh.offsetHeight : 0, 130)
 		return 0
+
+	def refreshBottomBarReserve
+		if mainLiftShift > 0 or parallelLiftShift > 0
+			bottomBarReserve = 0
+			return
+		const h = toolbarTargetVisibleHeight!
+		unless h > 0
+			bottomBarReserve = 0
+			return
+		bottomBarReserve = h
 
 	def scrollerContentBottom scroller
 		unless scroller
@@ -671,25 +669,39 @@ class Activities
 			return nodes[nodes.length - 1].getBoundingClientRect().bottom
 		return 0
 
+	def articleTranslateY article
+		unless article
+			return 0
+		const t = window.getComputedStyle(article).transform
+		if !t or t == 'none'
+			return 0
+		const m = t.match(/matrix(?:3d)?\((.+)\)/)
+		unless m
+			return 0
+		const parts = m[1].split(',')
+		if parts.length >= 16
+			return parseFloat(parts[13]) or 0
+		if parts.length >= 6
+			return parseFloat(parts[5]) or 0
+		return 0
+
 	def neededLiftForScroller scroller
 		unless scroller
 			return 0
 		const toolbarH = toolbarTargetVisibleHeight!
 		unless toolbarH > 0
 			return 0
-		const shift = scroller.id == 'parallel-reader' ? parallelLiftShift : mainLiftShift
-		const bottom = scrollerContentBottom(scroller) + shift
-		unless bottom > 0 and bottom <= window.innerHeight + 40
+		const visualBottom = scrollerContentBottom(scroller)
+		unless visualBottom > 0 and visualBottom <= window.innerHeight + 40
 			return 0
+		const article = scroller.querySelector('article')
+		const layoutBottom = visualBottom - articleTranslateY(article)
 		const gap = (freehandHighlightMode or penToolMode) ? 28 : 12
-		let raw = Math.ceil(bottom - (window.innerHeight - toolbarH) + gap)
+		const raw = Math.ceil(layoutBottom - (window.innerHeight - toolbarH) + gap)
 		const cap = Math.min(toolbarH + gap + 64, 240)
 		return Math.max(0, Math.min(raw, cap))
 
 	def playContentLift
-		unless mainLiftArmed or parallelLiftArmed
-			return
-		# Allow the lift to grow when another bottom verse is added.
 		if mainLiftArmed
 			const mainNeed = neededLiftForScroller(chapterScroller('main-reader'))
 			if mainNeed > mainLiftShift
@@ -698,12 +710,14 @@ class Activities
 			const parNeed = neededLiftForScroller(chapterScroller('parallel-reader'))
 			if parNeed > parallelLiftShift
 				parallelLiftShift = parNeed
+		refreshBottomBarReserve!
 
 	def clearBottomToolbarLift
 		mainLiftArmed = no
 		parallelLiftArmed = no
 		mainLiftShift = 0
 		parallelLiftShift = 0
+		refreshBottomBarReserve!
 
 	def toggleFreehandHighlightMode
 		const opening = !freehandHighlightMode
@@ -731,7 +745,9 @@ class Activities
 			if parallelReader.enabled
 				parallelReader.refreshFreehandHighlightDisplay!
 		if freehandHighlightMode
-			playContentLift!
+			window.requestAnimationFrame do
+				playContentLift!
+				imba.commit!
 		imba.commit!
 		unless freehandHighlightMode
 			clearBottomToolbarLift!
@@ -757,7 +773,9 @@ class Activities
 			show_add_bookmark = no
 			window.getSelection().removeAllRanges()
 		if penToolMode
-			playContentLift!
+			window.requestAnimationFrame do
+				playContentLift!
+				imba.commit!
 		imba.commit!
 		unless penToolMode
 			clearBottomToolbarLift!

@@ -25,6 +25,11 @@ tag chapter < section
 			return 0
 		return raw
 
+	get extraBottomPad
+		if liftShift > 0
+			return 0
+		return activities.bottomBarReserve
+
 	get main
 		return document.getElementById "main"
 
@@ -963,6 +968,7 @@ tag chapter < section
 					[pl: 30px]
 					[pr: 30px]
 					[position: relative]
+					[padding-bottom: {(extraBottomPad > 0 ? extraBottomPad : 70)}px]
 					[transform: translateY({-liftShift}px)]>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
@@ -1236,7 +1242,6 @@ tag chapter < section
 			padding-inline: 0.25rem
 
 		article
-			padding-bottom: 70px
 			box-sizing: border-box
 			position: relative
 			z-index: 0
