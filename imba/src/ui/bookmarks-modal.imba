@@ -42,7 +42,6 @@ tag bookmarks-modal
 	highlightSearchQuery = ''
 	obsidianSearchOpen = no
 	obsidianSearchQuery = ''
-	obsidianStatusFilter = 'all'
 	bookmarkVisibleCount = TEST_PAGE_SIZE
 	highlightVisibleCount = TEST_PAGE_SIZE
 	_bookmarksUpdatedHandler = null
@@ -646,13 +645,11 @@ tag bookmarks-modal
 
 	def clearObsidianLinkFilter
 		activities.clearObsidianLinkFocus!
-		obsidianStatusFilter = 'all'
 		obsidianSearchQuery = ''
 		imba.commit!
 
 	def setObsidianStatusFilter filter\string
-		obsidianStatusFilter = filter
-		imba.commit!
+		activities.setObsidianStatusFilter(filter)
 
 	def isBrokenLink link
 		return link and (link.broken == yes or link.broken == true)
@@ -668,9 +665,9 @@ tag bookmarks-modal
 		const focus = activities.obsidianLinkFocus
 		if focus
 			list = activities.linksCoveringVerse(focus.translation, focus.book, focus.chapter, focus.verse)
-		if obsidianStatusFilter == 'linked'
+		if activities.obsidianStatusFilter == 'linked'
 			list = list.filter(do |link| return !isBrokenLink(link))
-		elif obsidianStatusFilter == 'broken'
+		elif activities.obsidianStatusFilter == 'broken'
 			list = list.filter(do |link| return isBrokenLink(link))
 		const q = normalizeSearch(obsidianSearchQuery)
 		if !q
@@ -833,9 +830,9 @@ tag bookmarks-modal
 	def obsidianEmptyMessage
 		if normalizeSearch(obsidianSearchQuery)
 			return "No matching links"
-		if obsidianStatusFilter == 'broken'
+		if activities.obsidianStatusFilter == 'broken'
 			return "No broken links"
-		if obsidianStatusFilter == 'linked'
+		if activities.obsidianStatusFilter == 'linked'
 			return "No working links"
 		if activities.obsidianLinkFocus
 			return "No links for this verse"
@@ -1017,13 +1014,13 @@ tag bookmarks-modal
 
 		if activeTab == 'obsidian'
 			<div.bookmark-filter>
-				<button.filter-btn .active=(!activities.obsidianLinkFocus and obsidianStatusFilter == 'all') @click=clearObsidianLinkFilter title="All links">
+				<button.filter-btn .active=(activities.obsidianStatusFilter == 'all') @click=clearObsidianLinkFilter title="All links">
 					<svg src=List aria-hidden=yes>
 					"All"
-				<button.filter-btn .active=(obsidianStatusFilter == 'linked') @click=(do setObsidianStatusFilter('linked')) title="Working links">
+				<button.filter-btn .active=(activities.obsidianStatusFilter == 'linked') @click=(do setObsidianStatusFilter('linked')) title="Working links">
 					<svg src=Link2 aria-hidden=yes>
 					"Linked"
-				<button.filter-btn .active=(obsidianStatusFilter == 'broken') @click=(do setObsidianStatusFilter('broken')) title="Broken links">
+				<button.filter-btn .active=(activities.obsidianStatusFilter == 'broken') @click=(do setObsidianStatusFilter('broken')) title="Broken links">
 					<svg src=Link2Off aria-hidden=yes>
 					"Broken"
 				if activities.obsidianLinkFocus

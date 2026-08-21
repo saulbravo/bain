@@ -511,6 +511,8 @@ class Activities
 	verseNoteLinksLoaded = no
 	bookmarksModalTab = 'bookmarks'
 	obsidianLinkFocus = null
+	# 'all' | 'linked' | 'broken' — Linked/Broken are toggles; both off is 'all'
+	obsidianStatusFilter = 'all'
 
 	@action def setSplitRatio value\number
 		splitRatio = Math.min(0.85, Math.max(0.15, value))
@@ -1133,6 +1135,7 @@ class Activities
 		if broken
 			let link = verseNoteLinks.find(do |item| return item.block_id == blockId)
 			if link
+				obsidianStatusFilter = 'all'
 				obsidianLinkFocus = {
 					translation: link.translation
 					book: link.book
@@ -1161,6 +1164,7 @@ class Activities
 		if only and !isBrokenLink(only) and inObsidianFrame!
 			openObsidianNote(only)
 			return
+		obsidianStatusFilter = 'all'
 		obsidianLinkFocus = {
 			translation: translation
 			book: book
@@ -1171,6 +1175,14 @@ class Activities
 
 	def clearObsidianLinkFocus
 		obsidianLinkFocus = null
+		obsidianStatusFilter = 'all'
+		imba.commit!
+
+	def setObsidianStatusFilter filter\string
+		if obsidianStatusFilter == filter
+			obsidianStatusFilter = 'all'
+		else
+			obsidianStatusFilter = filter or 'all'
 		imba.commit!
 
 
