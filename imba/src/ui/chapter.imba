@@ -70,14 +70,11 @@ tag chapter < section
 	def changeHeadersSizeOnScroll e\Event
 		if e.target != self
 			return
-
-		headerFontSize = 2
-		minHeaderFont = 2
 		if settings.parallel_sync and parallelReader.enabled
 			calculateTopVerse e
+			imba.commit!
 		if dictionary.tooltip
 			self.dictionary.showTooltip!
-		imba.commit!
 
 	def enlargeHeader
 		return
@@ -922,7 +919,6 @@ tag chapter < section
 			@pointermove=handlePointerMove
 			@pointerup=handlePointerUp
 			@pointercancel=handlePointerUp
-			@touchmove=changeHeadersSizeOnScroll
 			dir=translationTextDirection(me.translation)>
 			<div.chapter-drawing-surface>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
@@ -968,8 +964,8 @@ tag chapter < section
 					[pl: 30px]
 					[pr: 30px]
 					[position: relative]
-					[padding-bottom: {(extraBottomPad > 0 ? extraBottomPad : 70)}px]
-					[transform: translateY({-liftShift}px)]>
+					[padding-bottom:{extraBottomPad}px]=(extraBottomPad > 0)
+					[transform: translateY({-liftShift}px)]=(liftShift > 0)>
 					
 					# Verse selection overlay box (matches Obsidian plugin style)
 					# Render if this reader has copy-select active (check per-reader PKs)
@@ -1226,6 +1222,9 @@ tag chapter < section
 	css
 		mah: 100vh
 		overflow-y: auto
+		overscroll-behavior: contain
+		overflow-anchor: none
+		-webkit-overflow-scrolling: touch
 		w:100% max-width:100%
 		pos:relative
 
@@ -1242,6 +1241,8 @@ tag chapter < section
 			padding-inline: 0.25rem
 
 		article
+			padding-bottom: 70px
+			padding-bottom@lt-lg: calc(2.75rem + 12px + env(safe-area-inset-bottom, 0px))
 			box-sizing: border-box
 			position: relative
 			z-index: 0
@@ -1319,8 +1320,6 @@ tag chapter < section
 			max-width: 100%
 			min-width: 0
 			box-sizing: border-box
-			overflow-x: clip
-			overflow-y: visible
 
 		section .arrowh
 			transition-property: fill, color, background, transform, border-radius
