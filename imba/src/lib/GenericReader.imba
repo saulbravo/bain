@@ -692,8 +692,11 @@ class GenericReader
 			return
 
 		const boundingRect = verseElement.getBoundingClientRect()
-		if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
-			verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
+		const scroller = verseElement.closest('#main-reader') or verseElement.closest('#parallel-reader')
+		const atBottom = scroller and (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) <= 80
+		unless atBottom
+			if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
+				verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
 
 		if activities.commentaryCompareMode and me == 'main' and activities.selectedVersesPKs.length
 			let verseNum = Number(id)
@@ -711,6 +714,8 @@ class GenericReader
 				# Always set to 'options' for normal selections (not from modal)
 				activities.activeVerseAction = 'options'
 				activities.isVerseActionsMinimized = no
+				activities.armBottomToolbarLift(yes)
+				activities.playContentLift!
 				console.log('[DEBUG] Showing verse-actions slideup')
 			else
 				console.log('[DEBUG] Verse selected but slideup suppressed (from modal navigation)')
@@ -721,6 +726,8 @@ class GenericReader
 			activities.selectedParallel = undefined
 		
 		imba.commit!
+		if !activities.selectedVersesPKs.length or activities.activeVerseAction != 'options'
+			activities.clearBottomToolbarLift!
 
 
 	def mergeNotes
@@ -780,29 +787,9 @@ class GenericReader
 		if window.getSelection
 			window.getSelection().removeAllRanges()
 
-		const scrollToVerse = do
-			if token != self._verseNavToken
-				return
-			setTimeout(&, 250) do
-				if token != self._verseNavToken
-					return
-				let el = me == 'main' ? document.getElementById(scrollId) : document.getElementById(scrollId)
-				if el and el.offsetParent
-					const container = el.offsetParent
-					let top = el.offsetTop - theme.fontSize
-					if shouldCenter
-						top = el.offsetTop - Math.max(theme.fontSize, (container.clientHeight - el.offsetHeight) / 2)
-					container.scrollTo({
-						behavior: theme.scrollBehavior,
-						top: Math.max(0, top)
-					})
-				else
-					scrollToVerse()
-
-		scrollToVerse()
-
+		let selected = no
 		const trySelect = do
-			if token != self._verseNavToken
+			if selected or token != self._verseNavToken
 				return
 			let pk = versePk
 			unless pk
@@ -816,10 +803,38 @@ class GenericReader
 			unless el
 				setTimeout(trySelect, 250)
 				return
+			selected = yes
 			selectVerse(pk, num, yes)
 			imba.commit!
 
-		setTimeout(trySelect, 250)
+		const afterScroll = do
+			window.requestAnimationFrame do
+				trySelect!
+
+		const scrollToVerse = do
+			if token != self._verseNavToken
+				return
+			setTimeout(&, 250) do
+				if token != self._verseNavToken
+					return
+				let el = document.getElementById(scrollId)
+				if el and el.offsetParent
+					const container = el.offsetParent
+					let top = el.offsetTop - theme.fontSize
+					if shouldCenter
+						top = el.offsetTop - Math.max(theme.fontSize, (container.clientHeight - el.offsetHeight) / 2)
+					container.scrollTo({
+						behavior: shouldCenter ? theme.scrollBehavior : 'auto',
+						top: Math.max(0, top)
+					})
+					if shouldCenter and theme.scrollBehavior == 'smooth'
+						setTimeout(afterScroll, 350)
+					else
+						afterScroll!
+				else
+					scrollToVerse()
+
+		scrollToVerse()
 
 	def highlightLinkedVerses verseNumber, endverse
 		if !window.getSelection

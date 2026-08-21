@@ -47,6 +47,7 @@ tag freehand-highlight-menu
 		activities.isFreehandHighlightMinimized = no
 		activities.freehandEraserMode = no
 		activities.penEraserMode = no
+		activities.clearBottomToolbarLift!
 		imba.commit!
 
 	def setPenThickness e
@@ -99,7 +100,14 @@ tag freehand-highlight-menu
 	<self [y:{(activities.freehandHighlightMode or activities.penToolMode) ? (activities.isFreehandHighlightMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px') : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
 		.is-minimized=activities.isFreehandHighlightMinimized>
 		<div.control-tabs>
-			<button.tab.minimize @click=(activities.isFreehandHighlightMinimized = !activities.isFreehandHighlightMinimized) title=(activities.isFreehandHighlightMinimized ? "Restore" : "Minimize")>
+			<button.tab.minimize @click=(do
+				activities.isFreehandHighlightMinimized = !activities.isFreehandHighlightMinimized
+				if activities.isFreehandHighlightMinimized
+					activities.clearBottomToolbarLift!
+				else
+					activities.armBottomToolbarLift!
+					activities.playContentLift!
+			) title=(activities.isFreehandHighlightMinimized ? "Restore" : "Minimize")>
 				<svg src=(activities.isFreehandHighlightMinimized ? ChevronUp : ChevronDown)>
 			<button.tab.close @click=close title="Close">
 				<svg src=X>
