@@ -1115,11 +1115,12 @@ tag chapter < section
 											<span.verse-marker-slot aria-hidden=yes>
 												if hasNoteLink and bookmarkOnly
 													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
-														<svg.verse-bookmark-icon.verse-link-icon width="24" height="24" viewBox="0 0 24 24" aria-hidden=yes>
+														<svg.verse-bookmark-icon width="24" height="24" viewBox="0 0 24 24" aria-hidden=yes>
 															<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="#dc2626" stroke="none" />
-															<path d="M9 17H7A5 5 0 0 1 7 7h2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-															<path d="M15 7h2a5 5 0 1 1 0 10h-2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-															<path d="M8 12h8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+															<g transform="rotate(90 12 12)">
+																<path d="M9 17H7A5 5 0 0 1 7 7h2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+																<path d="M15 7h2a5 5 0 1 1 0 10h-2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+																<path d="M8 12h8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 												elif hasNoteLink
 													<button.verse-marker-btn type="button" @click.stop.prevent=(do me.openVerseNoteLinks(verse.verse)) title="Open Obsidian note">
 														<svg.verse-bookmark-icon.verse-link-icon src=Link2 aria-hidden=yes>
@@ -1366,6 +1367,7 @@ tag chapter < section
 
 		.verse-link-icon
 			c: #dc2626
+			transform: rotate(90deg)
 
 		.verse-number-text
 			vertical-align: baseline

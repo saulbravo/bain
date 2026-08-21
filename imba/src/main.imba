@@ -33,6 +33,8 @@ window.addEventListener('message', do |event|
 		# Just log - don't actually unregister
 	elif event.data.type == 'bible-verse-linked'
 		activities.recordVerseNoteLink(event.data)
+	elif event.data.type == 'bible-note-link-status'
+		activities.setVerseNoteLinkBroken(event.data)
 )
 
 tag app

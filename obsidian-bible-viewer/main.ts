@@ -9,6 +9,7 @@ import {
 	ItemView,
 	Editor,
 	EditorPosition,
+	TFile,
 } from "obsidian";
 
 interface BibleViewerSettings {
@@ -454,15 +455,58 @@ class BibleView extends ItemView {
 	async openNoteAtBlock(path?: string, blockId?: string) {
 		if (!path) {
 			new Notice("No note path to open.");
+			this.reportLinkStatus(blockId, true);
 			return;
 		}
-		const target = blockId ? `${path}#^${blockId}` : path;
+
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) {
+			new Notice(`Could not open note: ${path}`);
+			this.reportLinkStatus(blockId, true);
+			return;
+		}
+
+		let broken = false;
+		if (blockId) {
+			try {
+				const content = await this.app.vault.cachedRead(file);
+				broken = !content.includes(`^${blockId}`);
+			} catch {
+				broken = true;
+			}
+		}
+
+		this.reportLinkStatus(blockId, broken);
+
+		if (broken) {
+			new Notice("That Bible passage is no longer in the note.");
+			try {
+				await this.app.workspace.openLinkText(path, path, false);
+			} catch (error) {
+				console.log("Bible Viewer: Failed to open note", error);
+			}
+			return;
+		}
+
+		const target = `${path}#^${blockId}`;
 		try {
 			await this.app.workspace.openLinkText(target, path, false);
 		} catch (error) {
 			console.log("Bible Viewer: Failed to open note", error);
 			new Notice(`Could not open note: ${path}`);
+			this.reportLinkStatus(blockId, true);
 		}
+	}
+
+	reportLinkStatus(blockId: string | undefined, broken: boolean) {
+		if (!blockId) {
+			return;
+		}
+		this.postToIframe({
+			type: "bible-note-link-status",
+			blockId,
+			broken,
+		});
 	}
 
 	copyVersesToNote(data: {

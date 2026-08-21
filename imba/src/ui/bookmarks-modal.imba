@@ -11,6 +11,7 @@ import BookmarkIcon from 'lucide-static/icons/bookmark.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Link2 from 'lucide-static/icons/link-2.svg'
+import Link2Off from 'lucide-static/icons/link-2-off.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import List from 'lucide-static/icons/list.svg'
 import Search from 'lucide-static/icons/search.svg'
@@ -41,6 +42,7 @@ tag bookmarks-modal
 	highlightSearchQuery = ''
 	obsidianSearchOpen = no
 	obsidianSearchQuery = ''
+	obsidianStatusFilter = 'all'
 	bookmarkVisibleCount = TEST_PAGE_SIZE
 	highlightVisibleCount = TEST_PAGE_SIZE
 	_bookmarksUpdatedHandler = null
@@ -644,8 +646,16 @@ tag bookmarks-modal
 
 	def clearObsidianLinkFilter
 		activities.clearObsidianLinkFocus!
+		obsidianStatusFilter = 'all'
 		obsidianSearchQuery = ''
 		imba.commit!
+
+	def setObsidianStatusFilter filter\string
+		obsidianStatusFilter = filter
+		imba.commit!
+
+	def isBrokenLink link
+		return link and (link.broken == yes or link.broken == true)
 
 	def toggleObsidianSearch
 		obsidianSearchOpen = !obsidianSearchOpen
@@ -658,6 +668,10 @@ tag bookmarks-modal
 		const focus = activities.obsidianLinkFocus
 		if focus
 			list = activities.linksForStartVerse(focus.translation, focus.book, focus.chapter, focus.verse)
+		if obsidianStatusFilter == 'linked'
+			list = list.filter(do |link| return !isBrokenLink(link))
+		elif obsidianStatusFilter == 'broken'
+			list = list.filter(do |link| return isBrokenLink(link))
 		const q = normalizeSearch(obsidianSearchQuery)
 		if !q
 			return list
@@ -809,18 +823,23 @@ tag bookmarks-modal
 	def openObsidianLink link
 		unless link
 			return
-		openVerseBookmark({
-			translation: link.translation
-			book: link.book
-			chapter: link.chapter
-			verse: link.start_verse
-		})
 		activities.openObsidianNote(link)
 
 	def unlinkObsidianLink link
 		unless link and link.block_id
 			return
 		activities.deleteVerseNoteLink(link.block_id)
+
+	def obsidianEmptyMessage
+		if normalizeSearch(obsidianSearchQuery)
+			return "No matching links"
+		if obsidianStatusFilter == 'broken'
+			return "No broken links"
+		if obsidianStatusFilter == 'linked'
+			return "No working links"
+		if activities.obsidianLinkFocus
+			return "No links for this verse"
+		return "No Obsidian links yet. Insert verses into a note to create one."
 
 	# Safety net for the chapter-change path: if the freshly loaded chapter did not select
 	# the verse itself, do it here once the verses are on screen.
@@ -998,9 +1017,15 @@ tag bookmarks-modal
 
 		if activeTab == 'obsidian'
 			<div.bookmark-filter>
-				<button.filter-btn .active=!activities.obsidianLinkFocus @click=clearObsidianLinkFilter title="All links">
+				<button.filter-btn .active=(!activities.obsidianLinkFocus and obsidianStatusFilter == 'all') @click=clearObsidianLinkFilter title="All links">
 					<svg src=List aria-hidden=yes>
 					"All"
+				<button.filter-btn .active=(obsidianStatusFilter == 'linked') @click=(do setObsidianStatusFilter('linked')) title="Working links">
+					<svg src=Link2 aria-hidden=yes>
+					"Linked"
+				<button.filter-btn .active=(obsidianStatusFilter == 'broken') @click=(do setObsidianStatusFilter('broken')) title="Broken links">
+					<svg src=Link2Off aria-hidden=yes>
+					"Broken"
 				if activities.obsidianLinkFocus
 					<button.filter-btn .active=yes title="Links for this verse">
 						<svg src=Link2 aria-hidden=yes>
@@ -1071,14 +1096,17 @@ tag bookmarks-modal
 				if !activities.verseNoteLinks.length
 					<p.bookmarks-empty> "No Obsidian links yet. Insert verses into a note to create one."
 				elif !displayedObsidianLinks().length
-					<p.bookmarks-empty> (normalizeSearch(obsidianSearchQuery) ? "No matching links" : "No links for this verse")
+					<p.bookmarks-empty> obsidianEmptyMessage!
 				else
 					<div.bookmarks-list>
 						for link in displayedObsidianLinks()
 							<div.bookmark-item.obsidian-link-item>
 								<button.obsidian-link-open @click=openObsidianLink(link)>
 									<div.bookmark-icon>
-										<svg src=Link2 aria-hidden=yes>
+										if isBrokenLink(link)
+											<svg.broken-link-icon src=Link2Off aria-hidden=yes>
+										else
+											<svg src=Link2 aria-hidden=yes>
 									<div.bookmark-text>
 										<div.bookmark-title> obsidianLinkTitle(link)
 										<div.bookmark-meta> (link.note_name or link.note_path)
@@ -1315,6 +1343,9 @@ tag bookmarks-modal
 
 		.unlink-btn svg
 			size:1rem
+
+		.broken-link-icon
+			c: #dc2626
 
 		.bookmark-item@hover
 			bgc:$acc-bgc-hover

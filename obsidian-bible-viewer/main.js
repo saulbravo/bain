@@ -371,15 +371,52 @@ var BibleView = class extends import_obsidian.ItemView {
   async openNoteAtBlock(path, blockId) {
     if (!path) {
       new import_obsidian.Notice("No note path to open.");
+      this.reportLinkStatus(blockId, true);
       return;
     }
-    const target = blockId ? `${path}#^${blockId}` : path;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian.TFile)) {
+      new import_obsidian.Notice(`Could not open note: ${path}`);
+      this.reportLinkStatus(blockId, true);
+      return;
+    }
+    let broken = false;
+    if (blockId) {
+      try {
+        const content = await this.app.vault.cachedRead(file);
+        broken = !content.includes(`^${blockId}`);
+      } catch (e) {
+        broken = true;
+      }
+    }
+    this.reportLinkStatus(blockId, broken);
+    if (broken) {
+      new import_obsidian.Notice("That Bible passage is no longer in the note.");
+      try {
+        await this.app.workspace.openLinkText(path, path, false);
+      } catch (error) {
+        console.log("Bible Viewer: Failed to open note", error);
+      }
+      return;
+    }
+    const target = `${path}#^${blockId}`;
     try {
       await this.app.workspace.openLinkText(target, path, false);
     } catch (error) {
       console.log("Bible Viewer: Failed to open note", error);
       new import_obsidian.Notice(`Could not open note: ${path}`);
+      this.reportLinkStatus(blockId, true);
     }
+  }
+  reportLinkStatus(blockId, broken) {
+    if (!blockId) {
+      return;
+    }
+    this.postToIframe({
+      type: "bible-note-link-status",
+      blockId,
+      broken
+    });
   }
   copyVersesToNote(data) {
     const verses = data.verses;

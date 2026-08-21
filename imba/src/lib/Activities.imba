@@ -1072,6 +1072,7 @@ class Activities
 			note_name: String(data.noteName or data.note_name or '')
 			vault: String(data.vault or '')
 			date: Number(data.date or Date.now())
+			broken: no
 		}
 		unless link.block_id and link.note_path and link.translation and link.book and link.chapter and link.start_verse
 			return
@@ -1088,6 +1089,35 @@ class Activities
 		unless user.username and window.navigator.onLine
 			return
 		API.post("/delete-verse-note-link/", { block_id: blockId })
+
+	@action def setVerseNoteLinkBroken data
+		unless data
+			return
+		let blockId = String(data.blockId or data.block_id or '')
+		unless blockId
+			return
+		let broken = data.broken == yes or data.broken == true
+		verseNoteLinks = verseNoteLinks.map(do |item|
+			if item.block_id != blockId
+				return item
+			return {
+				block_id: item.block_id
+				translation: item.translation
+				book: item.book
+				chapter: item.chapter
+				start_verse: item.start_verse
+				end_verse: item.end_verse
+				note_path: item.note_path
+				note_name: item.note_name
+				vault: item.vault
+				date: item.date
+				broken: broken
+			}
+		)
+		imba.commit!
+		unless user.username and window.navigator.onLine
+			return
+		API.post("/save-verse-note-link/", { block_id: blockId, broken: broken })
 
 	def openObsidianNote link
 		unless link and link.note_path

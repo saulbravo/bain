@@ -1034,6 +1034,7 @@ def serialize_verse_note_link(link):
         "note_name": link.note_name,
         "vault": link.vault,
         "date": link.date,
+        "broken": bool(link.broken),
     }
 
 
@@ -1064,8 +1065,19 @@ def save_verse_note_link(request):
         block_id = str(data.get("block_id") or "").strip()
         translation = str(data.get("translation") or "").strip()
         note_path = str(data.get("note_path") or "").strip()
-        if not BLOCK_ID_RE.match(block_id) or not translation or not note_path:
+        if not BLOCK_ID_RE.match(block_id):
             return HttpResponse(status=400, content="Missing required fields")
+
+        if not translation or not note_path:
+            if "broken" not in data:
+                return HttpResponse(status=400, content="Missing required fields")
+            updated = request.user.versenotelink_set.filter(block_id=block_id).update(
+                broken=bool(data.get("broken"))
+            )
+            if not updated:
+                return HttpResponse(status=404, content="Link not found")
+            link = request.user.versenotelink_set.get(block_id=block_id)
+            return JsonResponse(serialize_verse_note_link(link))
 
         start_verse = int(data.get("start_verse") or 0)
         end_verse = int(data.get("end_verse") or start_verse)
@@ -1089,6 +1101,7 @@ def save_verse_note_link(request):
                 "note_name": str(data.get("note_name") or "")[:255],
                 "vault": str(data.get("vault") or "")[:255],
                 "date": int(data.get("date") or 0) or int(time.time() * 1000),
+                "broken": bool(data.get("broken", False)),
             },
         )
         return JsonResponse(serialize_verse_note_link(link))

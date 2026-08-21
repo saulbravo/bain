@@ -80,6 +80,7 @@ class VerseNoteLink(models.Model):
     note_name = models.CharField(max_length=255, blank=True, default="")
     vault = models.CharField(max_length=255, blank=True, default="")
     date = models.BigIntegerField()
+    broken = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
