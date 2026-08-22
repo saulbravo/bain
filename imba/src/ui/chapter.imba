@@ -5,7 +5,7 @@ import { canvasLineDash, freehandWrapClose, freehandWrapOpen } from '../lib/high
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
 import Link2 from 'lucide-static/icons/link-2.svg'
-import Search from 'lucide-static/icons/search.svg'
+import SettingsIcon from 'lucide-static/icons/settings.svg'
 import X from 'lucide-static/icons/x.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -33,6 +33,13 @@ tag chapter < section
 	get main
 		return document.getElementById "main"
 
+	def isChapterVerseId id\string
+		unless id
+			return no
+		if versePrefix == 'p'
+			return !!id.match(/^p\d+$/)
+		return !!id.match(/^\d+$/)
+
 	def calculateTopVerse e\Event
 		if activities.scrollLockTimeout != null
 			if activities.blockInScroll != self
@@ -45,34 +52,49 @@ tag chapter < section
 			activities.blockInScroll = null
 			activities.scrollLockTimeout = null
 
-		let top_verse = {
-			distance: -999999 # intentionally high number
-			id: ''
-		}
-
-		const article = activities.blockInScroll.querySelector('article')
-
-		unless article..children..length
+		const destScroller = versePrefix == 'p' ? reader.myRenderer : parallelReader.myRenderer
+		if self.scrollTop <= 4
+			if destScroller and destScroller.scrollTop > 0
+				destScroller.scrollTop = 0
 			return
 
-		for kid in article.children
-			if kid.id
-				let new_distance = activities.blockInScroll.scrollTop - kid.offsetTop
-				if new_distance < 0 && new_distance > top_verse.distance
-					top_verse.distance = new_distance
-					top_verse.id = kid.id
+		const article = self.querySelector('article')
+		unless article
+			return
 
-		# TODO: implement along parallel reader
-		if top_verse.id
-			let verseToScrollTo = versePrefix ? top_verse.id.match(/\d+/)[0] : "p{top_verse.id}"
-			reader.findVerse verseToScrollTo
+		const viewTop = self.getBoundingClientRect().top
+		let topEl = null
+		const nodes = article.querySelectorAll('span[id]')
+		for el in nodes
+			const id = String(el.id or '')
+			unless isChapterVerseId(id)
+				continue
+			if el.getBoundingClientRect().top <= viewTop + 56
+				topEl = el
+
+		unless topEl
+			for el in nodes
+				const id = String(el.id or '')
+				if isChapterVerseId(id)
+					topEl = el
+					break
+
+		unless topEl
+			return
+		const numeric = String(topEl.id).match(/\d+/)
+		unless numeric
+			return
+		const offset = topEl.getBoundingClientRect().top - viewTop
+		if versePrefix == 'p'
+			reader.scrollVerseToTop(numeric[0], offset)
+		else
+			parallelReader.scrollVerseToTop(numeric[0], offset)
 
 	def changeHeadersSizeOnScroll e\Event
 		if e.target != self
 			return
 		if settings.parallel_sync and parallelReader.enabled
 			calculateTopVerse e
-			imba.commit!
 		if dictionary.tooltip
 			self.dictionary.showTooltip!
 
@@ -111,6 +133,57 @@ tag chapter < section
 	globalMouseUpHandler = null
 	globalTouchEndHandler = null
 	globalTouchCancelHandler = null
+	stylusHighlightActive = no
+	stylusEraseActive = no
+	stylusGuardUntil = 0
+	stylusContextMenuHandler = null
+
+	get highlightArmed
+		return activities.freehandHighlightMode or stylusHighlightActive
+
+	get eraseArmed
+		return activities.freehandEraserMode or stylusEraseActive
+
+	get drawingArmed
+		return activities.freehandHighlightMode or activities.penToolMode or stylusHighlightActive or stylusEraseActive
+
+	get highlightPreviewColor
+		if stylusHighlightActive
+			const color = activities.freehandHighlightColor or ''
+			if color == '#000000' or color == '#DC2626'
+				return '#F9E2A0'
+		return activities.freehandHighlightColor or '#eab308'
+
+	def isPenPointer e
+		return e and e.pointerType == 'pen'
+
+	def isPenBarrel e
+		unless isPenPointer(e)
+			return no
+		const barrel = e.button == 2 or (e.buttons & 2) != 0
+		const tip = (e.buttons & 1) != 0
+		return barrel and tip
+
+	def isPenEraser e
+		unless isPenPointer(e)
+			return no
+		return e.button == 5 or (e.buttons & 32) != 0
+
+	def clearStylusOverrides
+		stylusHighlightActive = no
+		stylusEraseActive = no
+		if stylusContextMenuHandler
+			window.removeEventListener('contextmenu', stylusContextMenuHandler, true)
+			stylusContextMenuHandler = null
+
+	def handleContextMenu e
+		if stylusHighlightActive or stylusEraseActive or Date.now() < stylusGuardUntil
+			if e and e.preventDefault
+				e.preventDefault()
+			if e and e.stopPropagation
+				e.stopPropagation()
+			return yes
+		return no
 
 	def getRawPointerSnapshot e
 		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
@@ -299,7 +372,7 @@ tag chapter < section
 			# Keep preview stroke visually close to final applied block size.
 			ctx.lineWidth = 24
 			ctx.setLineDash([])
-		ctx.strokeStyle = activities.freehandHighlightColor or '#eab308'
+		ctx.strokeStyle = highlightPreviewColor
 		# Keep preview color identical to applied color.
 		ctx.globalAlpha = 1
 		freehandStrokeCanvas = canvas
@@ -330,7 +403,7 @@ tag chapter < section
 		freehandStrokeCtx.stroke!
 
 	def beginFreehandStroke e
-		return unless activities.freehandHighlightMode
+		return unless highlightArmed or eraseArmed
 		let p = getPointerCoords(e)
 		return unless p
 		freehandStrokePoints = [p]
@@ -431,6 +504,7 @@ tag chapter < section
 	def finalizeFreehandStroke
 		if penDrawing
 			endPenStroke!
+			clearStylusOverrides!
 			return
 		return unless dragging
 		dragging = no
@@ -440,6 +514,7 @@ tag chapter < section
 		endFreehandStroke!
 		window.getSelection().removeAllRanges()
 		me.refreshFreehandHighlightDisplay!
+		clearStylusOverrides!
 		imba.commit!
 
 	@autorun def resetFreehandCanvasOnChapterChange
@@ -467,7 +542,7 @@ tag chapter < section
 		return liveRange
 
 	def applySelectionFromStrokePoints
-		return unless activities.freehandHighlightMode
+		return unless highlightArmed or eraseArmed
 		return unless freehandStrokePoints.length
 		let startRange = null
 		let endRange = null
@@ -492,9 +567,11 @@ tag chapter < section
 	def startFreehandDragListeners
 		stopFreehandDragListeners!
 		globalPointerMoveHandler = do |ev|
-			return unless dragging and activities.freehandHighlightMode
+			return unless dragging and (highlightArmed or eraseArmed)
 			if ev and ev.preventDefault
 				ev.preventDefault()
+			if eraseArmed
+				erasePenAtPoint(ev)
 			drawFreehandStroke(ev)
 			updateFreehandTextSelection(ev, no)
 			commitFreehandHighlightFromStrokePoints(no)
@@ -510,6 +587,9 @@ tag chapter < section
 	def startPenDragListeners
 		stopPenDragListeners!
 		globalPenMoveHandler = do |ev|
+			if ev and (isPenBarrel(ev) or isPenEraser(ev))
+				convertPenStrokeToStylus(ev)
+				return
 			return unless penDrawing and activities.penToolMode
 			if ev and ev.preventDefault
 				ev.preventDefault()
@@ -544,7 +624,7 @@ tag chapter < section
 		return range
 
 	def updateFreehandTextSelection e, isAnchor = no
-		return unless activities.freehandHighlightMode
+		return unless highlightArmed or eraseArmed
 		let point = getClientPoint(e)
 		return unless point
 		let range = getCaretRangeFromClientPoint(point.x, point.y)
@@ -577,7 +657,36 @@ tag chapter < section
 			catch err
 				# ignore if capture fails
 
+	def startStylusStroke e
+		stylusGuardUntil = Date.now() + 800
+		if isPenEraser(e)
+			stylusEraseActive = yes
+			stylusHighlightActive = no
+		else
+			stylusHighlightActive = yes
+			stylusEraseActive = no
+		unless stylusContextMenuHandler
+			stylusContextMenuHandler = do |ev| handleContextMenu(ev)
+			window.addEventListener('contextmenu', stylusContextMenuHandler, true)
+		capturePointer(e)
+		dragging = yes
+		currentDragHighlight = null
+		beginFreehandStroke(e)
+		updateFreehandTextSelection(e, yes)
+		startFreehandDragListeners!
+		if stylusEraseActive
+			erasePenAtPoint(e)
+
+	def convertPenStrokeToStylus e
+		stopPenDragListeners!
+		penDrawing = no
+		currentPenStroke = null
+		startStylusStroke(e)
+
 	def handlePointerDown e
+		if isPenEraser(e) or isPenBarrel(e)
+			startStylusStroke(e)
+			return
 		if activities.penToolMode
 			capturePointer(e)
 			beginPenStroke(e)
@@ -593,13 +702,18 @@ tag chapter < section
 		finalizeFreehandStroke!
 
 	def handlePointerMove e
+		if e and (isPenBarrel(e) or isPenEraser(e)) and penDrawing
+			convertPenStrokeToStylus(e)
+			return
 		if penDrawing and activities.penToolMode
 			if e and e.preventDefault
 				e.preventDefault()
 			drawPenStroke(e)
-		elif dragging and activities.freehandHighlightMode
+		elif dragging and (highlightArmed or eraseArmed)
 			if e and e.preventDefault
 				e.preventDefault()
+			if eraseArmed
+				erasePenAtPoint(e)
 			drawFreehandStroke(e)
 			updateFreehandTextSelection(e, no)
 
@@ -618,6 +732,7 @@ tag chapter < section
 	def unmount
 		stopFreehandDragListeners!
 		stopPenDragListeners!
+		clearStylusOverrides!
 		if globalPointerUpHandler
 			window.removeEventListener('pointerup', globalPointerUpHandler)
 			globalPointerUpHandler = null
@@ -692,7 +807,7 @@ tag chapter < section
 			sPos = startVerse * 1000000 + startOffset
 			ePos = endVerse * 1000000 + endOffset
 
-		if activities.freehandEraserMode
+		if eraseArmed
 			let newHighlights = []
 			let changed = no
 			for h in me.freehandHighlights
@@ -736,7 +851,7 @@ tag chapter < section
 				startOffset: startOffset
 				endVerse: endVerse
 				endOffset: endOffset
-				color: activities.freehandHighlightColor or '#eab308'
+				color: highlightPreviewColor
 				decoration: decoration
 				underlineStyle: activities.underlineStyle or 'solid'
 				date: now
@@ -751,14 +866,14 @@ tag chapter < section
 		imba.commit!
 
 	def commitFreehandHighlightFromStrokePoints isFinal = yes
-		return unless activities.freehandHighlightMode
+		return unless highlightArmed or eraseArmed
 		return unless freehandStrokePoints.length
 		let positions = collectTextPositionsFromStrokePoints!
 		return unless positions.startPos and positions.endPos
 		applyFreehandHighlightRange(positions.startPos.verse, positions.startPos.offset, positions.endPos.verse, positions.endPos.offset, isFinal)
 
 	def handleFreehandHighlight isFinal = no
-		return unless activities.freehandHighlightMode
+		return unless highlightArmed or eraseArmed
 		
 		let selection = window.getSelection()
 		if selection.isCollapsed
@@ -919,6 +1034,7 @@ tag chapter < section
 			@pointermove=handlePointerMove
 			@pointerup=handlePointerUp
 			@pointercancel=handlePointerUp
+			@contextmenu=handleContextMenu
 			dir=translationTextDirection(me.translation)>
 			<div.chapter-drawing-surface>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
@@ -949,10 +1065,11 @@ tag chapter < section
 							me.nameOfCurrentBook, ' ', me.chapter
 							<sup.translation-mark title=translationFullName(me.translation)> me.translation
 
-						<button.header-action.header-search
-							@click.stop.prevent=activities.showSearch
-							title="Search">
-							<svg src=Search aria-hidden=yes>
+						<button.header-action.header-settings
+							.active=(activities.settingsDrawerOffset == 0)
+							@click.stop.prevent=activities.toggleSettingsMenu
+							title=t.settings>
+							<svg src=SettingsIcon aria-hidden=yes>
 
 			if me.me == 'main'
 				<div.tabs-sticky>
@@ -1118,7 +1235,7 @@ tag chapter < section
 										<span> ' '
 									<span.verse dir="ltr" style=superStyle
 										@click=(do
-											if activities.freehandHighlightMode or activities.penToolMode
+											if drawingArmed
 												return
 											me.findVerse("{versePrefix}{verse.verse}")
 										)>
@@ -1157,7 +1274,7 @@ tag chapter < section
 								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
 									@click.wait(200ms)=(do
-										if activities.freehandHighlightMode or activities.penToolMode
+										if drawingArmed
 											# During freehand drag, suppress normal verse click selection side effects.
 											return
 										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
@@ -1307,8 +1424,10 @@ tag chapter < section
 					fill: #dc2626
 					stroke: #dc2626
 		
-		.header-search
+		.header-settings
 			right: 30px
+			&.active
+				c: $acc-hover
 
 		.tabs-sticky
 			position: sticky

@@ -775,6 +775,25 @@ class GenericReader
 			else
 				findVerse(id, endverse, highlight)
 
+	def scrollVerseToTop verseNum, offsetFromTop = null
+		const id = me == 'main' ? String(verseNum) : "p{verseNum}"
+		const el = document.getElementById(id)
+		const scroller = myRenderer
+		unless el and scroller
+			return
+		const elTop = el.getBoundingClientRect().top
+		const scrollerTop = scroller.getBoundingClientRect().top
+		const target = offsetFromTop != null ? offsetFromTop : (theme.fontSize or 16)
+		let next = scroller.scrollTop + (elTop - scrollerTop - target)
+		if next < 0
+			next = 0
+		const maxScroll = scroller.scrollHeight - scroller.clientHeight
+		if maxScroll > 0 and next > maxScroll
+			next = maxScroll
+		if Math.abs(next - scroller.scrollTop) < 1
+			return
+		scroller.scrollTop = next
+
 	def goToAndSelectVerse verseNum, versePk\number = null, token\number = null, center\boolean = no
 		unless token
 			token = ++self._verseNavToken

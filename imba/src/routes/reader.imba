@@ -11,14 +11,14 @@ import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
-import Search from 'lucide-static/icons/search.svg'
 import BookOpenText from 'lucide-static/icons/book-open-text.svg'
-import SettingsIcon from 'lucide-static/icons/settings.svg'
+import List from 'lucide-static/icons/list.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Pen from 'lucide-static/icons/pen.svg'
 import Copy from 'lucide-static/icons/clipboard-copy.svg'
 import Obsidian from '../icons/obsidian.svg'
 import ParallelReadingIcon from '../icons/parallel-reading.svg'
+import ParallelReadingSyncIcon from '../icons/parallel-reading-sync.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -564,11 +564,6 @@ tag reader
 			return -300 - activities.booksDrawerOffset
 		return 0
 
-	get settingsIconTransform
-		if (settings.fixdrawers && window.innerWidth >= 1024)
-			return -300 - activities.settingsDrawerOffset
-		return 0
-
 	def cleanUpSelection
 		let selectedText = window.getSelection().toString()
 		if selectedText.length > 0
@@ -577,7 +572,21 @@ tag reader
 		activities.cleanUp { onPopState: yes }
 
 	@action def toggleParallelReading
-		parallelReader.enable = !parallelReader.enabled
+		if !parallelReader.enabled
+			settings.parallel_sync = no
+			parallelReader.enable = yes
+		elif !settings.parallel_sync
+			settings.parallel_sync = yes
+			reader.updateParallelReader(reader.book, reader.chapter)
+			window.requestAnimationFrame(do
+				const mainChapter = document.getElementById('main-reader')
+				if mainChapter and mainChapter.calculateTopVerse
+					mainChapter.calculateTopVerse({target: mainChapter})
+			)
+		else
+			settings.parallel_sync = no
+			parallelReader.enable = no
+		imba.commit!
 
 	def toggleCopySelectMode
 		let wasOff = !activities.copySelectMode
@@ -856,10 +865,10 @@ tag reader
 							<svg src=Highlighter aria-hidden=yes>
 						<button .pen-tool-active=(activities.penToolMode) @click=(activities.togglePenToolMode!) title="Pen Tool">
 							<svg src=Pen aria-hidden=yes>
-						<button .parallel-active=(parallelReader.enabled) @click=toggleParallelReading title=t.parallel>
-							<svg src=ParallelReadingIcon aria-hidden=yes>
-						<button[transform: translateX({settingsIconTransform}px)] @click=activities.toggleSettingsMenu title=t.settings>
-							<svg src=SettingsIcon aria-hidden=yes>
+						<button .parallel-active=(parallelReader.enabled) .parallel-sync-active=(parallelReader.enabled and settings.parallel_sync) @click=toggleParallelReading title=(parallelReader.enabled and settings.parallel_sync ? t.parallel_sync : t.parallel)>
+							<svg src=(parallelReader.enabled and settings.parallel_sync ? ParallelReadingSyncIcon : ParallelReadingIcon) aria-hidden=yes>
+						<button .bookmarks-active=(activities.activeModal == 'bookmarks') @click=activities.showBookmarksModal title="Highlights and Bookmarks">
+							<svg src=List aria-hidden=yes>
 						<button @click=reader.nextChapter title=t.next>
 							<svg src=ChevronRight aria-hidden=yes>
 
@@ -896,6 +905,11 @@ tag reader
 				c: var(--freehand-color, GoldenRod)
 
 		.parallel-active
+			c: var(--freehand-color, GoldenRod)
+			svg
+				c: var(--freehand-color, GoldenRod)
+
+		.bookmarks-active
 			c: var(--freehand-color, GoldenRod)
 			svg
 				c: var(--freehand-color, GoldenRod)

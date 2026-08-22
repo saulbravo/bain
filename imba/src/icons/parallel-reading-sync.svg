@@ -19,4 +19,7 @@
   <path d="M17 8h2" />
   <path d="M17 12h2" />
   <path d="M17 16h1.5" />
+  <g transform="translate(6 6) scale(0.6)">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" stroke="none" />
+  </g>
 </svg>

@@ -1,6 +1,6 @@
 import Search  from 'lucide-static/icons/search.svg'
 import TextSearch from 'lucide-static/icons/text-search.svg'
-import Croissant from 'lucide-static/icons/croissant.svg'
+import HistoryClock from 'lucide-static/icons/clock.svg'
 import SunMoon from 'lucide-static/icons/sun-moon.svg'
 import AlignLeft from 'lucide-static/icons/align-left.svg'
 import AlignJustify from 'lucide-static/icons/align-justify.svg'
@@ -152,7 +152,7 @@ tag settings-drawer < aside
 			<svg src=Obsidian aria-hidden=true>
 			"Obsidian"
 		<button.settings-btn @click=activities.showHistory>
-			<svg src=Croissant aria-hidden=true>
+			<svg src=HistoryClock aria-hidden=true>
 			t.history
 		<menu-popup bind=activities.show_themes>
 			<button.settings-btn [pos:relative] @click=(do activities.show_themes = !activities.show_themes)>

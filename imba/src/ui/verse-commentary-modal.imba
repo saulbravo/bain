@@ -464,16 +464,41 @@ tag verse-commentary-modal
 		exportEndIdx = 0
 		updateObsidianBox!
 
+	def focusCompareVerse verseNum
+		let target = Number(verseNum)
+		let match = null
+		for v in (currentReader.verses or [])
+			if Number(v.verse) == target
+				match = v
+				break
+		unless match
+			return
+		activities.selectedVersesPKs = [match.pk]
+		activities.selectedVerses = [match.verse]
+		activities.selectedCategories = []
+		activities.commentaryCompareVerse = target
+		activities.activeVerseAction = 'suppressed'
+		activities.selectedParallel = currentReader.me
+		const id = currentReader.me == 'main' ? String(target) : "p{target}"
+		const el = document.getElementById(id)
+		if el and el.scrollIntoView
+			el.scrollIntoView({
+				behavior: theme.scrollBehavior or 'auto'
+				block: 'nearest'
+			})
+
 	def stepVerse delta\number
 		let nums = getVerseNumbers!
 		return if nums.length == 0
-		let idx = nums.indexOf(currentVerse)
+		let idx = nums.indexOf(Number(currentVerse))
 		if idx < 0
 			idx = 0
 		let next = Math.max(0, Math.min(nums.length - 1, idx + delta))
+		if next == idx and nums[next] == Number(currentVerse)
+			return
 		currentVerse = nums[next]
 		if activities.commentaryCompareMode
-			activities.commentaryCompareVerse = currentVerse
+			focusCompareVerse(currentVerse)
 		teardownObsidianUI!
 		obsidianMode = no
 		resetExportRange!
@@ -484,14 +509,14 @@ tag verse-commentary-modal
 		let nums = getVerseNumbers!
 		if nums.length == 0
 			return no
-		let idx = nums.indexOf(currentVerse)
+		let idx = nums.indexOf(Number(currentVerse))
 		return idx > 0
 
 	get canGoNext
 		let nums = getVerseNumbers!
 		if nums.length == 0
 			return no
-		let idx = nums.indexOf(currentVerse)
+		let idx = nums.indexOf(Number(currentVerse))
 		return idx >= 0 and idx < nums.length - 1
 
 	def loadCommentary
