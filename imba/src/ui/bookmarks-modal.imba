@@ -12,7 +12,6 @@ import BookOpen from 'lucide-static/icons/book-open.svg'
 import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Link2 from 'lucide-static/icons/link-2.svg'
 import Link2Off from 'lucide-static/icons/link-2-off.svg'
-import Clock from 'lucide-static/icons/clock.svg'
 import List from 'lucide-static/icons/list.svg'
 import Search from 'lucide-static/icons/search.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
@@ -34,8 +33,8 @@ tag bookmarks-modal
 	fetchToken = 0
 	# 'bookmarks' | 'highlights' | 'obsidian' - which list is shown
 	activeTab = activities.bookmarksModalTab or 'bookmarks'
-	# 'recent' | 'book' | 'verse' | 'all' - bookmark list filter
-	bookmarkFilter = 'recent'
+	# 'all' | 'verse' | 'book' - bookmark list filter; All is the default on open
+	bookmarkFilter = 'all'
 	bookmarkSearchOpen = no
 	bookmarkSearchQuery = ''
 	highlightSearchOpen = no
@@ -439,13 +438,10 @@ tag bookmarks-modal
 
 	def getFilteredBookmarks
 		const combined = combinedBookmarksList()
-		# Book filter: only book-level bookmarks (e.g. bookmarked chapter in top-left), not verses
 		if bookmarkFilter == 'book'
 			return combined.filter(do |e| return e and e.type == 'book')
-		# Verse filter: only verse-level bookmarks, not book/chapter entries
 		if bookmarkFilter == 'verse'
 			return combined.filter(do |e| return e and e.type == 'verse')
-		# Recent / All: show everything (book + verse), sorted by date
 		return combined
 
 	def setBookmarkFilter filter\string
@@ -919,6 +915,7 @@ tag bookmarks-modal
 				console.log('[HIGHLIGHTS] mount: restored highlightEntries from cache, length=', highlightEntries.length)
 		# DB-driven list only: clear local list and always fetch full profile bookmarks.
 		groupedBookmarks = []
+		bookmarkFilter = 'all'
 		bookmarkVisibleCount = TEST_PAGE_SIZE
 		highlightVisibleCount = TEST_PAGE_SIZE
 		if activities.bookmarksModalTab
@@ -973,18 +970,15 @@ tag bookmarks-modal
 
 		if activeTab == 'bookmarks' and combinedBookmarksList().length
 			<div.bookmark-filter>
-				<button.filter-btn .active=(bookmarkFilter == 'recent') @click=setBookmarkFilter('recent') title="Recent">
-					<svg src=Clock aria-hidden=yes>
-					"Recent"
-				<button.filter-btn .active=(bookmarkFilter == 'book') @click=setBookmarkFilter('book') title="Books only">
-					<svg src=BookOpen aria-hidden=yes>
-					"Book"
-				<button.filter-btn .active=(bookmarkFilter == 'verse') @click=setBookmarkFilter('verse') title="Verse bookmarks only">
-					<svg src=BookmarkIcon aria-hidden=yes>
-					"Verse"
 				<button.filter-btn .active=(bookmarkFilter == 'all') @click=setBookmarkFilter('all') title="All bookmarks">
 					<svg src=List aria-hidden=yes>
 					"All"
+				<button.filter-btn .active=(bookmarkFilter == 'verse') @click=setBookmarkFilter('verse') title="Bookmarked verses">
+					<svg src=BookmarkIcon aria-hidden=yes>
+					"Verses"
+				<button.filter-btn .active=(bookmarkFilter == 'book') @click=setBookmarkFilter('book') title="Bookmarked chapters">
+					<svg src=BookOpen aria-hidden=yes>
+					"Chapters"
 				<div.search-expand .open=bookmarkSearchOpen>
 					<button.filter-btn.search-toggle-btn .active=bookmarkSearchOpen @click=toggleBookmarkSearch title="Search bookmarks">
 						<svg src=Search aria-hidden=yes>
@@ -1042,7 +1036,15 @@ tag bookmarks-modal
 				elif error
 					<p.bookmarks-empty> error
 				elif !searchedBookmarks().length
-					<p.bookmarks-empty> (normalizeSearch(bookmarkSearchQuery) ? "No matching bookmarks" : "No bookmarks yet")
+					<p.bookmarks-empty>
+						if normalizeSearch(bookmarkSearchQuery)
+							"No matching bookmarks"
+						elif bookmarkFilter == 'verse'
+							"No bookmarked verses"
+						elif bookmarkFilter == 'book'
+							"No bookmarked chapters"
+						else
+							"No bookmarks yet"
 				else
 					<div.bookmarks-list[key={(bookmarkFilter + ':' + searchedBookmarks().length + ':' + normalizeSearch(bookmarkSearchQuery))}]>
 						for entry in visibleBookmarks()
