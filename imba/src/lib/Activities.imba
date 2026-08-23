@@ -129,7 +129,7 @@ class Activities
 	freehandHighlightColor = '#F9E2A0'
 	penToolMode = no
 	penEraserMode = no
-	stylusDrawing = no
+	@observable stylusDrawing = no
 	lastPenSeenAt = 0
 	penLineWidth = Number(getValue('pen-line-width') or 3)
 	get penBlocksSwipe

@@ -139,6 +139,7 @@ tag chapter < section
 	stylusContextMenuHandler = null
 	stylusSelectGuardHandler = null
 	lastPenSeenAt = 0
+	capturedPointerId = null
 
 	get highlightArmed
 		return activities.freehandHighlightMode or stylusHighlightActive
@@ -199,8 +200,6 @@ tag chapter < section
 		if e.pointerType == 'pen'
 			lastPenSeenAt = Date.now()
 			activities.lastPenSeenAt = lastPenSeenAt
-			if self and self.style
-				self.style.touchAction = 'none'
 
 	def isPenBarrel e
 		unless e
@@ -219,11 +218,30 @@ tag chapter < section
 			return isPenPointer(e) or recentlyUsedPen
 		return no
 
+	def lockChapterTouch
+		if self and self.style
+			self.style.touchAction = 'none'
+
+	def unlockChapterTouch
+		if self and self.style
+			self.style.touchAction = ''
+
+	def releaseCapturedPointer
+		if typeof capturedPointerId == 'number'
+			try
+				if self.releasePointerCapture
+					self.releasePointerCapture(capturedPointerId)
+			catch err
+				pass
+		capturedPointerId = null
+
 	def clearStylusOverrides
 		stylusHighlightActive = no
 		stylusEraseActive = no
 		activities.stylusDrawing = no
 		stopStylusSelectGuard!
+		releaseCapturedPointer!
+		unlockChapterTouch!
 
 	def startStylusSelectGuard
 		unless stylusSelectGuardHandler
@@ -738,6 +756,7 @@ tag chapter < section
 			try
 				if self.setPointerCapture
 					self.setPointerCapture(e.pointerId)
+					capturedPointerId = e.pointerId
 			catch err
 				# ignore if capture fails
 
@@ -764,6 +783,7 @@ tag chapter < section
 			stylusContextMenuHandler = do |ev| handleContextMenu(ev)
 			window.addEventListener('contextmenu', stylusContextMenuHandler, true)
 		startStylusSelectGuard!
+		lockChapterTouch!
 		capturePointer(e)
 		dragging = yes
 		currentDragHighlight = null
@@ -1571,6 +1591,7 @@ tag chapter < section
 		mah: 100svh
 		mah@lt-lg: calc(100svh - 2.75rem)
 		overflow-y: auto
+		touch-action: pan-y
 		overscroll-behavior: contain
 		overflow-anchor: none
 		-webkit-overflow-scrolling: touch
