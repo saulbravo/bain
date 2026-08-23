@@ -69,10 +69,10 @@ tag settings-drawer < aside
 				<svg src=CandyOff aria-hidden=true>
 				t.logout
 		else
-			<a.settings-btn @click.stop.prevent=(window.location.pathname = "/accounts/login/") href="/accounts/login/">
+			<a.settings-btn href="/accounts/login/">
 				<svg src=Lollipop aria-hidden=true>
 				t.login
-			<a.settings-btn  @click.stop.prevent=(window.location.pathname = "/signup/") href="/signup/">
+			<a.settings-btn href="/signup/">
 				<svg src=Candy aria-hidden=true>
 				t.signin
 		<button.settings-btn[d@lg:none] @click=activities.showSearch>

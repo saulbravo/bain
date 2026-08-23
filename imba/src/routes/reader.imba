@@ -670,7 +670,7 @@ tag reader
 		if user.username
 			router.go('/profile')
 		else
-			window.location.href = '/accounts/login'
+			window.location.assign('/accounts/login/')
 
 	def render
 		<self[d:flex] @touchstart=slidestart @touchmove=openingdrawer @touchend=slideend @touchcancel=slideend>

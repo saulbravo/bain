@@ -46,7 +46,8 @@ class User
 
 	def requireAccount
 		unless username
-			window.location.pathname = "/accounts/login/"
+			const next = window.location.pathname + (window.location.search or '')
+			window.location.assign('/accounts/login/?next=' + window.encodeURIComponent(next))
 			return no
 		return yes
 

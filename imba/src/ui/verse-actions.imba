@@ -288,6 +288,8 @@ tag verse-actions < section
 					if selectionHasBookmark
 						deleteBookmark!
 						return
+					unless user.requireAccount!
+						return
 					activities.selectedCategories = []
 					activities.note = ''
 					# Bookmark only (no highlight): empty color so no background is applied
