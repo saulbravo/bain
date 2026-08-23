@@ -6,8 +6,6 @@
 FROM node AS imba-builder
 
 WORKDIR /build
-COPY imba/package*.json ./
-RUN npm install
 COPY imba/ .
 RUN npm run build
 
