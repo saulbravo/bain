@@ -424,8 +424,16 @@ tag reader
 			imba.commit!
 
 
+	def isStylusTouchEvent e
+		unless e and e.changedTouches and e.changedTouches.length
+			return no
+		const touch = e.changedTouches[0]
+		if touch and (touch.touchType == 'stylus' or touch.touchType == 'pen')
+			return yes
+		return no
+
 	def slidestart touch
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.penBlocksSwipe or isStylusTouchEvent(touch)
 			return
 		unless touch.changedTouches.length
 			return
@@ -434,7 +442,9 @@ tag reader
 			inTouchZone = yes
 
 	def slideend touch
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.penBlocksSwipe or isStylusTouchEvent(touch)
+			initialTouch = null
+			inTouchZone = no
 			return
 		unless initialTouch
 			return
@@ -470,7 +480,7 @@ tag reader
 
 
 	def closingdrawer e
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.penBlocksSwipe or isStylusTouchEvent(e)
 			return
 		unless e.changedTouches.length
 			return
@@ -483,7 +493,7 @@ tag reader
 		inClosingTouchZone = yes
 
 	def openingdrawer e
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.penBlocksSwipe or isStylusTouchEvent(e)
 			return
 		unless e.changedTouches.length
 			return

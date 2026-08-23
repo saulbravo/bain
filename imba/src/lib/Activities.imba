@@ -62,7 +62,9 @@ class Activities
 			return no
 		)
 
-	def toggleBookBookmark translation\string, book\number, chapter\number
+	@action def toggleBookBookmark translation\string, book\number, chapter\number
+		unless user.requireAccount!
+			return
 		const key = bookBookmarkKey(translation, book, chapter)
 		const legacyKey = legacyBookBookmarkKey(translation, book)
 		const index = bookBookmarks.findIndex(do |entry|
@@ -127,7 +129,16 @@ class Activities
 	freehandHighlightColor = '#F9E2A0'
 	penToolMode = no
 	penEraserMode = no
+	stylusDrawing = no
+	lastPenSeenAt = 0
 	penLineWidth = Number(getValue('pen-line-width') or 3)
+	get penBlocksSwipe
+		if stylusDrawing or freehandHighlightMode or penToolMode
+			return yes
+		if lastPenSeenAt and (Date.now() - lastPenSeenAt) < 800
+			return yes
+		return no
+
 	@observable penSketches = getValue('pen-sketches') or {}
 
 	blockInScroll = null
@@ -1006,6 +1017,8 @@ class Activities
 		
 		# Immediately apply highlight preview and save
 		if selectedVersesPKs.length > 0
+			unless user.requireAccount!
+				return
 			if selectedParallel == 'main'
 				reader.applyHighlightPreview(selectedVersesPKs, highlight_color)
 				reader.saveBookmark!
@@ -1032,6 +1045,8 @@ class Activities
 				# closePicker sets show_color_picker = false BEFORE emitting change event
 				# Use a microtask to ensure the flag has been updated
 				if !show_color_picker
+					unless user.requireAccount!
+						return
 					# Save the highlight before clearing selection
 					if selectedParallel == 'main'
 						reader.saveBookmark!

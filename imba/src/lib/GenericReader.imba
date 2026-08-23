@@ -883,8 +883,7 @@ class GenericReader
 				selection.addRange(range)
 
 	def saveBookmark bookmarkOnly\boolean = no
-		unless user.username
-			window.location.pathname = "/signup/"
+		unless user.requireAccount!
 			return
 
 		if activities.note == '<br>'
@@ -991,8 +990,7 @@ class GenericReader
 		setValue('bookmarks-to-delete', bookmarksToDelete.concat(pks))
 
 	def deleteBookmark pks\number[]
-		if !user.username
-			window.location.pathname = "/signup/"
+		unless user.requireAccount!
 			return
 		if typeof console != 'undefined' and console.log
 			console.log('[HIGHLIGHTS] deleteBookmark: deleting', { pks })

@@ -137,6 +137,8 @@ tag chapter < section
 	stylusEraseActive = no
 	stylusGuardUntil = 0
 	stylusContextMenuHandler = null
+	stylusSelectGuardHandler = null
+	lastPenSeenAt = 0
 
 	get highlightArmed
 		return activities.freehandHighlightMode or stylusHighlightActive
@@ -157,33 +159,110 @@ tag chapter < section
 	def isPenPointer e
 		return e and e.pointerType == 'pen'
 
-	def isPenBarrel e
+	def isPenInContact e
+		unless e
+			return no
+		if (e.buttons & 1) != 0 or (e.buttons & 32) != 0
+			return yes
+		if typeof e.pressure == 'number' and e.pressure > 0.05
+			return yes
+		return no
+
+	def isPenContactLost e
+		unless e
+			return no
 		unless isPenPointer(e)
+			return no
+		if e.buttons != 0
+			return no
+		if typeof e.pressure == 'number' and e.pressure > 0.05
+			return no
+		return yes
+
+	def shouldStartStylusStroke e
+		unless e
+			return no
+		if dragging
+			return no
+		if isPenEraser(e)
+			return yes
+		if isPenBarrel(e) and (e.type == 'pointerdown' or isPenInContact(e))
+			return yes
+		return no
+
+	def recentlyUsedPen
+		return (Date.now() - lastPenSeenAt) < 1500
+
+	def rememberPen e
+		unless e
+			return
+		if e.pointerType == 'pen'
+			lastPenSeenAt = Date.now()
+			activities.lastPenSeenAt = lastPenSeenAt
+			if self and self.style
+				self.style.touchAction = 'none'
+
+	def isPenBarrel e
+		unless e
 			return no
 		const barrel = e.button == 2 or (e.buttons & 2) != 0
-		const tip = (e.buttons & 1) != 0
-		return barrel and tip
+		unless barrel
+			return no
+		if isPenPointer(e) or recentlyUsedPen
+			return yes
+		return no
 
 	def isPenEraser e
-		unless isPenPointer(e)
+		unless e
 			return no
-		return e.button == 5 or (e.buttons & 32) != 0
+		if e.button == 5 or (e.buttons & 32) != 0
+			return isPenPointer(e) or recentlyUsedPen
+		return no
 
 	def clearStylusOverrides
 		stylusHighlightActive = no
 		stylusEraseActive = no
-		if stylusContextMenuHandler
-			window.removeEventListener('contextmenu', stylusContextMenuHandler, true)
-			stylusContextMenuHandler = null
+		activities.stylusDrawing = no
+		stopStylusSelectGuard!
+
+	def startStylusSelectGuard
+		unless stylusSelectGuardHandler
+			stylusSelectGuardHandler = do |ev|
+				if ev and ev.preventDefault
+					ev.preventDefault()
+				return no
+			document.addEventListener('selectstart', stylusSelectGuardHandler, true)
+			document.addEventListener('dragstart', stylusSelectGuardHandler, true)
+
+	def stopStylusSelectGuard
+		if stylusSelectGuardHandler
+			document.removeEventListener('selectstart', stylusSelectGuardHandler, true)
+			document.removeEventListener('dragstart', stylusSelectGuardHandler, true)
+			stylusSelectGuardHandler = null
+		try
+			window.getSelection().removeAllRanges()
+		catch err
+			pass
+
+	def suppressPenBrowserGesture e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
 
 	def handleContextMenu e
-		if stylusHighlightActive or stylusEraseActive or Date.now() < stylusGuardUntil
-			if e and e.preventDefault
-				e.preventDefault()
-			if e and e.stopPropagation
-				e.stopPropagation()
-			return yes
-		return no
+		rememberPen(e)
+		const fromPen = isPenPointer(e) or isPenBarrel(e) or recentlyUsedPen or stylusHighlightActive or stylusEraseActive or Date.now() < stylusGuardUntil
+		unless fromPen
+			return no
+		suppressPenBrowserGesture(e)
+		return yes
+
+	def handleAuxClick e
+		rememberPen(e)
+		unless isPenBarrel(e) or recentlyUsedPen
+			return
+		suppressPenBrowserGesture(e)
 
 	def getRawPointerSnapshot e
 		let touch = e && e.touches && e.touches.length ? e.touches[0] : (e && e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : null)
@@ -542,7 +621,8 @@ tag chapter < section
 		return liveRange
 
 	def applySelectionFromStrokePoints
-		return unless highlightArmed or eraseArmed
+		return unless highlightArmed
+		return if eraseArmed
 		return unless freehandStrokePoints.length
 		let startRange = null
 		let endRange = null
@@ -568,12 +648,16 @@ tag chapter < section
 		stopFreehandDragListeners!
 		globalPointerMoveHandler = do |ev|
 			return unless dragging and (highlightArmed or eraseArmed)
+			if isPenContactLost(ev)
+				finalizeFreehandStroke!
+				return
 			if ev and ev.preventDefault
 				ev.preventDefault()
 			if eraseArmed
 				erasePenAtPoint(ev)
 			drawFreehandStroke(ev)
-			updateFreehandTextSelection(ev, no)
+			unless eraseArmed
+				updateFreehandTextSelection(ev, no)
 			commitFreehandHighlightFromStrokePoints(no)
 		window.addEventListener('pointermove', globalPointerMoveHandler, { passive: false })
 		window.addEventListener('touchmove', globalPointerMoveHandler, { passive: false })
@@ -657,22 +741,40 @@ tag chapter < section
 			catch err
 				# ignore if capture fails
 
-	def startStylusStroke e
-		stylusGuardUntil = Date.now() + 800
-		if isPenEraser(e)
+	def startStylusStroke e, kind = null
+		if dragging and (stylusHighlightActive or stylusEraseActive)
+			return
+		stylusGuardUntil = Date.now() + 2000
+		activities.stylusDrawing = yes
+		const erase = kind == 'erase' or (kind != 'highlight' and isPenBarrel(e))
+		if erase
 			stylusEraseActive = yes
 			stylusHighlightActive = no
 		else
 			stylusHighlightActive = yes
 			stylusEraseActive = no
+		console.log('[PEN] stylus stroke', {
+			kind: erase ? 'erase' : 'highlight'
+			type: e and e.type
+			pointerType: e and e.pointerType
+			button: e and e.button
+			buttons: e and e.buttons
+		})
 		unless stylusContextMenuHandler
 			stylusContextMenuHandler = do |ev| handleContextMenu(ev)
 			window.addEventListener('contextmenu', stylusContextMenuHandler, true)
+		startStylusSelectGuard!
 		capturePointer(e)
 		dragging = yes
 		currentDragHighlight = null
 		beginFreehandStroke(e)
-		updateFreehandTextSelection(e, yes)
+		if erase
+			try
+				window.getSelection().removeAllRanges()
+			catch err
+				pass
+		else
+			updateFreehandTextSelection(e, yes)
 		startFreehandDragListeners!
 		if stylusEraseActive
 			erasePenAtPoint(e)
@@ -684,8 +786,14 @@ tag chapter < section
 		startStylusStroke(e)
 
 	def handlePointerDown e
-		if isPenEraser(e) or isPenBarrel(e)
-			startStylusStroke(e)
+		rememberPen(e)
+		if isPenBarrel(e)
+			suppressPenBrowserGesture(e)
+			startStylusStroke(e, 'erase')
+			return
+		if isPenEraser(e)
+			suppressPenBrowserGesture(e)
+			startStylusStroke(e, 'highlight')
 			return
 		if activities.penToolMode
 			capturePointer(e)
@@ -702,9 +810,17 @@ tag chapter < section
 		finalizeFreehandStroke!
 
 	def handlePointerMove e
-		if e and (isPenBarrel(e) or isPenEraser(e)) and penDrawing
-			convertPenStrokeToStylus(e)
+		rememberPen(e)
+		if dragging and (highlightArmed or eraseArmed) and isPenContactLost(e)
+			finalizeFreehandStroke!
 			return
+		if e and (isPenBarrel(e) or isPenEraser(e))
+			if penDrawing
+				convertPenStrokeToStylus(e)
+				return
+			if shouldStartStylusStroke(e)
+				startStylusStroke(e)
+				return
 		if penDrawing and activities.penToolMode
 			if e and e.preventDefault
 				e.preventDefault()
@@ -715,7 +831,8 @@ tag chapter < section
 			if eraseArmed
 				erasePenAtPoint(e)
 			drawFreehandStroke(e)
-			updateFreehandTextSelection(e, no)
+			unless eraseArmed
+				updateFreehandTextSelection(e, no)
 
 	def mount
 		globalPointerUpHandler = do finalizeFreehandStroke!
@@ -728,11 +845,17 @@ tag chapter < section
 		window.addEventListener('mouseup', globalMouseUpHandler)
 		window.addEventListener('touchend', globalTouchEndHandler)
 		window.addEventListener('touchcancel', globalTouchCancelHandler)
+		unless stylusContextMenuHandler
+			stylusContextMenuHandler = do |ev| handleContextMenu(ev)
+			window.addEventListener('contextmenu', stylusContextMenuHandler, true)
 
 	def unmount
 		stopFreehandDragListeners!
 		stopPenDragListeners!
 		clearStylusOverrides!
+		if stylusContextMenuHandler
+			window.removeEventListener('contextmenu', stylusContextMenuHandler, true)
+			stylusContextMenuHandler = null
 		if globalPointerUpHandler
 			window.removeEventListener('pointerup', globalPointerUpHandler)
 			globalPointerUpHandler = null
@@ -776,11 +899,106 @@ tag chapter < section
 			pos: verse * 1000000 + charOffset
 		}
 
-	def collectTextPositionsFromStrokePoints
+	def getVerseSpanFromClientPoint clientX, clientY
+		let article = self.querySelector('article')
+		return unless article
+		let candidates = []
+		if document.elementsFromPoint
+			candidates = document.elementsFromPoint(clientX, clientY)
+		elif document.elementFromPoint
+			let one = document.elementFromPoint(clientX, clientY)
+			if one
+				candidates = [one]
+		for el in candidates
+			continue unless el
+			let node = el.nodeType == 3 ? el.parentElement : el
+			continue unless node and node.closest
+			let span = node.closest('span[id]')
+			if span and article.contains(span) and isChapterVerseId(String(span.id or ''))
+				return span
+		let nodes = article.querySelectorAll('span[id]')
+		let best = null
+		let bestDist = 40 * 40
+		for span in nodes
+			continue unless isChapterVerseId(String(span.id or ''))
+			let rect = span.getBoundingClientRect()
+			if clientX >= rect.left and clientX <= rect.right and clientY >= rect.top and clientY <= rect.bottom
+				return span
+			let dx = 0
+			if clientX < rect.left
+				dx = rect.left - clientX
+			elif clientX > rect.right
+				dx = clientX - rect.right
+			let dy = 0
+			if clientY < rect.top
+				dy = rect.top - clientY
+			elif clientY > rect.bottom
+				dy = clientY - rect.bottom
+			let dist = dx * dx + dy * dy
+			if dist < bestDist
+				bestDist = dist
+				best = span
+		return best
+
+	def getTextPositionByHitTestingSpan span, clientX, clientY
+		unless span
+			return null
+		let verse = parseInt(span.id.replace(versePrefix, ''))
+		if Number.isNaN(verse)
+			return null
+		let walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null, false)
+		let bestOff = 0
+		let bestDist = Infinity
+		let offset = 0
+		let found = no
+		while (let node = walker.nextNode())
+			let text = node.textContent or ''
+			let len = text.length
+			if len == 0
+				continue
+			let step = len > 96 ? 4 : 1
+			let i = 0
+			while i <= len
+				let range = document.createRange()
+				range.setStart(node, i)
+				range.collapse(yes)
+				let rect = range.getBoundingClientRect()
+				let dx = clientX - rect.left
+				let dy = clientY - (rect.top + rect.height / 2)
+				let dist = dx * dx + dy * dy
+				if dist < bestDist
+					bestDist = dist
+					bestOff = offset + i
+					found = yes
+				i += step
+			offset += len
+		unless found
+			return {
+				verse: verse
+				offset: 0
+				pos: verse * 1000000
+			}
+		return {
+			verse: verse
+			offset: bestOff
+			pos: verse * 1000000 + bestOff
+		}
+
+	def getTextPositionFromClientPoint clientX, clientY, allowFallback = no
+		let range = getCaretRangeFromClientPoint(clientX, clientY)
+		if range
+			let pos = getTextPositionFromRangePoint(range.startContainer, range.startOffset)
+			if pos
+				return pos
+		unless allowFallback
+			return null
+		let span = getVerseSpanFromClientPoint(clientX, clientY)
+		return getTextPositionByHitTestingSpan(span, clientX, clientY)
+
+	def collectTextPositionsFromStrokePoints allowFallback = no
 		let startPos = null
 		let endPos = null
-		def considerPosition container, offset
-			let pos = getTextPositionFromRangePoint(container, offset)
+		def considerPosition pos
 			return unless pos
 			if !startPos or pos.pos < startPos.pos
 				startPos = pos
@@ -788,10 +1006,20 @@ tag chapter < section
 				endPos = pos
 		for point in freehandStrokePoints
 			let client = clientPointFromChapterPoint(point)
-			let range = getCaretRangeFromClientPoint(client.x, client.y)
-			continue unless range
-			considerPosition(range.startContainer, range.startOffset)
-			considerPosition(range.endContainer, range.endOffset)
+			considerPosition(getTextPositionFromClientPoint(client.x, client.y, no))
+		if startPos and endPos
+			return { startPos: startPos, endPos: endPos }
+		unless allowFallback
+			return { startPos: startPos, endPos: endPos }
+		let samples = []
+		if freehandStrokePoints.length
+			samples.push(freehandStrokePoints[0])
+			samples.push(freehandStrokePoints[freehandStrokePoints.length - 1])
+			if freehandStrokePoints.length > 2
+				samples.push(freehandStrokePoints[Math.floor(freehandStrokePoints.length / 2)])
+		for point in samples
+			let client = clientPointFromChapterPoint(point)
+			considerPosition(getTextPositionFromClientPoint(client.x, client.y, yes))
 		return { startPos: startPos, endPos: endPos }
 
 	def applyFreehandHighlightRange startVerse, startOffset, endVerse, endOffset, isFinal = no
@@ -868,7 +1096,7 @@ tag chapter < section
 	def commitFreehandHighlightFromStrokePoints isFinal = yes
 		return unless highlightArmed or eraseArmed
 		return unless freehandStrokePoints.length
-		let positions = collectTextPositionsFromStrokePoints!
+		let positions = collectTextPositionsFromStrokePoints(isFinal)
 		return unless positions.startPos and positions.endPos
 		applyFreehandHighlightRange(positions.startPos.verse, positions.startPos.offset, positions.endPos.verse, positions.endPos.offset, isFinal)
 
@@ -1034,7 +1262,9 @@ tag chapter < section
 			@pointermove=handlePointerMove
 			@pointerup=handlePointerUp
 			@pointercancel=handlePointerUp
+			@lostpointercapture=handlePointerUp
 			@contextmenu=handleContextMenu
+			@auxclick=handleAuxClick
 			dir=translationTextDirection(me.translation)>
 			<div.chapter-drawing-surface>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
@@ -1667,7 +1897,7 @@ tag chapter < section
 			bottom: 0
 			overflow: hidden
 			pointer-events: none
-			z-index: 0
+			z-index: auto
 
 		.freehand-stroke-canvas
 			position: absolute
@@ -1677,9 +1907,9 @@ tag chapter < section
 			height: 100%
 			max-width: 100%
 			pointer-events: none
-			# Keep preview behind verse glyphs so text remains readable.
-			z-index: 0
-			opacity: 1
+			z-index: 2
+			opacity: 0.72
+			mix-blend-mode: multiply
 			transition: none
 
 		html.freehand-mode &
@@ -1689,6 +1919,12 @@ tag chapter < section
 		html.pen-mode &
 			touch-action: none
 			-webkit-touch-callout: none
+
+		html.stylus-drawing &
+			touch-action: none
+			-webkit-touch-callout: none
+			user-select: none
+			-webkit-user-select: none
 
 		.pen-sketch-layer
 			position: absolute

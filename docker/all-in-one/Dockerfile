@@ -18,7 +18,8 @@ COPY --from=imba-builder /build/dist .
 COPY --from=imba-builder /build/public ./public/
 COPY --from=imba-builder /build/src/data ./src/data/
 COPY --from=imba-builder /build/package*.json ./
-RUN npm install --omit=dev
+COPY --from=imba-builder /build/node_modules ./node_modules
+RUN npm prune --omit=dev
 
 ################
 # Django wheels #

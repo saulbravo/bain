@@ -41,6 +41,15 @@ class User
 		# listen when user gets online
 		window.addEventListener('online', getMe.bind(this))
 
+	def isLoggedIn
+		return !!username
+
+	def requireAccount
+		unless username
+			window.location.pathname = "/accounts/login/"
+			return no
+		return yes
+
 	def logout
 		deleteValue 'username'
 		deleteValue 'name'

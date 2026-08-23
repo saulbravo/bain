@@ -63,7 +63,7 @@ tag app
 		return 'black'
 
 	<self>
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.freehandHighlightMode or activities.penToolMode or activities.stylusDrawing
 			<style> "
 				body, body * \{ cursor: {cursorSvg} !important; \}
 				button, a, svg, .chevron, [role='button'], .color-option, .action-button, header, header *, .arrow \{ cursor: pointer !important; \}
@@ -71,17 +71,17 @@ tag app
 				freehand-highlight-menu button, freehand-highlight-menu svg, freehand-highlight-menu [role='button'], freehand-highlight-menu .color-option, freehand-highlight-menu .underline-option, freehand-highlight-menu .tab, freehand-highlight-menu .chevron, freehand-highlight-menu input \{ cursor: pointer !important; \}
 				freehand-highlight-menu button[disabled] \{ cursor: not-allowed !important; \}
 			"
-		if activities.freehandHighlightMode or activities.penToolMode
+		if activities.freehandHighlightMode or activities.penToolMode or activities.stylusDrawing
 			<style> "
 				/* Hide native text-selection paint during freehand drag; show only custom stroke preview. */
 				*::selection \{ background-color: transparent !important; color: inherit !important; \}
 				*::-moz-selection \{ background-color: transparent !important; color: inherit !important; \}
 			"
-		if activities.penToolMode
+		if activities.penToolMode or activities.stylusDrawing
 			<style> "
 				article, article * \{ user-select: none !important; -webkit-user-select: none !important; \}
 			"
-		<html .freehand-mode=activities.freehandHighlightMode .pen-mode=activities.penToolMode .eraser-mode=activities.freehandEraserMode [--freehand-color:{activities.freehandHighlightColor}]>
+		<html .freehand-mode=activities.freehandHighlightMode .pen-mode=activities.penToolMode .eraser-mode=activities.freehandEraserMode .stylus-drawing=activities.stylusDrawing [--freehand-color:{activities.freehandHighlightColor}]>
 		<profile route='/profile/'>
 		<downloads route='/downloads/'>
 		<donate route='/donate/'>
