@@ -140,6 +140,8 @@ class Activities
 		return no
 
 	@observable penSketches = getValue('pen-sketches') or {}
+	penSketchSaveInFlight = {}
+	penSketchPendingSaves = {}
 
 	blockInScroll = null
 	scrollLockTimeout = null
@@ -812,40 +814,138 @@ class Activities
 	def savePenSketches
 		setValue('pen-sketches', penSketches)
 
-	def addPenSketch translation\string, book\number, chapter\number, sketch
-		if !sketch
-			return
-		const key = penSketchKey(translation, book, chapter)
-		const next = getPenSketchesFor(translation, book, chapter).slice()
-		next.push(sketch)
-		penSketches = {
-			...(penSketches or {})
-			[key]: next
-		}
+	def writePenSketches key\string, list
+		if !Array.isArray(list) or list.length == 0
+			let next = { ...(penSketches or {}) }
+			delete next[key]
+			penSketches = next
+		else
+			penSketches = {
+				...(penSketches or {})
+				[key]: list
+			}
 		savePenSketches!
 		imba.commit!
 
+	def addPenSketch translation\string, book\number, chapter\number, sketch
+		if !sketch
+			return
+		const next = getPenSketchesFor(translation, book, chapter).slice()
+		next.push(sketch)
+		writePenSketches(penSketchKey(translation, book, chapter), next)
+		queuePenSketchSave(translation, book, chapter)
+
 	def setPenSketchesFor translation\string, book\number, chapter\number, sketches
-		const key = penSketchKey(translation, book, chapter)
 		const nextList = Array.isArray(sketches) ? sketches : []
-		if nextList.length == 0
-			return clearPenSketchesFor(translation, book, chapter)
-		penSketches = {
-			...(penSketches or {})
-			[key]: nextList
-		}
-		savePenSketches!
-		imba.commit!
+		writePenSketches(penSketchKey(translation, book, chapter), nextList)
+		queuePenSketchSave(translation, book, chapter)
 
 	def clearPenSketchesFor translation\string, book\number, chapter\number
 		const key = penSketchKey(translation, book, chapter)
 		if !(penSketches and penSketches[key])
 			return
-		let next = { ...(penSketches or {}) }
-		delete next[key]
-		penSketches = next
+		writePenSketches(key, [])
+		queuePenSketchSave(translation, book, chapter)
+
+	def penSketchesToPayload list
+		return (list or []).map(do |item|
+			return {
+				id: item.id
+				color: item.color
+				width: item.width
+				anchorId: item.anchorId
+				anchorOffset: item.anchorOffset
+				anchorDx: item.anchorDx
+				anchorDy: item.anchorDy
+				anchorFy: item.anchorFy
+				columnWidth: item.columnWidth
+				fontSize: item.fontSize
+				fallbackBaseX: item.fallbackBaseX
+				fallbackBaseY: item.fallbackBaseY
+				points: item.points
+				date: item.date
+			}
+		)
+
+	# Strokes drawn while logged out or offline carry synced:no so a later login uploads
+	# them instead of being wiped by an empty server response.
+	def markPenSketchesSynced key\string
+		const list = penSketches and penSketches[key]
+		unless Array.isArray(list) and list.length > 0
+			return
+		let changed = no
+		const next = list.map(do |item|
+			if item.synced
+				return item
+			changed = yes
+			return { ...item, synced: yes }
+		)
+		unless changed
+			return
+		penSketches = {
+			...(penSketches or {})
+			[key]: next
+		}
 		savePenSketches!
-		imba.commit!
+
+	def queuePenSketchSave translation\string, book\number, chapter\number
+		unless translation and book and chapter
+			return
+		unless user.username and window.navigator.onLine
+			return
+		const key = penSketchKey(translation, book, chapter)
+		penSketchPendingSaves[key] = {
+			translation: translation
+			book: book
+			chapter: chapter
+		}
+		flushPenSketchSaves(key)
+
+	def flushPenSketchSaves key\string
+		if penSketchSaveInFlight[key] or !penSketchPendingSaves[key]
+			return
+		const request = penSketchPendingSaves[key]
+		delete penSketchPendingSaves[key]
+		penSketchSaveInFlight[key] = yes
+		try
+			await API.post("/save-pen-sketches/", {
+				translation: request.translation
+				book: request.book
+				chapter: request.chapter
+				sketches: penSketchesToPayload(getPenSketchesFor(request.translation, request.book, request.chapter))
+			})
+			markPenSketchesSynced(key)
+		catch error
+			console.log "Error saving pen sketches:", error
+		finally
+			penSketchSaveInFlight[key] = no
+			if penSketchPendingSaves[key]
+				flushPenSketchSaves(key)
+
+	def loadPenSketches translation\string, book\number, chapter\number
+		unless translation and book and chapter
+			return
+		unless user.username and window.navigator.onLine
+			return
+		const key = penSketchKey(translation, book, chapter)
+		try
+			const remote = await API.getJson("/get-pen-sketches/{translation}/{book}/{chapter}/")
+			const list = Array.isArray(remote) ? remote : []
+			const local = getPenSketchesFor(translation, book, chapter)
+			const unsynced = local.filter(do |item| return !item.synced)
+			if list.length == 0
+				# Nothing on the server: either never uploaded, or erased on another device.
+				if unsynced.length > 0
+					queuePenSketchSave(translation, book, chapter)
+				elif local.length > 0
+					writePenSketches(key, [])
+				return
+			const synced = list.map(do |item| return { ...item, synced: yes })
+			writePenSketches(key, synced.concat(unsynced))
+			if unsynced.length > 0
+				queuePenSketchSave(translation, book, chapter)
+		catch error
+			console.log "Error fetching pen sketches:", error
 
 
 	def toggleBooksMenu parallel
@@ -1349,6 +1449,12 @@ class Activities
 
 const activities = new Activities()
 activities.loadTabs()
-window.addEventListener('user-session', do activities.loadVerseNoteLinks(yes))
+window.addEventListener('user-session', do
+	activities.loadVerseNoteLinks(yes)
+	# The session usually resolves after the first chapter fetch, so pull sketches again here.
+	activities.loadPenSketches(reader.translation, reader.book, reader.chapter)
+	if parallelReader.enabled
+		activities.loadPenSketches(parallelReader.translation, parallelReader.book, parallelReader.chapter)
+)
 
 export default activities

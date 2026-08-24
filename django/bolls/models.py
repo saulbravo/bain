@@ -68,6 +68,28 @@ class FreehandHighlight(models.Model):
         ]
 
 
+class PenSketch(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    translation = models.CharField(max_length=120)
+    book = models.PositiveSmallIntegerField()
+    chapter = models.PositiveSmallIntegerField()
+    # Strokes as JSON: [{"id": "...", "color": "#000", "width": 3, "anchorId": "12",
+    #                    "anchorDx": 4, "anchorFx": 0.1, "anchorFy": 0.4,
+    #                    "surfaceWidth": 720, "points": [{"x": 0, "y": 0}]}]
+    sketches = models.TextField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "translation", "book", "chapter"],
+                name="uniq_user_chapter_pen_sketch",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "translation", "book", "chapter"], name="bolls_pen_user_chapter_idx"),
+        ]
+
+
 class VerseNoteLink(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     block_id = models.CharField(max_length=64)

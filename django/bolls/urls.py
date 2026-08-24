@@ -59,6 +59,8 @@ urlpatterns = [
     path("get-random-verse/<slug:translation>/", views.get_random_verse),
     path("get-freehand-highlights/<slug:translation>/<int:book>/<int:chapter>/", views.get_freehand_highlights),
     path("save-freehand-highlights/", views.save_freehand_highlights),
+    path("get-pen-sketches/<slug:translation>/<int:book>/<int:chapter>/", views.get_pen_sketches),
+    path("save-pen-sketches/", views.save_pen_sketches),
     path("save-verse-note-link/", views.save_verse_note_link),
     path("delete-verse-note-link/", views.delete_verse_note_link),
     path("get-verse-note-links/<slug:translation>/<int:book>/<int:chapter>/", views.get_verse_note_links),

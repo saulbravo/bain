@@ -93,6 +93,7 @@ class ParallelReader < GenericReader
 
 		getBookmarks!
 		getFreehandHighlights!
+		getPenSketches!
 
 		if reqVerse
 			if typeof reqVerse === 'string' and reqVerse.includes('-')

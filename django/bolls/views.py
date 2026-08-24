@@ -25,7 +25,17 @@ from django.http import JsonResponse, HttpResponse
 from bolls.books_map import books_map
 from bolls.forms import SignUpForm
 
-from .models import Verses, Bookmarks, History, Note, Commentary, Dictionary, FreehandHighlight, VerseNoteLink
+from .models import (
+    Verses,
+    Bookmarks,
+    History,
+    Note,
+    Commentary,
+    Dictionary,
+    FreehandHighlight,
+    PenSketch,
+    VerseNoteLink,
+)
 
 from .utils.books import BOOKS, get_book_id, is_number
 
@@ -988,6 +998,63 @@ def get_freehand_highlights(request, translation, book, chapter):
         import traceback
         traceback.print_exc()
         return JsonResponse([], safe=False)
+
+
+def get_pen_sketches(request, translation, book, chapter):
+    if not request.user.is_authenticated:
+        return JsonResponse([], safe=False)
+
+    try:
+        row = PenSketch.objects.filter(
+            user=request.user, translation=translation, book=book, chapter=chapter
+        ).first()
+        if not row or not row.sketches:
+            return JsonResponse([], safe=False)
+        stored = json.loads(row.sketches)
+        return JsonResponse(stored if isinstance(stored, list) else [], safe=False)
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        return JsonResponse([], safe=False)
+
+
+@require_POST
+@csrf_exempt
+def save_pen_sketches(request):
+    if not request.user.is_authenticated:
+        return HttpResponse(status=401)
+
+    try:
+        data = json.loads(request.body)
+        translation = data.get("translation")
+        book = data.get("book")
+        chapter = data.get("chapter")
+        sketches = data.get("sketches", [])
+
+        if not all([translation, book, chapter]):
+            return HttpResponse(status=400, content="Missing required fields")
+
+        if not isinstance(sketches, list):
+            return HttpResponse(status=400, content="sketches must be a list")
+
+        if len(sketches) == 0:
+            PenSketch.objects.filter(
+                user=request.user, translation=translation, book=book, chapter=chapter
+            ).delete()
+            return HttpResponse(status=200)
+
+        PenSketch.objects.update_or_create(
+            user=request.user,
+            translation=translation,
+            book=book,
+            chapter=chapter,
+            defaults={"sketches": json.dumps(sketches)},
+        )
+        return HttpResponse(status=200)
+    except Exception as e:
+        print(f"Error saving pen sketches: {e}")
+        return HttpResponse(status=400, content=str(e))
 
 
 @require_POST

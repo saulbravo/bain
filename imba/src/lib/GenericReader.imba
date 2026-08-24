@@ -448,6 +448,10 @@ class GenericReader
 		catch error
 			console.log "Error fetching freehand highlights:", error
 
+	def getPenSketches
+		if activities and activities.loadPenSketches
+			activities.loadPenSketches(translation, book, chapter)
+
 	def freehandLocalStorageKey
 		return "freehand-highlights:{translation}:{book}:{chapter}"
 

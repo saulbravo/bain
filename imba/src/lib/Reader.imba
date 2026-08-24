@@ -119,6 +119,7 @@ class Reader < GenericReader
 		readingHistory.saveToHistory(translation, book, chapter, reqVerse)
 		getBookmarks!
 		getFreehandHighlights!
+		getPenSketches!
 
 		if requestId != self._fetchId or translation != reqTranslation or book != reqBook or chapter != reqChapter
 			return

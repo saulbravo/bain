@@ -128,6 +128,14 @@ tag chapter < section
 	globalPenMoveHandler = null
 	penDrawing = no
 	currentPenStroke = null
+	currentPenStrokeBase = null
+	drawingSurfaceHeight = 0
+	drawingSurfaceWidth = 0
+	textColumnWidth = 0
+	textColumnRight = 0
+	textFontSize = 0
+	drawingSurfaceObserver = null
+	drawingSurfaceResizeHandler = null
 	globalPointerUpHandler = null
 	globalPointerCancelHandler = null
 	globalMouseUpHandler = null
@@ -362,20 +370,266 @@ tag chapter < section
 			y: rect.top - selfRect.top + self.scrollTop
 		}
 
-	def getPenStrokeBase stroke
+	def getPenStrokeAnchorElement stroke
+		unless stroke and stroke.anchorId
+			return null
+		const el = document.getElementById(stroke.anchorId)
+		# Ignore the other reader's verse when both panes render the same chapter.
+		unless el and self.contains(el)
+			return null
+		return el
+
+	# Range covering the character at charOffset inside a verse span. A one-character
+	# range is used because collapsed ranges report empty rects in some browsers.
+	def getRangeAtCharOffset root, charOffset
+		unless root
+			return null
+		const target = Math.max(0, charOffset or 0)
+		let count = 0
+		let lastNode = null
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
+		while (let next = walker.nextNode())
+			const length = next.textContent.length
+			if length > 0
+				lastNode = next
+				if count + length > target
+					const range = document.createRange()
+					const offset = Math.max(0, Math.min(length - 1, target - count))
+					range.setStart(next, offset)
+					range.setEnd(next, offset + 1)
+					return range
+				count += length
+		unless lastNode
+			return null
+		const range = document.createRange()
+		const end = lastNode.textContent.length
+		range.setStart(lastNode, Math.max(0, end - 1))
+		range.setEnd(lastNode, end)
+		return range
+
+	def getCharCoordsInSelf root, charOffset
+		const range = getRangeAtCharOffset(root, charOffset)
+		unless range
+			return null
+		const rect = range.getBoundingClientRect()
+		unless rect and (rect.width > 0 or rect.height > 0)
+			return null
+		const selfRect = self.getBoundingClientRect()
+		return {
+			x: rect.left - selfRect.left + self.scrollLeft
+			y: rect.top - selfRect.top + self.scrollTop
+		}
+
+	def isVerseTextSpan el
+		return el and el.id and isChapterVerseId(String(el.id)) and self.contains(el)
+
+	# The verse number lives in a sibling span with no id, so a stroke started on it
+	# has to be mapped over to the start of that verse's text.
+	def getVerseTextSpanForMarker markerEl
+		let sibling = markerEl and markerEl.nextElementSibling
+		while sibling
+			if isVerseTextSpan(sibling)
+				return sibling
+			sibling = sibling.nextElementSibling
+		return null
+
+	def distanceToChar range, node, index, clientX, clientY
+		range.setStart(node, index)
+		range.setEnd(node, index + 1)
+		const rect = range.getBoundingClientRect()
+		unless rect and (rect.width > 0 or rect.height > 0)
+			return null
+		const dx = clientX < rect.left ? rect.left - clientX : (clientX > rect.right ? clientX - rect.right : 0)
+		const charAbove = clientY > rect.bottom ? clientY - rect.bottom : 0
+		const charBelow = clientY < rect.top ? rect.top - clientY : 0
+		# An underline sits in the gap beneath the words it marks, and the gap between
+		# two lines of glyphs is symmetric, so a character above the point wins ties.
+		const dy = charAbove + charBelow * 1.75
+		# Vertical distance is weighted so a point out in the margin snaps to a
+		# character on its own line rather than one nearer in raw pixels above it.
+		return Math.sqrt(dx * dx + dy * dy * 9)
+
+	def getVerseSpanText root
+		let text = ''
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
+		while (let node = walker.nextNode())
+			text += node.textContent
+		return text
+
+	# A space is a bad anchor: when a line wraps exactly there the space collapses at
+	# the end of the previous line and drags the sketch away from its word.
+	def skipWhitespaceOffset root, offset
+		const text = getVerseSpanText(root)
+		unless text.length > 0
+			return offset
+		const start = Math.max(0, Math.min(text.length - 1, offset))
+		let forward = start
+		while forward < text.length and /\s/.test(text[forward])
+			forward += 1
+		if forward < text.length
+			return forward
+		let back = start
+		while back >= 0 and /\s/.test(text[back])
+			back -= 1
+		return back >= 0 ? back : offset
+
+	def findNearestCharInSpan span, clientX, clientY
+		const range = document.createRange()
+		const text = getVerseSpanText(span)
+		let best = null
+		let base = 0
+		const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null, false)
+		while (let node = walker.nextNode())
+			const length = node.textContent.length
+			if length > 0
+				# Coarse pass first so long verses stay cheap, then refine around it.
+				const step = Math.max(1, Math.ceil(length / 16))
+				let local = null
+				let index = 0
+				while index < length
+					unless /\s/.test(text[base + index])
+						const distance = distanceToChar(range, node, index, clientX, clientY)
+						if distance != null and (!local or distance < local.distance)
+							local = { index: index, distance: distance }
+					index += step
+				if local and step > 1
+					let refine = Math.max(0, local.index - step)
+					const last = Math.min(length - 1, local.index + step)
+					while refine <= last
+						unless /\s/.test(text[base + refine])
+							const distance = distanceToChar(range, node, refine, clientX, clientY)
+							if distance != null and distance < local.distance
+								local = { index: refine, distance: distance }
+						refine += 1
+				if local and (!best or local.distance < best.distance)
+					best = { offset: base + local.index, distance: local.distance }
+			base += length
+		return best
+
+	# Last resort for strokes that start in a margin or between lines: snap to the
+	# closest character in the nearby verses.
+	def findNearestCharAnchor clientX, clientY
+		const article = self.querySelector('article')
+		return null unless article
+		let best = null
+		for span in article.querySelectorAll('span[id]')
+			continue unless isVerseTextSpan(span)
+			const rect = span.getBoundingClientRect()
+			continue unless rect.width > 0 or rect.height > 0
+			continue if clientY < rect.top - 48 or clientY > rect.bottom + 48
+			const hit = findNearestCharInSpan(span, clientX, clientY)
+			continue unless hit
+			if !best or hit.distance < best.distance
+				best = { el: span, offset: hit.offset, distance: hit.distance }
+		return best
+
+	# Anchoring to the exact character keeps a sketch on the same words when the text
+	# reflows. A fraction of the verse box drifts once a verse grows from 2 to 6 lines.
+	def getPenAnchorFromEvent e
+		const point = getClientPoint(e)
+		return null unless point
+		const range = getCaretRangeFromClientPoint(point.x, point.y)
+		if range
+			let container = range.startContainer
+			let parent = container and container.nodeType == 3 ? container.parentElement : container
+			if parent and parent.closest
+				# Footnotes and other inline spans carry ids too, so climb to the verse.
+				let span = parent.closest('span[id]')
+				while span and !isChapterVerseId(String(span.id or ''))
+					span = span.parentElement and span.parentElement.closest('span[id]')
+				if span and self.contains(span)
+					const offset = getCharOffsetInVerseSpan(container, range.startOffset, span)
+					return { el: span, offset: skipWhitespaceOffset(span, offset) }
+				const marker = parent.closest('.verse')
+				if marker
+					const textSpan = getVerseTextSpanForMarker(marker)
+					if textSpan
+						return { el: textSpan, offset: 0 }
+		return findNearestCharAnchor(point.x, point.y)
+
+	# Sketches follow the text size, not the column width. Narrowing a window rewraps
+	# the text but leaves the glyphs the same size, so a circle drawn around two words
+	# has to keep its size to still frame those words. Scaling by column width shrank
+	# sketches into unreadable specks on phones.
+	def getPenStrokeFontScale stroke
+		const drawnFont = stroke ? Number(stroke.fontSize) : NaN
+		unless Number.isFinite(drawnFont) and drawnFont > 0
+			return 1
+		# Use the size tracked by the resize watchers so rendering many strokes does
+		# not force a layout read per stroke.
+		const currentFont = textFontSize > 0 ? textFontSize : getTextFontSize!
+		unless currentFont > 0
+			return 1
+		return Math.max(0.25, Math.min(4, currentFont / drawnFont))
+
+	def getPenStrokeMaxX stroke
+		if stroke.maxX == undefined
+			let max = 0
+			for point in (stroke.points or [])
+				max = Math.max(max, point.x)
+			stroke.maxX = max
+		return stroke.maxX
+
+	# Rendering and erasing must agree on where a stroke sits, so both read the
+	# position and the scale from here.
+	def getPenStrokeGeometry stroke
+		unless stroke
+			return { base: { x: 0, y: 0 }, scale: 1 }
+		# The live stroke is drawn in the current layout, so it is always 1:1.
+		if stroke == currentPenStroke
+			return { base: getPenStrokeBase(stroke, 1), scale: 1 }
+		let scale = getPenStrokeFontScale(stroke)
+		const base = getPenStrokeBase(stroke, scale)
+		# A stroke drawn across a wide line would trail off into the margin once the
+		# same words wrap earlier on a phone, so squeeze it back to the column edge.
+		const right = textColumnRight > 0 ? textColumnRight : getTextColumnRight!
+		const reach = getPenStrokeMaxX(stroke) * scale
+		const room = right - base.x
+		if right > 0 and reach > room and room > 0
+			# Floored at half size: a stroke starting near the line end has almost no
+			# room left, and a legible stroke poking into the margin beats a stub.
+			scale = Math.max(scale * 0.5, scale * (room / reach))
+		return { base: base, scale: scale }
+
+	def getPenStrokeBase stroke, scale = null
 		if !stroke
 			return { x: 0, y: 0 }
-		const anchorEl = stroke.anchorId ? document.getElementById(stroke.anchorId) : null
+		# The base is resolved once per stroke: nothing reflows while drawing, and
+		# re-measuring on every pointermove would force a layout each frame.
+		if currentPenStrokeBase and stroke == currentPenStroke
+			return currentPenStrokeBase
+		const factor = scale == null ? getPenStrokeFontScale(stroke) : scale
+		const anchorEl = getPenStrokeAnchorElement(stroke)
 		if anchorEl
+			# Preferred: pinned to the character the pen started on, so the sketch
+			# follows those words through any reflow.
+			if Number.isFinite(stroke.anchorOffset)
+				const charPos = getCharCoordsInSelf(anchorEl, stroke.anchorOffset)
+				if charPos
+					return {
+						x: charPos.x + (stroke.anchorDx or 0) * factor
+						y: charPos.y + (stroke.anchorDy or 0) * factor
+					}
 			const anchorPos = getElementCoordsInSelf(anchorEl)
+			let dy = (stroke.anchorDy or 0) * factor
+			# Legacy strokes: approximate by relative depth inside the verse box.
+			if Number.isFinite(stroke.anchorFy)
+				const anchorHeight = anchorEl.getBoundingClientRect().height
+				if anchorHeight > 0
+					dy = stroke.anchorFy * anchorHeight
 			return {
-				x: anchorPos.x + (stroke.anchorDx or 0)
-				y: anchorPos.y + (stroke.anchorDy or 0)
+				x: anchorPos.x + (stroke.anchorDx or 0) * factor
+				y: anchorPos.y + dy
 			}
 		return {
-			x: stroke.fallbackBaseX or 0
-			y: stroke.fallbackBaseY or 0
+			x: (stroke.fallbackBaseX or 0) * factor
+			y: (stroke.fallbackBaseY or 0) * factor
 		}
+
+	# Deliberately ignores the fit-to-column squeeze: a long stroke may be narrowed to
+	# fit the phone, but thinning its ink too would make it disappear.
+	def getPenStrokeWidth stroke
+		return Math.max(1, (stroke and stroke.width or 6) * getPenStrokeFontScale(stroke))
 
 	def getDrawingSurfaceWidth
 		# Keep drawing surface width tied to viewport width to avoid recursive scroll growth.
@@ -387,6 +641,90 @@ tag chapter < section
 		if article
 			return Math.max(article.offsetTop + article.offsetHeight, 1)
 		return Math.max(self.clientHeight or 0, 1)
+
+	# Width of the text itself, excluding the centering padding that grows with the window.
+	def getTextColumnWidth
+		const article = self.querySelector('article')
+		unless article
+			return Math.max(self.clientWidth or 0, 1)
+		let width = article.clientWidth or 0
+		try
+			const style = window.getComputedStyle(article)
+			width -= (window.parseFloat(style.paddingLeft) or 0) + (window.parseFloat(style.paddingRight) or 0)
+		catch err
+			width = article.clientWidth or 0
+		return Math.max(width, 1)
+
+	# Right edge of the text itself, in the drawing surface's coordinates.
+	def getTextColumnRight
+		const article = self.querySelector('article')
+		unless article
+			return 0
+		const rect = article.getBoundingClientRect()
+		const selfRect = self.getBoundingClientRect()
+		let right = rect.right - selfRect.left + self.scrollLeft
+		try
+			right -= window.parseFloat(window.getComputedStyle(article).paddingRight) or 0
+		catch err
+			right = right
+		return Math.max(right, 0)
+
+	def getTextFontSize
+		const article = self.querySelector('article')
+		unless article
+			return 0
+		try
+			return window.parseFloat(window.getComputedStyle(article).fontSize) or 0
+		catch err
+			return 0
+
+	# The sketch layer must span the whole scrollable chapter, otherwise strokes below
+	# the first screen get clipped. Recomputed whenever the text reflows.
+	def syncDrawingSurface
+		const height = getDrawingSurfaceHeight!
+		const width = getDrawingSurfaceWidth!
+		const column = getTextColumnWidth!
+		const columnRight = getTextColumnRight!
+		const fontSize = getTextFontSize!
+		if Math.abs(height - drawingSurfaceHeight) < 1 and Math.abs(width - drawingSurfaceWidth) < 1 and Math.abs(column - textColumnWidth) < 1 and Math.abs(columnRight - textColumnRight) < 1 and Math.abs(fontSize - textFontSize) < 0.1
+			return no
+		drawingSurfaceHeight = height
+		drawingSurfaceWidth = width
+		textColumnWidth = column
+		textColumnRight = columnRight
+		textFontSize = fontSize
+		return yes
+
+	def refreshDrawingGeometry force\boolean = no
+		const changed = syncDrawingSurface!
+		# Mobile address bars fire resize constantly; only re-render on a real change.
+		unless changed or force
+			return
+		# Paths are recomputed from live element positions on every render.
+		imba.commit!
+
+	def startDrawingSurfaceWatchers
+		unless drawingSurfaceResizeHandler
+			drawingSurfaceResizeHandler = do refreshDrawingGeometry!
+			window.addEventListener('resize', drawingSurfaceResizeHandler)
+			window.addEventListener('orientationchange', drawingSurfaceResizeHandler)
+		if !drawingSurfaceObserver and typeof window.ResizeObserver == 'function'
+			drawingSurfaceObserver = new window.ResizeObserver(do
+				window.requestAnimationFrame(do refreshDrawingGeometry!)
+			)
+			drawingSurfaceObserver.observe(self)
+			const article = self.querySelector('article')
+			if article
+				drawingSurfaceObserver.observe(article)
+
+	def stopDrawingSurfaceWatchers
+		if drawingSurfaceResizeHandler
+			window.removeEventListener('resize', drawingSurfaceResizeHandler)
+			window.removeEventListener('orientationchange', drawingSurfaceResizeHandler)
+			drawingSurfaceResizeHandler = null
+		if drawingSurfaceObserver
+			drawingSurfaceObserver.disconnect()
+			drawingSurfaceObserver = null
 
 	def pointToSegmentDistance px, py, x1, y1, x2, y2
 		const dx = x2 - x1
@@ -406,12 +744,14 @@ tag chapter < section
 	def strokeIntersectsPoint stroke, point, radius\number
 		if !stroke or !stroke.points or stroke.points.length == 0
 			return no
-		const base = getPenStrokeBase(stroke)
-		const widthRadius = Math.max(2, (stroke.width or 6) / 2)
+		const geometry = getPenStrokeGeometry(stroke)
+		const scale = geometry.scale
+		const base = geometry.base
+		const widthRadius = Math.max(2, getPenStrokeWidth(stroke) / 2)
 		const hitRadius = radius + widthRadius
 		if stroke.points.length == 1
-			const x = base.x + stroke.points[0].x
-			const y = base.y + stroke.points[0].y
+			const x = base.x + stroke.points[0].x * scale
+			const y = base.y + stroke.points[0].y * scale
 			const dx = point.x - x
 			const dy = point.y - y
 			return Math.sqrt(dx * dx + dy * dy) <= hitRadius
@@ -419,10 +759,10 @@ tag chapter < section
 			if index == 0
 				continue
 			const prev = stroke.points[index - 1]
-			const x1 = base.x + prev.x
-			const y1 = base.y + prev.y
-			const x2 = base.x + pointItem.x
-			const y2 = base.y + pointItem.y
+			const x1 = base.x + prev.x * scale
+			const y1 = base.y + prev.y * scale
+			const x2 = base.x + pointItem.x * scale
+			const y2 = base.y + pointItem.y * scale
 			if pointToSegmentDistance(point.x, point.y, x1, y1, x2, y2) <= hitRadius
 				return yes
 		return no
@@ -542,26 +882,50 @@ tag chapter < section
 		if activities.penEraserMode
 			penDrawing = yes
 			currentPenStroke = null
+			currentPenStrokeBase = null
 			erasePenAtPoint(e)
 			startPenDragListeners!
 			return
 		let p = getPointerCoords(e)
 		return unless p
-		const anchorEl = getVerseAnchorElementFromEvent(e)
-		const anchorId = anchorEl ? anchorEl.id : null
-		const anchorPos = getElementCoordsInSelf(anchorEl)
+		const charAnchor = getPenAnchorFromEvent(e)
+		let anchorId = null
+		let anchorOffset = null
+		let anchorFy = null
+		let basePos = null
+		if charAnchor
+			const charPos = getCharCoordsInSelf(charAnchor.el, charAnchor.offset)
+			if charPos
+				anchorId = charAnchor.el.id
+				anchorOffset = charAnchor.offset
+				basePos = charPos
+		unless basePos
+			# No character under the pen (margins, gaps): fall back to the verse box.
+			const anchorEl = getVerseAnchorElementFromEvent(e)
+			anchorId = anchorEl ? anchorEl.id : null
+			basePos = getElementCoordsInSelf(anchorEl)
+			const anchorHeight = anchorEl ? anchorEl.getBoundingClientRect().height : 0
+			if anchorHeight > 0
+				anchorFy = (p.y - basePos.y) / anchorHeight
 		currentPenStroke = {
 			id: "pen-{Date.now()}-{Math.floor(Math.random() * 100000)}"
 			color: activities.freehandHighlightColor or '#000000'
 			width: activities.penLineWidth or 6
 			anchorId: anchorId
-			anchorDx: p.x - anchorPos.x
-			anchorDy: p.y - anchorPos.y
+			anchorOffset: anchorOffset
+			anchorDx: p.x - basePos.x
+			anchorDy: p.y - basePos.y
+			anchorFy: anchorFy
+			columnWidth: getTextColumnWidth!
+			fontSize: getTextFontSize!
 			fallbackBaseX: p.x
 			fallbackBaseY: p.y
 			points: [{ x: 0, y: 0 }]
 			date: Date.now()
 		}
+		# Offsets are stored relative to the anchor, so at capture time the base is
+		# exactly the pointer's starting position (scale factor is 1).
+		currentPenStrokeBase = { x: p.x, y: p.y }
 		penDrawing = yes
 		startPenDragListeners!
 		imba.commit!
@@ -585,16 +949,48 @@ tag chapter < section
 		})
 		imba.commit!
 
+	# The pen almost always starts in the gap just before or above the target word, so
+	# the starting point is a poor anchor. The middle of a finished stroke sits on the
+	# word it marks, and two strokes drawn over the same words anchor together.
+	def rebaseStrokeAnchorToCenter stroke, base
+		return unless stroke and base and stroke.points and stroke.points.length > 1
+		let minX = 0
+		let maxX = 0
+		let minY = 0
+		let maxY = 0
+		for point in stroke.points
+			minX = Math.min(minX, point.x)
+			maxX = Math.max(maxX, point.x)
+			minY = Math.min(minY, point.y)
+			maxY = Math.max(maxY, point.y)
+		const center = clientPointFromChapterPoint({
+			x: base.x + (minX + maxX) / 2
+			y: base.y + (minY + maxY) / 2
+		})
+		const anchor = findNearestCharAnchor(center.x, center.y)
+		return unless anchor
+		const charPos = getCharCoordsInSelf(anchor.el, anchor.offset)
+		return unless charPos
+		stroke.anchorId = anchor.el.id
+		stroke.anchorOffset = anchor.offset
+		stroke.anchorDx = base.x - charPos.x
+		stroke.anchorDy = base.y - charPos.y
+		stroke.anchorFy = null
+
 	def endPenStroke
 		return unless penDrawing
 		stopPenDragListeners!
 		penDrawing = no
 		if activities.penEraserMode
 			currentPenStroke = null
+			currentPenStrokeBase = null
 			return
 		const stroke = currentPenStroke
+		const base = currentPenStrokeBase
 		currentPenStroke = null
+		currentPenStrokeBase = null
 		if stroke and stroke.points and stroke.points.length > 1
+			rebaseStrokeAnchorToCenter(stroke, base)
 			activities.addPenSketch(me.translation, me.book, me.chapter, stroke)
 		imba.commit!
 
@@ -619,6 +1015,11 @@ tag chapter < section
 		const _b = me.book
 		const _c = me.chapter
 		clearFreehandStrokeCanvas!
+		# A new chapter renders a new <article>, so re-attach the size watcher to it.
+		window.requestAnimationFrame do
+			stopDrawingSurfaceWatchers!
+			startDrawingSurfaceWatchers!
+			refreshDrawingGeometry(yes)
 
 	def clientPointFromChapterPoint p
 		let rect = self.getBoundingClientRect()
@@ -803,6 +1204,7 @@ tag chapter < section
 		stopPenDragListeners!
 		penDrawing = no
 		currentPenStroke = null
+		currentPenStrokeBase = null
 		startStylusStroke(e)
 
 	def handlePointerDown e
@@ -868,10 +1270,13 @@ tag chapter < section
 		unless stylusContextMenuHandler
 			stylusContextMenuHandler = do |ev| handleContextMenu(ev)
 			window.addEventListener('contextmenu', stylusContextMenuHandler, true)
+		startDrawingSurfaceWatchers!
+		refreshDrawingGeometry(yes)
 
 	def unmount
 		stopFreehandDragListeners!
 		stopPenDragListeners!
+		stopDrawingSurfaceWatchers!
 		clearStylusOverrides!
 		if stylusContextMenuHandler
 			window.removeEventListener('contextmenu', stylusContextMenuHandler, true)
@@ -1264,12 +1669,14 @@ tag chapter < section
 	def getPenStrokePath stroke
 		if !stroke or !stroke.points or stroke.points.length == 0
 			return ''
-		const base = getPenStrokeBase(stroke)
-		let d = "M {Math.round(base.x + stroke.points[0].x)} {Math.round(base.y + stroke.points[0].y)}"
+		const geometry = getPenStrokeGeometry(stroke)
+		const scale = geometry.scale
+		const base = geometry.base
+		let d = "M {Math.round(base.x + stroke.points[0].x * scale)} {Math.round(base.y + stroke.points[0].y * scale)}"
 		for point, index in stroke.points
 			if index == 0
 				continue
-			d += " L {Math.round(base.x + point.x)} {Math.round(base.y + point.y)}"
+			d += " L {Math.round(base.x + point.x * scale)} {Math.round(base.y + point.y * scale)}"
 		return d
 
 	def currentChapterPenSketches
@@ -1286,7 +1693,7 @@ tag chapter < section
 			@contextmenu=handleContextMenu
 			@auxclick=handleAuxClick
 			dir=translationTextDirection(me.translation)>
-			<div.chapter-drawing-surface>
+			<div.chapter-drawing-surface [height:{drawingSurfaceHeight}px]>
 				for rect in pageSearch.rects when isMyRect(rect.matchID) and activities.activeModal == ''
 					<.{rect.class} id=rect.matchID [pos:absolute zi:-1 top:{rect.top}px left:{rect.left}px width:{rect.width}px height:{rect.height}px]>
 				<canvas.freehand-stroke-canvas>
@@ -1294,11 +1701,11 @@ tag chapter < section
 					for stroke in currentChapterPenSketches()
 						const path = getPenStrokePath(stroke)
 						if path != ''
-							<path d=path stroke=(stroke.color or '#F9E2A0') stroke-width=(stroke.width or 6) fill="none" stroke-linecap="round" stroke-linejoin="round">
+							<path d=path stroke=(stroke.color or '#F9E2A0') stroke-width=getPenStrokeWidth(stroke) fill="none" stroke-linecap="round" stroke-linejoin="round">
 					if currentPenStroke
 						const activePath = getPenStrokePath(currentPenStroke)
 						if activePath != ''
-							<path d=activePath stroke=(currentPenStroke.color or '#F9E2A0') stroke-width=(currentPenStroke.width or 6) fill="none" stroke-linecap="round" stroke-linejoin="round">
+							<path d=activePath stroke=(currentPenStroke.color or '#F9E2A0') stroke-width=getPenStrokeWidth(currentPenStroke) fill="none" stroke-linecap="round" stroke-linejoin="round">
 
 			if me.verses..length
 				<header @pointerleave=shrinkHeader @pointerenter=enlargeHeader>
@@ -1915,7 +2322,9 @@ tag chapter < section
 			top: 0
 			left: 0
 			right: 0
-			bottom: 0
+			# Height is set inline to the full chapter height so strokes below the
+			# first screen are not clipped; this is only the pre-measure fallback.
+			min-height: 100%
 			overflow: hidden
 			pointer-events: none
 			z-index: auto
