@@ -85,6 +85,7 @@ COPY django/ $BOLLS_HOME/
 COPY sql/unaccent_plus.rules /sql/unaccent_plus.rules
 COPY sql/restore-indexes-sequences.sql /sql/restore-indexes-sequences.sql
 COPY ["Comentario Biblico Adventista Tomos 1 al 7.cmtx", "/home/bolls/web/cba-commentary.cmtx"]
+COPY commentary-modules/ /home/bolls/web/commentary-modules/
 
 RUN cd "$BOLLS_HOME/bolls/static/translations" \
     && for f in *.zip; do [ -f "$f" ] && unzip -o "$f" -d .; done \

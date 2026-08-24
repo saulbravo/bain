@@ -3,7 +3,6 @@ import re
 import os
 import unicodedata
 import json
-import sqlite3
 import html
 import time
 from django.db.models import Count, Q
@@ -38,14 +37,60 @@ from .models import (
 )
 
 from .utils.books import BOOKS, get_book_id, is_number
+from .utils import commentaries as commentary_modules
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CBA_COMMENTARY_PATH = os.environ.get(
-    "CBA_COMMENTARY_PATH",
-    os.path.join(BASE_DIR, "Comentario Biblico Adventista Tomos 1 al 7.cmtx"),
-)
 
 incorrect_body = "The body of the request is incorrect"
+
+
+# RTF groups that hold document metadata rather than text. Without dropping them
+# whole, font and colour names leak into the commentary body.
+RTF_DESTINATIONS = frozenset(
+    [
+        "fonttbl",
+        "colortbl",
+        "stylesheet",
+        "listtable",
+        "listoverridetable",
+        "rsidtbl",
+        "filetbl",
+        "themedata",
+        "latentstyles",
+        "datastore",
+        "xmlnstbl",
+        "generator",
+        "info",
+        "pict",
+    ]
+)
+
+
+def _strip_rtf_destinations(text):
+    out = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if text[index] == "{":
+            match = re.match(r"\{\\\*?\\?([a-zA-Z]+)", text[index:])
+            if match and match.group(1).lower() in RTF_DESTINATIONS:
+                depth = 0
+                cursor = index
+                while cursor < length:
+                    char = text[cursor]
+                    escaped = cursor > 0 and text[cursor - 1] == "\\"
+                    if char == "{" and not escaped:
+                        depth += 1
+                    elif char == "}" and not escaped:
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    cursor += 1
+                index = cursor + 1
+                continue
+        out.append(text[index])
+        index += 1
+    return "".join(out)
 
 
 def _decode_cmtx_text(raw_text):
@@ -53,6 +98,7 @@ def _decode_cmtx_text(raw_text):
         return ""
 
     text = str(raw_text).replace("\r\n", "\n").replace("\r", "\n")
+    text = _strip_rtf_destinations(text)
     text = re.sub(
         r"\\'([0-9a-fA-F]{2})",
         lambda m: bytes.fromhex(m.group(1)).decode("latin-1", errors="ignore"),
@@ -69,7 +115,42 @@ def _decode_cmtx_text(raw_text):
     return text.strip()
 
 
-def _plain_text_to_html(text):
+def _title_words(value):
+    words = re.findall(r"[^\W_]+", str(value or "").casefold(), flags=re.UNICODE)
+    return [word for word in words if len(word) > 2]
+
+
+def _is_repeated_title(block, title):
+    # Most modules stamp their own name at the top of every entry, which is noise
+    # once the title is shown in the header.
+    candidate = block.strip().rstrip(":").casefold()
+    if candidate == "comentario bíblico adventista":
+        return True
+    return bool(title) and candidate == str(title).strip().rstrip(":").casefold()
+
+
+def _is_leading_header(block, title):
+    if _is_repeated_title(block, title):
+        return True
+    stripped = block.strip().rstrip(":")
+    if len(stripped) > 80 or "\n" in stripped:
+        return False
+    # e-Sword note modules open with a banner like "NVI 1984 Notes:".
+    if re.fullmatch(r".{0,40}\b(foot)?notes?|notas?", stripped, flags=re.IGNORECASE):
+        return True
+    # Modules spell their own name slightly differently from the Details row, so
+    # match a short opening line by how much of it the title accounts for.
+    words = _title_words(stripped)
+    if not words:
+        return False
+    known = set(_title_words(title))
+    if not known:
+        return False
+    hits = sum(1 for word in words if word in known)
+    return hits / len(words) >= 0.7
+
+
+def _plain_text_to_html(text, title=None):
     if not text:
         return ""
 
@@ -77,9 +158,11 @@ def _plain_text_to_html(text):
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
     paragraphs = []
-    for block in re.split(r"\n\n+", text):
+    for index, block in enumerate(re.split(r"\n\n+", text)):
         block = block.strip()
-        if not block or block == "Comentario Bíblico Adventista":
+        if not block:
+            continue
+        if _is_repeated_title(block, title) or (index == 0 and _is_leading_header(block, title)):
             continue
         for part in re.split(r"\n(?=\s{2,})", block):
             part = re.sub(r"^[ \t]+", "", part.strip())
@@ -97,31 +180,14 @@ def _plain_text_to_html(text):
     return "".join(paragraphs)
 
 
-def get_cba_commentary_text(book, chapter, verse):
-    if not os.path.exists(CBA_COMMENTARY_PATH):
-        return []
-
-    comments = []
-    with sqlite3.connect(CBA_COMMENTARY_PATH) as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            SELECT Comments
-            FROM Verses
-            WHERE Book = ?
-              AND ChapterBegin <= ?
-              AND ChapterEnd >= ?
-              AND VerseBegin <= ?
-              AND VerseEnd >= ?
-            ORDER BY ChapterBegin, VerseBegin
-            """,
-            (book, chapter, chapter, verse, verse),
-        )
-        verse_rows = [row[0] for row in cur.fetchall() if row and row[0]]
-        comments.extend(verse_rows)
-
-    decoded = [_decode_cmtx_text(piece) for piece in comments]
+def get_commentary_text(module, book, chapter, verse):
+    decoded = [_decode_cmtx_text(piece) for piece in commentary_modules.read_comments(module, book, chapter, verse)]
     return [piece for piece in decoded if piece]
+
+
+def get_cba_commentary_text(book, chapter, verse):
+    module = commentary_modules.resolve_commentary(commentary_modules.DEFAULT_COMMENTARY_ID)
+    return get_commentary_text(module, book, chapter, verse)
 
 
 def cross_origin(response, headers={}):
@@ -747,22 +813,32 @@ def get_a_verse(_, translation, book, chapter, verse):
         return cross_origin(HttpResponse("The verse is not found", status=404))
 
 
-def get_cba_commentary(_, book, chapter, verse):
+def get_commentaries(_):
+    return cross_origin(JsonResponse(commentary_modules.list_commentaries(), safe=False))
+
+
+def get_commentary(_, book, chapter, verse, commentary=None):
     try:
         if book <= 0 or chapter <= 0 or verse <= 0:
             return cross_origin(JsonResponse({"error": "Invalid verse location"}, status=400))
 
-        comments = get_cba_commentary_text(book, chapter, verse)
+        module = commentary_modules.resolve_commentary(commentary)
+        if not module:
+            return cross_origin(JsonResponse({"error": "Commentary not available"}, status=404))
+
+        comments = get_commentary_text(module, book, chapter, verse)
         plain_text = "\n\n".join(comments)
         return cross_origin(
             JsonResponse(
                 {
+                    "commentary": module["id"],
+                    "commentaryName": module["name"],
                     "book": book,
                     "chapter": chapter,
                     "verse": verse,
                     "hasCommentary": len(comments) > 0,
                     "commentaryText": plain_text,
-                    "commentaryHtml": _plain_text_to_html(plain_text),
+                    "commentaryHtml": _plain_text_to_html(plain_text, module["name"]),
                 },
                 safe=False,
             )
@@ -770,6 +846,11 @@ def get_cba_commentary(_, book, chapter, verse):
     except Exception as e:
         print(e)
         return cross_origin(JsonResponse({"error": "Commentary not available"}, status=404))
+
+
+def get_cba_commentary(request, book, chapter, verse):
+    # Kept for older clients that only know the Adventist commentary.
+    return get_commentary(request, book, chapter, verse, commentary_modules.DEFAULT_COMMENTARY_ID)
 
 
 @require_POST

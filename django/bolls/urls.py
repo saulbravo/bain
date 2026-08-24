@@ -49,6 +49,11 @@ urlpatterns = [
         "get-cba-commentary/<int:book>/<int:chapter>/<int:verse>/",
         views.get_cba_commentary,
     ),
+    path("get-commentaries/", views.get_commentaries),
+    path(
+        "get-commentary/<slug:commentary>/<int:book>/<int:chapter>/<int:verse>/",
+        views.get_commentary,
+    ),
     path("get-bookmarks/<slug:translation>/<int:book>/<int:chapter>/", views.get_bookmarks),
     path(
         "get-profile-bookmarks/<int:range_from>/<int:range_to>/",

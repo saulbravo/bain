@@ -1,5 +1,6 @@
 import activities from '../lib/Activities'
 import API from '../lib/Api'
+import commentaries from '../lib/Commentaries'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 import theme from '../lib/Theme'
@@ -8,6 +9,8 @@ import { localizeCommentaryRefs, htmlToPlainText, splitCommentaryHtmlIntoBlocks 
 import X from 'lucide-static/icons/x.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
+import Pencil from 'lucide-static/icons/pencil.svg'
+import Check from 'lucide-static/icons/check.svg'
 import Obsidian from '../icons/obsidian.svg'
 import Split from 'lucide-static/icons/split.svg'
 
@@ -24,6 +27,7 @@ tag verse-commentary-modal
 	obsidianBoxVisible = no
 	currentVerse = 0
 	lastLoadKey = ''
+	showEditor = no
 	#onObsidianScroll = null
 	#obsidianBlockClicks = []
 	obsidianDragging = no
@@ -48,7 +52,29 @@ tag verse-commentary-modal
 		return "{bookName} {currentReader.chapter}:{currentVerse}"
 
 	get commentaryTitle
-		return "Comentario Bíblico Adventista"
+		return commentaries.currentName
+
+	def selectCommentary id\string
+		return if id == commentaries.current
+		commentaries.select(id)
+		lastLoadKey = ''
+		loadCommentary!
+		imba.commit!.then do scrollActiveTabIntoView!
+
+	def toggleSource id\string
+		const previous = commentaries.current
+		commentaries.toggle(id)
+		# Hiding the tab you were reading falls back to another module.
+		if commentaries.current != previous
+			lastLoadKey = ''
+			loadCommentary!
+		imba.commit!.then do scrollActiveTabIntoView!
+
+	def scrollActiveTabIntoView
+		const strip = self.querySelector('.commentary-tabs')
+		const tab = strip and strip.querySelector('.commentary-tab.active')
+		return unless tab
+		strip.scrollLeft = Math.max(0, tab.offsetLeft - (strip.clientWidth - tab.offsetWidth) / 2)
 
 	get contentStyle
 		const base = "--cmt-pt:{commentaryLineHeight - 1}em;--cmt-pb:{0.8 * commentaryLineHeight}em"
@@ -131,6 +157,10 @@ tag verse-commentary-modal
 	def resetExportRange
 		exportStartIdx = 0
 		exportEndIdx = 0
+
+	def mount
+		await commentaries.load!
+		imba.commit!.then do scrollActiveTabIntoView!
 
 	def unmount
 		teardownObsidianUI!
@@ -522,7 +552,7 @@ tag verse-commentary-modal
 	def loadCommentary
 		clampCurrentVerse!
 		return if currentVerse <= 0
-		let key = "{currentReader.translation}:{currentReader.book}:{currentReader.chapter}:{currentVerse}"
+		let key = "{commentaries.current}:{currentReader.translation}:{currentReader.book}:{currentReader.chapter}:{currentVerse}"
 		return if key == lastLoadKey
 		lastLoadKey = key
 		loading = yes
@@ -534,7 +564,7 @@ tag verse-commentary-modal
 		resetExportRange!
 		imba.commit!
 		try
-			let payload = await API.getJson("/get-cba-commentary/{currentReader.book}/{currentReader.chapter}/{currentVerse}/")
+			let payload = await API.getJson("/get-commentary/{commentaries.current}/{currentReader.book}/{currentReader.chapter}/{currentVerse}/")
 			let html = payload and payload.commentaryHtml ? payload.commentaryHtml : ''
 			let plain = htmlToPlainText(html) or (payload and payload.commentaryText ? payload.commentaryText : '')
 			commentaryHtml = localizeCommentaryRefs(html, currentReader.translation)
@@ -576,12 +606,14 @@ tag verse-commentary-modal
 		if embedded
 			const grow = 1 - activities.splitRatio
 			return "position:relative;top:auto;left:auto;right:auto;bottom:auto;z-index:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;flex:{grow} 1 0;width:auto;height:auto;min-width:0;min-height:0;overflow:hidden;padding:0;box-sizing:border-box"
-		return "position:fixed;top:0;left:0;right:0;bottom:0;z-index:1300;display:flex;flex-direction:row;align-items:center;justify-content:center;flex:0 0 auto;height:auto;min-width:0;min-height:0;overflow:visible;padding:1rem"
+		# Top-aligned so the header and tabs stay put while only the bottom edge
+		# follows the length of the commentary.
+		return "position:fixed;top:0;left:0;right:0;bottom:0;z-index:1300;display:flex;flex-direction:row;align-items:flex-start;justify-content:center;flex:0 0 auto;height:auto;min-width:0;min-height:0;overflow:visible;padding:12vh 1rem 1rem"
 
 	get paneStyle
 		if embedded
 			return "flex:1 1 auto;width:100%;height:100%;max-height:100%;min-width:0;min-height:0;border-radius:0;box-shadow:none;box-sizing:border-box"
-		return "flex:0 0 auto;width:min(56rem, 100%);height:auto;max-height:min(75vh, 42rem);min-height:0;border-radius:0.75rem;box-shadow:0 10px 30px rgba(0, 0, 0, 0.25)"
+		return "flex:0 0 auto;width:min(56rem, 100%);height:auto;max-height:min(75vh, 42rem);min-height:min(26rem, 55vh);border-radius:0.75rem;box-shadow:0 10px 30px rgba(0, 0, 0, 0.25)"
 
 	<self .commentary-root .commentary-embedded=embedded style=rootStyle>
 		unless embedded
@@ -598,15 +630,33 @@ tag verse-commentary-modal
 								<svg src=Split aria-hidden=yes>
 						if !(commentaryHtml and commentaryHtml.length) and !activities.commentaryCompareMode and !loading
 							<span.header-spacer aria-hidden=yes>
-					<h3> commentaryTitle
-					<button.close-btn.header-action-btn @click=close title="Close">
-						<svg src=X>
-				<div.header-nav>
-					<button.nav-btn.nav-prev @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
-						<svg src=ChevronLeft>
-					<p.verse-ref> commentaryReference
-					<button.nav-btn.nav-next @click=stepVerse(1) disabled=!canGoNext title="Next verse">
-						<svg src=ChevronRight>
+					<div.header-nav>
+						<button.nav-btn.nav-prev @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
+							<svg src=ChevronLeft>
+						<p.verse-ref> commentaryReference
+						<button.nav-btn.nav-next @click=stepVerse(1) disabled=!canGoNext title="Next verse">
+							<svg src=ChevronRight>
+					<div.header-right>
+						<menu-popup.tab-editor bind=showEditor scrollinview=no>
+							<button.edit-tabs-btn.header-action-btn .editing=showEditor @click.stop=(do showEditor = !showEditor) title=(t.commentaries or "Choose commentaries")>
+								<svg src=Pencil aria-hidden=yes>
+							if showEditor
+								<div.tab-editor-menu>
+									for source in commentaries.sources
+										<button.tab-editor-item .picked=commentaries.isEnabled(source.id) .locked=commentaries.isPinned(source.id)
+											@click.stop=(do toggleSource(source.id)) disabled=commentaries.isPinned(source.id)>
+											<span.tab-editor-box>
+												if commentaries.isEnabled(source.id)
+													<svg src=Check aria-hidden=yes>
+											<span.tab-editor-name> source.name
+											<span.tab-editor-short> commentaries.shortNameFor(source)
+						<button.close-btn.header-action-btn @click=close title="Close">
+							<svg src=X>
+				<div.commentary-tabs>
+					for source in commentaries.visibleSources
+						<button.commentary-tab .active=(source.id == commentaries.current)
+							@click.stop=(do selectCommentary(source.id)) title=source.name>
+							commentaries.shortNameFor(source)
 			<div.content [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight}] style=contentStyle>
 				if loading
 					<p.status> (t.commentary_loading or "Loading commentary...")
@@ -638,9 +688,9 @@ tag verse-commentary-modal
 		inset: 0
 		zi: 1300
 		d: flex
-		ai: center
+		ai: flex-start
 		jc: center
-		padding: 1rem
+		padding: 12vh 1rem 1rem
 
 		&.commentary-root--embedded
 			pos: static
@@ -667,6 +717,7 @@ tag verse-commentary-modal
 			zi: 1
 			width: min(56rem, 100%)
 			max-height: min(75vh, 42rem)
+			min-height: min(26rem, 55vh)
 			bgc: $bgc
 			color: $c
 			rd: 0.75rem
@@ -693,6 +744,7 @@ tag verse-commentary-modal
 				max-h: 50vh
 
 		header
+			pos: relative
 			d: flex
 			fld: column
 			g: 0.65rem
@@ -727,14 +779,167 @@ tag verse-commentary-modal
 			pos: relative
 			min-height: 2rem
 
-		h3
-			m: 0
-			fs: 1rem
-			fw: 700
-			lh: 1.3
-			ta: center
-			justify-self: center
+		.header-right
+			d: flex
+			ai: center
+			g: 0.35rem
+			justify-self: end
+			flex-shrink: 0
+
+		# Static so the menu below anchors to the header, not to this button.
+		.tab-editor
+			d: flex
+			ai: center
+
+		.edit-tabs-btn
+			bgc: transparent
+			c: $c @hover:$acc-hover
+			svg
+				size: 1.15rem
+
+		.edit-tabs-btn.editing
+			bgc: $acc-bgc
+			c: $acc
+
+		.tab-editor-menu
+			pos: absolute
+			top: calc(100% + 0.45rem)
+			left: 50%
+			transform: translateX(-50%)
+			zi: 30
+			d: flex
+			fld: column
+			box-sizing: border-box
+			min-width: min(20rem, 78vw)
+			max-width: calc(100% - 2.5rem)
+			# Kept under the modal's smallest height so it never gets clipped.
+			max-height: min(17rem, 42vh)
+			overflow-y: auto
+			bgc: $bgc
+			bd: 1px solid $acc-bgc
+			rd: 0.5rem
+			bxs: 0 10px 30px rgba(0, 0, 0, 0.25)
+			padding: 0.25rem
+
+		.tab-editor-item
+			d: flex
+			ai: center
+			g: 0.5rem
+			width: 100%
+			ta: left
+			padding: 0.45rem 0.55rem
+			bd: none
+			bgc: transparent
+			color: inherit
+			font: inherit
+			fs: 0.85rem
+			cursor: pointer
+			rd: 0.35rem
+			bgc@hover: $acc-bgc
+
+		# CBA and EGW are always on, so they read as fixed rather than clickable.
+		.tab-editor-item.locked
+			cursor: default
+			o: 0.55
+			bgc@hover: transparent
+
+		.tab-editor-box
+			d: hcc
+			size: 1.05rem
+			flex: 0 0 auto
+			bd: 1px solid $acc-bgc
+			rd: 0.25rem
+			svg
+				size: 0.8rem
+
+		.tab-editor-item.picked .tab-editor-box
+			bgc: $acc
+			bd: 1px solid $acc
+			c: $bgc
+
+		.tab-editor-item.locked .tab-editor-box
+			bgc: $acc-bgc
+			bd: 1px solid $acc-bgc
+			c: $c
+
+		.tab-editor-name
+			flex: 1 1 auto
 			min-width: 0
+			overflow: hidden
+			text-overflow: ellipsis
+			white-space: nowrap
+
+		.tab-editor-item.picked .tab-editor-name
+			fw: 600
+
+		.tab-editor-item.locked .tab-editor-name
+			fw: 400
+
+		.tab-editor-short
+			flex: 0 0 auto
+			fs: 0.7rem
+			o: 0.6
+
+		# Tabs hang off the bottom of the header so they sit on its border, the same
+		# way the reader's chapter tabs sit on the line above the text.
+		.commentary-tabs
+			d: flex
+			ai: flex-end
+			g: 4px
+			margin-inline: -1.25rem
+			margin-bottom: -0.85rem
+			padding-inline: 1.25rem
+			overflow-x: auto
+			overflow-y: visible
+			scrollbar-width: none
+			min-width: 0
+
+			&::-webkit-scrollbar
+				d: none
+
+		.commentary-tab
+			pos: relative
+			zi: 1
+			flex: 0 0 auto
+			padding: 0.4rem 0.75rem
+			bd: 1px solid transparent
+			border-bottom: none
+			bgc: $acc-bgc
+			color: inherit
+			font: inherit
+			fs: 0.8rem
+			lh: 1.2
+			white-space: nowrap
+			cursor: pointer
+			rd: 0.5rem 0.5rem 0 0
+			touch-action: manipulation
+			transition: background-color 0.2s
+
+			@hover
+				bgc: $acc-bgc-hover
+
+		.commentary-tab.active
+			bgc: $bgc
+			bd: 1px solid $acc-bgc
+			border-bottom: none
+			fw: 700
+			color: $acc
+			zi: 3
+
+			@hover
+				bgc: $bgc
+
+			# Covers the header's border so the active tab joins the text below it.
+			&::after
+				content: ''
+				pos: absolute
+				left: -1px
+				right: -1px
+				bottom: -2px
+				h: 3px
+				bgc: $bgc
+				zi: 4
+				pointer-events: none
 
 		.verse-ref
 			m: 0
