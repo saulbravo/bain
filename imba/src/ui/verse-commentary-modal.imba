@@ -28,6 +28,9 @@ tag verse-commentary-modal
 	currentVerse = 0
 	lastLoadKey = ''
 	showEditor = no
+	compareTopPad = 0
+	#onCompareResize = null
+	#compareObserver = null
 	#onObsidianScroll = null
 	#obsidianBlockClicks = []
 	obsidianDragging = no
@@ -159,11 +162,63 @@ tag verse-commentary-modal
 		exportEndIdx = 0
 
 	def mount
+		watchCompareHeaderOffset!
 		await commentaries.load!
-		imba.commit!.then do scrollActiveTabIntoView!
+		imba.commit!.then do
+			scrollActiveTabIntoView!
+			syncCompareHeaderOffset!
 
 	def unmount
 		teardownObsidianUI!
+		unwatchCompareHeaderOffset!
+
+	# In compare mode the header grows until its bottom border lines up with the
+	# line under the reader's tabs, so both panes share one divider.
+	def offsetWithin el, ancestor
+		let node = el
+		let y = 0
+		while node and node != ancestor
+			y += node.offsetTop
+			node = node.offsetParent
+		return node ? y : null
+
+	def syncCompareHeaderOffset
+		unless embedded
+			compareTopPad = 0
+			return
+		const main = document.getElementById('main')
+		const header = self.querySelector('header')
+		const anchor = document.querySelector('#main-reader .tabs-sticky') or document.querySelector('#main-reader header')
+		return unless main and header and anchor
+		const anchorTop = offsetWithin(anchor, main)
+		const headerTop = offsetWithin(header, main)
+		return if anchorTop == null or headerTop == null
+		# Stacked panes on narrow screens have nothing to line up with.
+		return if Math.abs(header.getBoundingClientRect().left - anchor.getBoundingClientRect().left) < 1
+		const delta = (anchorTop + anchor.offsetHeight) - (headerTop + header.offsetHeight)
+		return if Math.abs(delta) > 200
+		const currentPad = parseFloat(window.getComputedStyle(header).paddingTop) or 0
+		const next = Math.min(96, Math.max(0, currentPad + delta))
+		if Math.abs(next - compareTopPad) > 0.5
+			compareTopPad = next
+			imba.commit!
+
+	def watchCompareHeaderOffset
+		return unless embedded
+		#onCompareResize = do syncCompareHeaderOffset!
+		window.addEventListener('resize', #onCompareResize)
+		const anchor = document.querySelector('#main-reader header')
+		if anchor and window.ResizeObserver
+			#compareObserver = new ResizeObserver(#onCompareResize)
+			#compareObserver.observe(anchor)
+
+	def unwatchCompareHeaderOffset
+		if #onCompareResize
+			window.removeEventListener('resize', #onCompareResize)
+			#onCompareResize = null
+		if #compareObserver
+			#compareObserver.disconnect!
+			#compareObserver = null
 
 	def close
 		stopObsidianDragListeners!
@@ -613,13 +668,13 @@ tag verse-commentary-modal
 	get paneStyle
 		if embedded
 			return "flex:1 1 auto;width:100%;height:100%;max-height:100%;min-width:0;min-height:0;border-radius:0;box-shadow:none;box-sizing:border-box"
-		return "flex:0 0 auto;width:min(56rem, 100%);height:auto;max-height:min(75vh, 42rem);min-height:min(26rem, 55vh);border-radius:0.75rem;box-shadow:0 10px 30px rgba(0, 0, 0, 0.25)"
+		return "flex:0 0 auto;width:min(56rem, 100%);height:auto;max-height:min(75vh, 42rem);min-height:min(28rem, 58vh);border-radius:0.75rem;box-shadow:0 10px 30px rgba(0, 0, 0, 0.25)"
 
 	<self .commentary-root .commentary-embedded=embedded style=rootStyle>
 		unless embedded
 			<div.commentary-overlay @click=close>
 		<section .commentary-modal=!embedded .commentary-pane=embedded @click.stop style=paneStyle>
-			<header>
+			<header [padding-top:{compareTopPad}px]=(embedded and compareTopPad > 0)>
 				<div.header-top>
 					<div.header-actions-slot>
 						if commentaryHtml and commentaryHtml.length
@@ -630,12 +685,7 @@ tag verse-commentary-modal
 								<svg src=Split aria-hidden=yes>
 						if !(commentaryHtml and commentaryHtml.length) and !activities.commentaryCompareMode and !loading
 							<span.header-spacer aria-hidden=yes>
-					<div.header-nav>
-						<button.nav-btn.nav-prev @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
-							<svg src=ChevronLeft>
-						<p.verse-ref> commentaryReference
-						<button.nav-btn.nav-next @click=stepVerse(1) disabled=!canGoNext title="Next verse">
-							<svg src=ChevronRight>
+					<h3.commentary-name> commentaryTitle
 					<div.header-right>
 						<menu-popup.tab-editor bind=showEditor scrollinview=no>
 							<button.edit-tabs-btn.header-action-btn .editing=showEditor @click.stop=(do showEditor = !showEditor) title=(t.commentaries or "Choose commentaries")>
@@ -652,6 +702,12 @@ tag verse-commentary-modal
 											<span.tab-editor-short> commentaries.shortNameFor(source)
 						<button.close-btn.header-action-btn @click=close title="Close">
 							<svg src=X>
+				<div.header-nav>
+					<button.nav-btn.nav-prev @click=stepVerse(-1) disabled=!canGoPrev title="Previous verse">
+						<svg src=ChevronLeft>
+					<p.verse-ref> commentaryReference
+					<button.nav-btn.nav-next @click=stepVerse(1) disabled=!canGoNext title="Next verse">
+						<svg src=ChevronRight>
 				<div.commentary-tabs>
 					for source in commentaries.visibleSources
 						<button.commentary-tab .active=(source.id == commentaries.current)
@@ -717,7 +773,7 @@ tag verse-commentary-modal
 			zi: 1
 			width: min(56rem, 100%)
 			max-height: min(75vh, 42rem)
-			min-height: min(26rem, 55vh)
+			min-height: min(28rem, 58vh)
 			bgc: $bgc
 			color: $c
 			rd: 0.75rem
@@ -747,8 +803,8 @@ tag verse-commentary-modal
 			pos: relative
 			d: flex
 			fld: column
-			g: 0.65rem
-			padding: 0.85rem 1.25rem 0.85rem
+			g: 0.7rem
+			padding: 1.35rem 1.25rem 0.85rem
 			bdb: 1px solid $acc-bgc
 
 		.header-top
@@ -778,6 +834,17 @@ tag verse-commentary-modal
 			jc: center
 			pos: relative
 			min-height: 2rem
+
+		.commentary-name
+			m: 0
+			fs: 1rem
+			fw: 700
+			lh: 1.3
+			ta: center
+			min-width: 0
+			overflow: hidden
+			text-overflow: ellipsis
+			white-space: nowrap
 
 		.header-right
 			d: flex
@@ -813,7 +880,7 @@ tag verse-commentary-modal
 			min-width: min(20rem, 78vw)
 			max-width: calc(100% - 2.5rem)
 			# Kept under the modal's smallest height so it never gets clipped.
-			max-height: min(17rem, 42vh)
+			max-height: min(16rem, 38vh)
 			overflow-y: auto
 			bgc: $bgc
 			bd: 1px solid $acc-bgc
@@ -901,14 +968,14 @@ tag verse-commentary-modal
 			pos: relative
 			zi: 1
 			flex: 0 0 auto
-			padding: 0.4rem 0.75rem
+			padding: 0.6rem 0.85rem
 			bd: 1px solid transparent
 			border-bottom: none
 			bgc: $acc-bgc
 			color: inherit
 			font: inherit
-			fs: 0.8rem
-			lh: 1.2
+			fs: 0.85rem
+			lh: 1.25
 			white-space: nowrap
 			cursor: pointer
 			rd: 0.5rem 0.5rem 0 0
