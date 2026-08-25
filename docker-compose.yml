@@ -40,6 +40,7 @@ services:
       - "./Comentario Biblico Adventista Tomos 1 al 7.cmtx:/code/Comentario Biblico Adventista Tomos 1 al 7.cmtx:ro"
       - ./commentary-modules:/code/commentary-modules:ro
       - ./translation-modules:/code/translation-modules:ro
+      - ./dictionary-modules:/code/dictionary-modules:ro
     expose:
       - 8000
     ports:

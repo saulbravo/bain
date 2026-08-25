@@ -27,6 +27,7 @@ help:
 	@echo -e "    "${CYAN}"build-all-in-one"${RESET}"      Build single TrueNAS/Docker Hub image"
 	@echo -e "    "${CYAN}"publish-all-in-one"${RESET}"    Build and push maxivious/bolls:v4.2.22"
 	@echo -e "    "${CYAN}"load-translations"${RESET}"     Import the bundled Spanish translations"
+	@echo -e "    "${CYAN}"load-dictionaries"${RESET}"     Import the bundled Spanish dictionaries"
 	@echo -e "    "${CYAN}"restore-db"${RESET}"            Restore the database"
 	@echo -e "    "${CYAN}"up"${RESET}"                    Start the docker containers"
 	@echo -e "    "${CYAN}"down"${RESET}"                  Stop the docker containers"
@@ -130,6 +131,9 @@ showmigrations:
 
 load-translations:
 	$(DOCKER) compose exec django python manage.py load_translation_modules
+
+load-dictionaries:
+	$(DOCKER) compose exec django python manage.py load_dictionary_modules
 
 shell:
 	$(DOCKER) compose exec django python manage.py shell

@@ -22,6 +22,8 @@ import sqlite3
 import sys
 import zipfile
 
+import esword_rtf
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 OUT_DIR = REPO / "translation-modules"
 TRANSLATIONS_DIR = REPO / "django/bolls/static/translations"
@@ -62,56 +64,8 @@ MODULES = [
 # The interlinear stores its Greek as raw code page bytes in a Greek font.
 GREEK_MODULES = {"INTES"}
 
-CONTROL = re.compile(r"\\'([0-9a-fA-F]{2})|\\([a-zA-Z]+)(-?\d+)?[ ]?|\\([^a-zA-Z])")
-
-SYMBOLS = {
-    "ldblquote": "\u201c",
-    "rdblquote": "\u201d",
-    "lquote": "\u2018",
-    "rquote": "\u2019",
-    "emdash": "\u2014",
-    "endash": "\u2013",
-}
 STRONG_PREFIXED = re.compile(r"[GH](\d+)")
 STRONG_INTERLINEAR = re.compile(r"^\s*(\d+):")
-
-
-def tokenize(text):
-    """Split an RTF fragment into a tree of text, control words and groups."""
-    root = []
-    stack = [root]
-    index = 0
-    length = len(text)
-    while index < length:
-        char = text[index]
-        if char == "{":
-            group = []
-            stack[-1].append(("group", group))
-            stack.append(group)
-            index += 1
-        elif char == "}":
-            if len(stack) > 1:
-                stack.pop()
-            index += 1
-        elif char == "\\":
-            match = CONTROL.match(text, index)
-            if not match:
-                index += 1
-                continue
-            if match.group(1) is not None:
-                stack[-1].append(("byte", int(match.group(1), 16)))
-            elif match.group(2) is not None:
-                stack[-1].append(("ctrl", match.group(2), match.group(3)))
-            else:
-                stack[-1].append(("text", match.group(4)))
-            index = match.end()
-        else:
-            end = index
-            while end < length and text[end] not in "{}\\":
-                end += 1
-            stack[-1].append(("text", text[index:end]))
-            index = end
-    return root
 
 
 def superscript(text):
@@ -123,83 +77,28 @@ def superscript(text):
     return "".join(f"<S>{number}</S>" for number in numbers)
 
 
-def render(nodes, state):
-    parts = []
-    pending = bytearray()
-    pending_codepage = state["codepage"]
-    local = dict(state)
-    skip_fallback = [False]
+def renderer_for(greek):
+    def font_codepage(param):
+        # The interlinear keeps its Greek in a second font, as code page bytes.
+        return "cp1253" if (greek and param == "1") else "cp1252"
 
-    def flush():
-        nonlocal pending
-        if pending:
-            parts.append(pending.decode(pending_codepage, "replace"))
-            pending = bytearray()
+    def on_group(text, state):
+        if state.get("super"):
+            return superscript(text)
+        # The interlinear paints its Spanish glosses in a second colour.
+        gloss = greek and state.get("color") == "2"
+        if (state.get("italic") or gloss) and text.strip():
+            return f"<i>{text}</i>"
+        return text
 
-    for node in nodes:
-        kind = node[0]
-        if kind == "text":
-            flush()
-            text = node[1]
-            if skip_fallback[0]:
-                text = text[1:]
-                skip_fallback[0] = False
-            parts.append(text)
-        elif kind == "byte":
-            if pending and pending_codepage != local["codepage"]:
-                flush()
-            pending_codepage = local["codepage"]
-            pending.append(node[1])
-        elif kind == "ctrl":
-            word, param = node[1], node[2]
-            flush()
-            if word == "u" and param is not None:
-                # \uN? carries the code point plus an ANSI fallback char to drop.
-                code = int(param)
-                parts.append(chr(code + 65536 if code < 0 else code))
-                skip_fallback[0] = True
-            elif word in SYMBOLS:
-                parts.append(SYMBOLS[word])
-            elif word in ("par", "line", "PAR"):
-                parts.append("<br>")
-            elif word in ("tab", "emspace", "enspace"):
-                parts.append(" ")
-            elif word == "super":
-                local["super"] = True
-            elif word == "i":
-                local["italic"] = param != "0"
-            elif word == "f":
-                local["codepage"] = "cp1253" if (state["greek"] and param == "1") else "cp1252"
-            elif word == "cf":
-                local["color"] = param or "0"
-        else:
-            flush()
-            parts.append(render_group(node[1], local))
-
-    flush()
-    return "".join(parts), local
+    return esword_rtf.Renderer(font_codepage=font_codepage, on_group=on_group)
 
 
-def render_group(nodes, state):
-    inherited = dict(state)
-    inherited["super"] = False
-    inherited["italic"] = False
-    text, local = render(nodes, inherited)
-    if local.get("super"):
-        return superscript(text)
-    # The interlinear paints its Spanish glosses in a second colour.
-    gloss = state["greek"] and local.get("color") == "2"
-    if (local.get("italic") or gloss) and text.strip():
-        return f"<i>{text}</i>"
-    return text
+RENDERERS = {False: renderer_for(False), True: renderer_for(True)}
 
 
 def clean(raw, greek=False, verse=None):
-    if raw is None:
-        return ""
-    if isinstance(raw, bytes):
-        raw = raw.decode("cp1252", "replace")
-    text, _ = render(tokenize(raw), {"codepage": "cp1252", "greek": greek, "super": False})
+    text = RENDERERS[bool(greek)].render(raw)
     # A few modules carry stray control bytes that Postgres rejects.
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
     text = re.sub(r"\s+", " ", text.replace("\u00a0", " "))

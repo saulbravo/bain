@@ -1,14 +1,30 @@
 [
-    {
-        "abbr":"BDBT",
-        "name":"Brown-Driver-Briggs' Hebrew Definitions / Thayer's Greek Definitions"
-    },
-    {
-        "abbr":"RUSD",
-        "name":"Полный лексикон по Стронгу и Дворецкому, 2019"
-    },
-    {
-        "abbr":"SCGES",
-        "name":"Gesenius' Hebrew and Chaldee Lexicon to the Old Testament Scriptures combined with Hebrew and Aramaic part of the Strong's Exhausive Concordance (Enhanced)"
-    }
+  {
+    "abbr": "BDBT",
+    "name": "Brown-Driver-Briggs' Hebrew Definitions / Thayer's Greek Definitions"
+  },
+  {
+    "abbr": "RUSD",
+    "name": "Полный лексикон по Стронгу и Дворецкому, 2019"
+  },
+  {
+    "abbr": "SCGES",
+    "name": "Gesenius' Hebrew and Chaldee Lexicon to the Old Testament Scriptures combined with Hebrew and Aramaic part of the Strong's Exhausive Concordance (Enhanced)"
+  },
+  {
+    "abbr": "STRES",
+    "name": "Diccionario Strong en español, hebreo y griego"
+  },
+  {
+    "abbr": "CHAVEZ",
+    "name": "Diccionario de Hebreo Bíblico, Moisés Chávez"
+  },
+  {
+    "abbr": "VINENT",
+    "name": "Diccionario Vine, palabras del Nuevo Testamento"
+  },
+  {
+    "abbr": "VINEAT",
+    "name": "Diccionario Vine, palabras del Antiguo Testamento"
+  }
 ]

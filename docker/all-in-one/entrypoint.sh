@@ -63,6 +63,7 @@ SOCIAL_AUTH_GITHUB_SECRET=${SOCIAL_AUTH_GITHUB_SECRET:-}
 CBA_COMMENTARY_PATH=/home/bolls/web/cba-commentary.cmtx
 COMMENTARY_MODULES_DIR=/home/bolls/web/commentary-modules
 TRANSLATION_MODULES_DIR=/home/bolls/web/translation-modules
+DICTIONARY_MODULES_DIR=/home/bolls/web/dictionary-modules
 EOF
 
 echo "Running Django migrations..."
@@ -91,8 +92,8 @@ if [ "${verse_count:-0}" = "0" ] && [ "${AUTO_RESTORE_DB:-0}" = "1" ]; then
 fi
 
 # Spanish modules the upstream backup doesn't carry. Skips anything already there.
-echo "Checking bundled translations..."
-gosu bollsuser bash -lc 'set -a && source /etc/bolls/django.env && set +a && cd /home/bolls/web && python manage.py load_translation_modules'
+echo "Checking bundled translations and dictionaries..."
+gosu bollsuser bash -lc 'set -a && source /etc/bolls/django.env && set +a && cd /home/bolls/web && python manage.py load_translation_modules && python manage.py load_dictionary_modules'
 
 gosu postgres pg_ctl -D "$PGDATA" -m fast -w stop
 
