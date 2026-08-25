@@ -7,6 +7,7 @@ from .score_search import score_search
 BOOKS = {}
 _paths = [
     "/imba/src/data/translations_books.json",
+    "/app/imba/src/data/translations_books.json",
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "imba", "src", "data", "translations_books.json"),
 ]
 for _path in _paths:

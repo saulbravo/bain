@@ -58,6 +58,8 @@ On a fresh install the database schema is created automatically, but **Bible ver
 
 Alternatively, import your own PostgreSQL dump into the mounted data directory before or after the first start.
 
+The 13 Spanish translations converted from e-Sword modules are bundled in the image and imported on every start if the database doesn't already have them, since the public backup doesn't carry them. See `docs/HOW_TO_ADD_TRANSLATIONS_FROM_ESWORD.md`.
+
 ## Local test
 
 ```bash

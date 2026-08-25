@@ -809,6 +809,71 @@
         "short_name": "LBLA",
         "full_name": "La Biblia de las Américas, 1997",
         "updated": 1635446313426
+      },
+      {
+        "short_name": "DHH96",
+        "full_name": "Dios Habla Hoy, Edición Latinoamericana, 1996",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "DHH02",
+        "full_name": "Dios Habla Hoy con Deuterocanónicos, Edición Latinoamericana, 2002",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "RV1995",
+        "full_name": "Reina-Valera 1995",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "RVC",
+        "full_name": "Reina Valera Contemporánea",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "TLA",
+        "full_name": "Traducción en Lenguaje Actual",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "NRV2000",
+        "full_name": "Nueva Reina Valera 2000",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "RV1862",
+        "full_name": "Reina-Valera 1862",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "RV1602",
+        "full_name": "Reina-Valera 1602, Biblia del Cántaro",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "RV1960S",
+        "full_name": "Reina-Valera 1960 con números Strong",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "BLA",
+        "full_name": "La Biblia Latinoamericana",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "BL95",
+        "full_name": "Biblia Latinoamericana, 1995",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "NBJ98",
+        "full_name": "Nueva Biblia de Jerusalén, 1998",
+        "updated": 1787656172143
+      },
+      {
+        "short_name": "INTES",
+        "full_name": "Interlineal Griego-Español, Westcott-Hort (NT)",
+        "updated": 1787656172143
       }
     ]
   },
