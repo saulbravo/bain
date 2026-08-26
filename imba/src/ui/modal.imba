@@ -513,7 +513,7 @@ tag modal < section
 									dictionary.currentDictionary
 									<svg src=ChevronDown aria-hidden=yes [transform:rotateX(180deg)]=activities.show_dictionaries>
 								if activities.show_dictionaries
-									<.popup-menu [l:0 r:auto t:100% y@off:-2rem o@off:0 min-width:22rem] ease>
+									<.popup-menu.dictionary-picker-menu [t:100% y@off:-2rem o@off:0] ease>
 										for entry in dictionary.dictionaries
 											<button .active-butt=(dictionary.currentDictionary==entry.abbr) @click=(do
 													dictionary.currentDictionary = entry.abbr
@@ -850,7 +850,7 @@ tag modal < section
 
 		.dictionary-picker
 			flex: 0 0 auto
-			pos:relative
+			pos:static
 
 		.dictionary-picker-btn
 			d:inline-flex
@@ -882,19 +882,27 @@ tag modal < section
 				min-block-size: 1.05em
 				flex-shrink: 0
 
-		.dictionary-picker .popup-menu
-			min-width: 22rem
-			max-width: 32rem
-			w: max-content
+		.dictionary-picker-menu, .dictionary-picker .popup-menu
+			l: 0
+			r: 0
+			w: auto
+			min-width: 0
+			max-width: 100%
+			box-sizing: border-box
 			of: auto
-			mah: 70vh
+			mah: min(70vh, 24rem)
+			mah@lt-sm: min(60vh, 18rem)
 
 			button
 				w: 100%
 				min-width: 0
 				white-space: normal
+				overflow-wrap: anywhere
 				padding: 0.85rem 1rem
+				padding@lt-sm: 0.75rem 0.85rem
 				lh: 1.35
+				fs: 0.95em
+				fs@lt-sm: 0.9em
 
 		.dictionary-query
 			flex: 1 1 auto
