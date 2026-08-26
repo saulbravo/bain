@@ -19,7 +19,7 @@ class Dictionary
 	definitions\Definition[] = []
 	history = []
 	historyIndex = -1
-	expandedTopic = ''
+	expandedTopics = []
 	showDownloads = no
 	tooltip\(DictionaryTooltip | null) = null
 	query = ''
@@ -175,6 +175,10 @@ class Dictionary
 			query = newQuery
 		elif selected_text
 			query = selected_text
+		else
+			const searchInput = document.getElementById('dictionarysearch')
+			if searchInput and searchInput.value
+				query = String(searchInput.value).trim()
 
 		activities.cleanUp { onPopState: yes }
 		activities.openModal 'dictionary'
@@ -210,7 +214,9 @@ class Dictionary
 			elif currentDictionary in vault.downloaded_dictionaries
 				await loadDefinitionsFromOffline()
 			loading = no
-			expandedTopic = definitions[0]..topic
+			expandedTopics = []
+			if definitions[0] and definitions[0].topic
+				expandedTopics.push(definitions[0].topic)
 			# When definitions are loaded we have to parse inner MyBible links and replace them custom click events
 			parseDefinitionsLinks!
 			imba.commit!
@@ -255,16 +261,38 @@ class Dictionary
 			query = history[historyIndex]
 			loadDefinitions!
 
+	get expandedTopic
+		if expandedTopics and expandedTopics.length
+			return expandedTopics[expandedTopics.length - 1]
+		return ''
+
+	set expandedTopic topic
+		unless topic
+			return
+		if expandedTopics.indexOf(topic) == -1
+			expandedTopics.push(topic)
+			imba.commit!
+
+	def isExpanded topic\string
+		unless topic
+			return no
+		return expandedTopics.indexOf(topic) != -1
+
 	def expandDefinition topic\string
-		const definitionEl = document.getElementById(topic)
+		unless topic
+			return
+		const already = expandedTopics.indexOf(topic)
+		if already >= 0
+			expandedTopics.splice(already, 1)
+			imba.commit!
+			return
+		expandedTopics.push(topic)
+		imba.commit!
+		const definitionEl = document.getElementById("dict-{topic}") or document.getElementById(topic)
 		unless definitionEl
 			return
-		if expandedTopic == topic
-			expandedTopic = ''
-		else
-			expandedTopic = topic
-			setTimeout(&, 500) do
-				definitionEl.scrollIntoView()
+		let scrollTo = do definitionEl.scrollIntoView()
+		window.setTimeout(scrollTo, 500)
 
 	def currentDictionaryName
 		for dictionary in dictionaries

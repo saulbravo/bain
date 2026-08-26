@@ -24,9 +24,57 @@ import type { HistoryEntry } from '../lib/types'
 
 import * as ICONS from 'imba-phosphor-icons'
 
+tag dictionary-entry
+	definition
+	index = 0
+	expanded = no
+	obsidian = no
+
+	def pick
+		emit('pick', index)
+
+	def onSelfClick
+		if obsidian
+			pick!
+
+	def render
+		<self.definition .expanded=expanded id="dict-{definition.topic}" @click=onSelfClick>
+			<div.definition-head @click=pick>
+				<p>
+					<b> definition.lexeme
+					<span> ' · '
+					<span> definition.pronunciation
+					<span> ' · '
+					<span> definition.transliteration
+					<span> ' · '
+					<b> definition.short_definition
+					<span> ' · '
+					<span> definition.topic
+				<svg.definition-chevron src=ChevronDown aria-hidden=yes [transform:rotateX(180deg)]=expanded>
+			if expanded
+				<div.definition-body[p:12px 0 12px @off:0 h:auto @off:0px overflow:hidden o@off:0] innerHTML=definition.definition ease>
+
 tag modal < section
 	fontsQuery = ''
 	expandedLanguage = ''
+	dictionaryObsidianMode = no
+	dictionaryObsidianBoxTop = 0
+	dictionaryObsidianBoxHeight = 0
+	dictionaryObsidianBoxVisible = no
+	dictionaryExportStart = 0
+	dictionaryExportEnd = 0
+	dictionaryObsidianDragging = no
+	dictionaryObsidianDragHandle = ''
+	dictionaryObsidianMoveHandler = null
+	dictionaryObsidianEndHandler = null
+	dictionaryObsidianScrollHandler = null
+	dictionaryObsidianResizeHandler = null
+	dictionaryObsidianDragRAF = 0
+	dictionaryObsidianLastIdx = -1
+	dictionaryObsidianRefreshTimers = []
+	dictionaryObsidianLines = []
+	dictionaryObsidianClickHandler = null
+	dictionaryObsidianIgnoreClick = no
 
 	@action def changeTranslation translation\string
 		unless reader.applyTranslationChange(translation)
@@ -147,6 +195,7 @@ tag modal < section
 			vault.clearVersesTable!
 
 	def openDictionaryDownloads
+		exitDictionaryObsidian!
 		activities.openModal 'downloads'
 		activities.show_dictionary_downloads = yes
 
@@ -172,28 +221,393 @@ tag modal < section
 				return expanded
 		return dictionary.definitions[0]
 
-	def sendDictionaryToObsidian
-		const entry = dictionaryEntryForObsidian!
+	def dictionaryEntriesForObsidian
+		const defs = dictionary.definitions or []
+		unless defs.length
+			return []
+		const start = Math.min(dictionaryExportStart, dictionaryExportEnd)
+		const end = Math.max(dictionaryExportStart, dictionaryExportEnd)
+		let out = []
+		for i in [start .. end]
+			if i >= 0 and i < defs.length and i < 64
+				out.push(defs[i])
+		if out.length == 0
+			const fallback = dictionaryEntryForObsidian!
+			if fallback
+				out.push(fallback)
+		return out
+
+	def getDictionaryResultsEl
+		return self.querySelector('.dictionary-results')
+
+	def getDictionaryScrollerEl
+		return self.querySelector('.dictionary-results .body')
+
+	def clearDictionaryObsidianRefreshTimers
+		if dictionaryObsidianRefreshTimers and dictionaryObsidianRefreshTimers.length
+			for timerId in dictionaryObsidianRefreshTimers
+				window.clearTimeout(timerId)
+		dictionaryObsidianRefreshTimers = []
+
+	def bindDictionaryObsidianListeners
+		const scroller = getDictionaryScrollerEl!
+		unless dictionaryObsidianScrollHandler
+			dictionaryObsidianScrollHandler = do updateDictionaryObsidianBox!
+		if scroller
+			scroller.removeEventListener('scroll', dictionaryObsidianScrollHandler)
+			scroller.addEventListener('scroll', dictionaryObsidianScrollHandler)
+			unless dictionaryObsidianClickHandler
+				dictionaryObsidianClickHandler = do |ev| handleDictionaryObsidianClick(ev)
+			scroller.removeEventListener('click', dictionaryObsidianClickHandler)
+			scroller.addEventListener('click', dictionaryObsidianClickHandler)
+		unless dictionaryObsidianResizeHandler
+			dictionaryObsidianResizeHandler = do updateDictionaryObsidianBox!
+			window.addEventListener('resize', dictionaryObsidianResizeHandler)
+
+	def mergeDictionaryLineRects el
+		let merged = []
+		unless el
+			return merged
+		const range = document.createRange()
+		range.selectNodeContents(el)
+		const rects = range.getClientRects()
+		for i in [0 ... rects.length]
+			const r = rects[i]
+			if r.width < 2 or r.height < 8
+				continue
+			let found = null
+			for m in merged
+				if Math.abs(m.top - r.top) < 6
+					found = m
+					break
+			if found
+				found.left = Math.min(found.left, r.left)
+				found.right = Math.max(found.right, r.right)
+				found.top = Math.min(found.top, r.top)
+				found.bottom = Math.max(found.bottom, r.bottom)
+			else
+				merged.push({
+					top: r.top
+					bottom: r.bottom
+					left: r.left
+					right: r.right
+					text: ''
+				})
+		if merged.length == 0
+			const box = el.getBoundingClientRect()
+			if box.height >= 8
+				merged.push({
+					top: box.top
+					bottom: box.bottom
+					left: box.left
+					right: box.right
+					text: ''
+				})
+		merged.sort(do |a, b| a.top - b.top)
+		return merged
+
+	def fillDictionaryLineText el, boxes
+		unless el and boxes and boxes.length
+			return
+		const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+		while walker.nextNode()
+			const node = walker.currentNode
+			const str = node.nodeValue or ''
+			unless str.length
+				continue
+			const range = document.createRange()
+			for i in [0 ... str.length]
+				range.setStart(node, i)
+				range.setEnd(node, i + 1)
+				const r = range.getBoundingClientRect()
+				if r.height < 1
+					continue
+				const midY = r.top + r.height / 2
+				for box in boxes
+					if midY >= box.top - 2 and midY <= box.bottom + 2
+						box.text = (box.text or '') + str[i]
+						break
+		for box in boxes
+			box.text = String(box.text or '').replace(/[ \t]+/g, ' ').trim()
+
+	def collectDictionaryObsidianLines
+		dictionaryObsidianLines = []
+		const results = getDictionaryResultsEl!
+		const scroller = getDictionaryScrollerEl!
+		unless results and scroller
+			return
+		const resultsRect = results.getBoundingClientRect()
+		const entries = scroller.querySelectorAll('.definition')
+		for ei in [0 ... entries.length]
+			const entry = entries[ei]
+			const head = entry.querySelector('.definition-head')
+			const body = entry.querySelector('.definition-body')
+			const parts = [head, body]
+			for part in parts
+				unless part
+					continue
+				const boxes = mergeDictionaryLineRects(part)
+				fillDictionaryLineText(part, boxes)
+				for box in boxes
+					unless box.text
+						continue
+					dictionaryObsidianLines.push({
+						top: box.top - resultsRect.top
+						height: Math.max(18, box.bottom - box.top)
+						text: box.text
+						entryIndex: ei
+					})
+
+	def setDictionaryObsidianRangeForEntry entryIndex
+		collectDictionaryObsidianLines!
+		let first = -1
+		let last = -1
+		for i in [0 ... dictionaryObsidianLines.length]
+			if dictionaryObsidianLines[i].entryIndex == entryIndex
+				if first < 0
+					first = i
+				last = i
+		if first >= 0
+			dictionaryExportStart = first
+			dictionaryExportEnd = last
+		elif dictionaryObsidianLines.length
+			dictionaryExportStart = 0
+			dictionaryExportEnd = dictionaryObsidianLines.length - 1
+
+	def handleDictionaryObsidianClick e
+		unless dictionaryObsidianMode and e
+			return
+		if dictionaryObsidianDragging or dictionaryObsidianIgnoreClick
+			dictionaryObsidianIgnoreClick = no
+			return
+		const target = e.target
+		if target and target.closest and target.closest('.dictionary-obsidian-box, .dictionary-obsidian-insert-btn, .dictionary-obsidian-close-btn, .dictionary-obsidian-handle-top, .dictionary-obsidian-handle-bottom')
+			return
+		const idx = dictionaryIndexFromY(e.clientY)
+		if idx < 0
+			return
+		dictionaryExportStart = idx
+		dictionaryExportEnd = idx
+		updateDictionaryObsidianBox!
+
+	def scheduleDictionaryObsidianBoxUpdate
+		updateDictionaryObsidianBox!
+		let refreshBox = do updateDictionaryObsidianBox!
+		window.requestAnimationFrame(refreshBox)
+		clearDictionaryObsidianRefreshTimers!
+		dictionaryObsidianRefreshTimers = [
+			window.setTimeout(refreshBox, 180)
+			window.setTimeout(refreshBox, 520)
+		]
+
+	def selectDictionaryObsidianEntry index
+		unless dictionaryObsidianMode
+			return
+		const defs = dictionary.definitions or []
+		const entry = defs[index]
 		unless entry
 			return
-		const definitionText = definitionPlainText(entry.definition)
+		if dictionary.isExpanded(entry.topic)
+			imba.commit!
+			scheduleDictionaryObsidianBoxUpdate!
+			return
+		dictionary.expandedTopic = entry.topic
+		imba.commit!
+		scheduleDictionaryObsidianBoxUpdate!
+
+	def exitDictionaryObsidian
+		stopDictionaryObsidianDrag!
+		clearDictionaryObsidianRefreshTimers!
+		const scroller = getDictionaryScrollerEl!
+		if scroller and dictionaryObsidianScrollHandler
+			scroller.removeEventListener('scroll', dictionaryObsidianScrollHandler)
+		if scroller and dictionaryObsidianClickHandler
+			scroller.removeEventListener('click', dictionaryObsidianClickHandler)
+		if dictionaryObsidianResizeHandler
+			window.removeEventListener('resize', dictionaryObsidianResizeHandler)
+		dictionaryObsidianScrollHandler = null
+		dictionaryObsidianResizeHandler = null
+		dictionaryObsidianClickHandler = null
+		dictionaryObsidianLines = []
+		dictionaryObsidianMode = no
+		dictionaryObsidianBoxVisible = no
+		document.documentElement.removeAttribute('data-dictionary-obsidian-dragging')
+
+	def toggleDictionaryObsidianMode
+		if dictionaryObsidianMode
+			exitDictionaryObsidian!
+			imba.commit!
+			return
+		unless dictionary.definitions and dictionary.definitions.length
+			return
+		let startIdx = 0
+		if dictionary.expandedTopic
+			const found = dictionary.definitions.findIndex(do |entry| return entry.topic == dictionary.expandedTopic)
+			if found >= 0
+				startIdx = found
+		const startEntry = dictionary.definitions[startIdx]
+		if startEntry
+			dictionary.expandedTopic = startEntry.topic
+		dictionaryExportStart = 0
+		dictionaryExportEnd = 0
+		dictionaryObsidianMode = yes
+		imba.commit!
+		let afterToggle = do
+			bindDictionaryObsidianListeners!
+			setDictionaryObsidianRangeForEntry(startIdx)
+			scheduleDictionaryObsidianBoxUpdate!
+		window.requestAnimationFrame(afterToggle)
+
+	def updateDictionaryObsidianBox
+		unless dictionaryObsidianMode
+			dictionaryObsidianBoxVisible = no
+			return
+		const results = getDictionaryResultsEl!
+		unless results
+			dictionaryObsidianBoxVisible = no
+			return
+		collectDictionaryObsidianLines!
+		unless dictionaryObsidianLines.length
+			dictionaryObsidianBoxVisible = no
+			return
+		const last = dictionaryObsidianLines.length - 1
+		const start = Math.max(0, Math.min(Math.min(dictionaryExportStart, dictionaryExportEnd), last))
+		const end = Math.max(0, Math.min(Math.max(dictionaryExportStart, dictionaryExportEnd), last))
+		dictionaryExportStart = start
+		dictionaryExportEnd = end
+		const startLine = dictionaryObsidianLines[start]
+		const endLine = dictionaryObsidianLines[end]
+		unless startLine and endLine
+			dictionaryObsidianBoxVisible = no
+			return
+		dictionaryObsidianBoxTop = Math.max(0, startLine.top - 3)
+		dictionaryObsidianBoxHeight = Math.max(20, (endLine.top + endLine.height) - startLine.top + 6)
+		dictionaryObsidianBoxVisible = yes
+		imba.commit!
+
+	def dictionaryIndexFromY clientY
+		collectDictionaryObsidianLines!
+		unless dictionaryObsidianLines.length
+			return -1
+		const results = getDictionaryResultsEl!
+		unless results
+			return -1
+		const resultsRect = results.getBoundingClientRect()
+		for i in [0 ... dictionaryObsidianLines.length]
+			const line = dictionaryObsidianLines[i]
+			const top = resultsRect.top + line.top
+			if clientY <= top + line.height / 2
+				return i
+		return dictionaryObsidianLines.length - 1
+
+	def startDictionaryObsidianDrag handle\string, e
+		unless dictionaryObsidianMode
+			return
+		if e
+			e.preventDefault()
+			e.stopPropagation()
+		dictionaryObsidianDragging = yes
+		dictionaryObsidianDragHandle = handle
+		dictionaryObsidianLastIdx = -1
+		unless dictionaryObsidianMoveHandler
+			dictionaryObsidianMoveHandler = do |ev| handleDictionaryObsidianDrag(ev)
+		unless dictionaryObsidianEndHandler
+			dictionaryObsidianEndHandler = do |ev| stopDictionaryObsidianDrag(ev)
+		document.addEventListener('mousemove', dictionaryObsidianMoveHandler)
+		document.addEventListener('mouseup', dictionaryObsidianEndHandler)
+		document.addEventListener('touchmove', dictionaryObsidianMoveHandler, { passive: no })
+		document.addEventListener('touchend', dictionaryObsidianEndHandler)
+		document.addEventListener('pointermove', dictionaryObsidianMoveHandler)
+		document.addEventListener('pointerup', dictionaryObsidianEndHandler)
+		handleDictionaryObsidianDrag(e)
+
+	def handleDictionaryObsidianDrag e
+		unless dictionaryObsidianDragging and dictionaryObsidianMode
+			return
+		if e and e.preventDefault
+			e.preventDefault()
+			e.stopPropagation()
+		document.documentElement.setAttribute('data-dictionary-obsidian-dragging', 'true')
+		const touch = e and e.touches and e.touches[0] ? e.touches[0] : (e and e.changedTouches and e.changedTouches[0] ? e.changedTouches[0] : null)
+		const clientY = touch ? touch.clientY : (e ? e.clientY : 0)
+		if dictionaryObsidianDragRAF
+			window.cancelAnimationFrame(dictionaryObsidianDragRAF)
+		let apply = do
+			dictionaryObsidianDragRAF = 0
+			const idx = dictionaryIndexFromY(clientY)
+			if idx < 0 or idx == dictionaryObsidianLastIdx
+				return
+			dictionaryObsidianLastIdx = idx
+			if dictionaryObsidianDragHandle == 'top'
+				dictionaryExportStart = Math.min(idx, dictionaryExportEnd)
+			else
+				dictionaryExportEnd = Math.max(idx, dictionaryExportStart)
+			updateDictionaryObsidianBox!
+		dictionaryObsidianDragRAF = window.requestAnimationFrame(apply)
+
+	def stopDictionaryObsidianDrag e = null
+		document.documentElement.removeAttribute('data-dictionary-obsidian-dragging')
+		if dictionaryObsidianMoveHandler
+			document.removeEventListener('mousemove', dictionaryObsidianMoveHandler)
+			document.removeEventListener('touchmove', dictionaryObsidianMoveHandler)
+			document.removeEventListener('pointermove', dictionaryObsidianMoveHandler)
+		if dictionaryObsidianEndHandler
+			document.removeEventListener('mouseup', dictionaryObsidianEndHandler)
+			document.removeEventListener('touchend', dictionaryObsidianEndHandler)
+			document.removeEventListener('pointerup', dictionaryObsidianEndHandler)
+		if dictionaryObsidianDragRAF
+			window.cancelAnimationFrame(dictionaryObsidianDragRAF)
+			dictionaryObsidianDragRAF = 0
+		dictionaryObsidianDragging = no
+		dictionaryObsidianDragHandle = ''
+		dictionaryObsidianLastIdx = -1
+		dictionaryObsidianIgnoreClick = yes
+
+	def sendDictionaryToObsidian
+		unless dictionaryObsidianMode
+			return
+		collectDictionaryObsidianLines!
+		const last = dictionaryObsidianLines.length ? dictionaryObsidianLines.length - 1 : -1
+		const start = last < 0 ? 0 : Math.max(0, Math.min(Math.min(dictionaryExportStart, dictionaryExportEnd), last))
+		const end = last < 0 ? -1 : Math.max(0, Math.min(Math.max(dictionaryExportStart, dictionaryExportEnd), last))
+		let selected = []
+		if last >= 0
+			for i in [start .. end]
+				if dictionaryObsidianLines[i] and dictionaryObsidianLines[i].text
+					selected.push(dictionaryObsidianLines[i])
+		let definitionText = ''
+		for line, i in selected
+			if i > 0
+				definitionText += '\n'
+			definitionText += line.text
+		let headingBits = []
+		let topic = ''
+		const defs = dictionary.definitions or []
+		let entry = null
+		if selected.length
+			entry = defs[selected[0].entryIndex]
+		unless entry
+			entry = dictionaryEntryForObsidian!
+		if entry
+			topic = String(entry.topic or dictionary.query or '')
+			if entry.lexeme
+				headingBits.push(String(entry.lexeme))
+			if entry.pronunciation
+				headingBits.push(String(entry.pronunciation))
+			if entry.transliteration
+				headingBits.push(String(entry.transliteration))
+			if entry.short_definition
+				headingBits.push(String(entry.short_definition))
+			unless definitionText
+				definitionText = definitionPlainText(entry.definition)
 		unless definitionText
 			return
-		const headingBits = []
-		if entry.lexeme
-			headingBits.push(String(entry.lexeme))
-		if entry.pronunciation
-			headingBits.push(String(entry.pronunciation))
-		if entry.transliteration
-			headingBits.push(String(entry.transliteration))
-		if entry.short_definition
-			headingBits.push(String(entry.short_definition))
 		const messageToSend = {
 			type: 'bible-dictionary-selection'
 			dictionary: String(dictionary.currentDictionary or '')
 			dictionaryName: String(dictionary.currentDictionaryName() or dictionary.currentDictionary or '')
 			query: String(dictionary.query or '')
-			topic: String(entry.topic or dictionary.query or '')
+			topic: topic
 			heading: headingBits.join(' · ')
 			definition: definitionText
 			translation: String(reader.translation or '')
@@ -245,6 +659,10 @@ tag modal < section
 		reader.verse = history.verse
 
 	def render
+		if activities.activeModal != 'dictionary' and dictionaryObsidianMode
+			exitDictionaryObsidian!
+		elif dictionaryObsidianMode and dictionary.loading
+			exitDictionaryObsidian!
 		<self
 			[pos:fixed inset:0 bg:{backdropColor} h:100% d:flex ai:flex-start jc:center p:6vh 0 @lt-sm:0 o@off:0 zi:1200]
 			@click=activities.cleanUp ease>
@@ -252,6 +670,7 @@ tag modal < section
 			<[
 				pos:relative
 				d:flex fld:column
+				min-h:0
 				max-height:{(activities.activeModal == 'books' or activities.activeModal == 'bookmarks') ? '85vh' : '72vh'} @lt-sm:100vh
 				h:{activities.activeModal == 'bookmarks' ? '85vh' : 'auto'} @lt-sm:100vh
 				block-size@lt-sm:100vh
@@ -263,7 +682,7 @@ tag modal < section
 				p:1.5rem @lt-sm:0.75rem
 				# Books modal uses container-level scroll.
 				# Bookmarks modal handles scroll inside its own .bookmarks-content area.
-				overflow-y:{(activities.activeModal == 'books') ? 'auto' : ((activities.activeModal == 'bookmarks') ? 'hidden' : 'visible')}
+				overflow-y:{(activities.activeModal == 'books') ? 'auto' : ((activities.activeModal == 'bookmarks' or activities.activeModal == 'dictionary') ? 'hidden' : 'visible')}
 				margin:0
 				scale@off:0.95] @click.stop>
 
@@ -499,10 +918,15 @@ tag modal < section
 						
 					when "dictionary"
 						<header.dictionary-header>
-							<button.dictionary-obsidian @click=sendDictionaryToObsidian title="Obsidian">
+							<button.dictionary-obsidian .dictionary-obsidian-active=dictionaryObsidianMode
+								@click.stop=toggleDictionaryObsidianMode
+								title="Obsidian">
 								<svg src=Obsidian aria-hidden=yes>
 							<h2> t.dictionary
-							<button.dictionary-close [c@hover:red4] @click=activities.cleanUp title=t.close>
+							<button.dictionary-close [c@hover:red4] @click=(do
+								exitDictionaryObsidian!
+								activities.cleanUp!
+							) title=t.close>
 								<svg src=ICONS.X aria-hidden=yes>
 
 						<div.dictionary-search-row>
@@ -534,25 +958,35 @@ tag modal < section
 								<span[ml:auto]> t.extended_search
 								<.checkbox [margin-inline:1.5rem .5rem]> <span>
 						if !dictionary.loading && dictionary.history.length
-							<ul.body>
-								for definition, index in dictionary.definitions when index < 64
-									const expanded = dictionary.expandedTopic == definition.topic
-									<li.definition id=definition.topic .expanded=expanded>
-										<header @click=dictionary.expandDefinition(definition.topic)>
-											<p>
-												<b> definition.lexeme
-												<span> ' · '
-												<span> definition.pronunciation
-												<span> ' · '
-												<span> definition.transliteration
-												<span> ' · '
-												<b> definition.short_definition
-												<span> ' · '
-												<span> definition.topic
-											<svg src=ChevronDown aria-hidden=yes [transform:rotateX(180deg)]=expanded>
-
-										if expanded
-											<div[p:16px 0px 32px @off:0 h:auto @off:0px overflow:hidden o@off:0] innerHTML=definition.definition ease>
+							<div.dictionary-results>
+								<div.body>
+									for definition, index in dictionary.definitions when index < 64
+										<dictionary-entry
+											definition=definition
+											index=index
+											expanded=dictionary.isExpanded(definition.topic)
+											obsidian=dictionaryObsidianMode
+											@pick=(do
+												if dictionaryObsidianMode
+													selectDictionaryObsidianEntry(index)
+												else
+													dictionary.expandDefinition(definition.topic)
+											)>
+								if dictionaryObsidianMode and dictionaryObsidianBoxVisible
+									<div.dictionary-obsidian-root>
+										<div.dictionary-obsidian-box [top:{dictionaryObsidianBoxTop}px height:{dictionaryObsidianBoxHeight}px]>
+											<span.dictionary-obsidian-handle-top
+												@mousedown.prevent.stop=(do |e| startDictionaryObsidianDrag('top', e))
+												@touchstart.prevent.stop=(do |e| startDictionaryObsidianDrag('top', e))
+												@pointerdown.prevent.stop=(do |e| startDictionaryObsidianDrag('top', e))>
+											<span.dictionary-obsidian-handle-bottom
+												@mousedown.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))
+												@touchstart.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))
+												@pointerdown.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))>
+											<button.dictionary-obsidian-insert-btn @click.stop.prevent=sendDictionaryToObsidian title="Obsidian">
+												<svg src=ChevronLeft aria-hidden=yes>
+											<button.dictionary-obsidian-close-btn @click.stop.prevent=exitDictionaryObsidian title="Close">
+												<svg src=ICONS.X aria-hidden=yes>
 
 						if dictionary.definitions.length == 0 and !dictionary.loading && dictionary.history.length
 							<div.body[ai:center p:4rem 0 lh:1.6]>
@@ -834,6 +1268,9 @@ tag modal < section
 				ai:center
 				jc:center
 
+			.dictionary-obsidian.dictionary-obsidian-active
+				c: #a855f7 @hover:#9333ea
+
 			.dictionary-obsidian svg
 				fill: currentColor
 				c: inherit
@@ -936,6 +1373,127 @@ tag modal < section
 				min-inline-size: 1.5rem
 				min-block-size: 1.5rem
 
+		.dictionary-results
+			pos: relative
+			fl: 0 1 auto
+			min-h: 0
+			max-h: 52vh
+			d: flex
+			fld: column
+			overflow: hidden
+			# shrink to content; scroll when taller than 52vh
+
+			.body
+				fl: 0 1 auto
+				h: auto
+				min-h: 0
+				max-h: 52vh
+				overflow-y: auto
+
+		.dictionary-obsidian-root
+			pos: absolute
+			top: 0
+			left: 0
+			right: 0
+			bottom: 0
+			pointer-events: none
+			zi: 6
+
+		.dictionary-obsidian-box
+			pos: absolute
+			left: 0
+			right: 0
+			border-radius: 8px
+			background: color-mix(in srgb, #a855f7 15%, transparent)
+			border: 2px solid #a855f7
+			zi: 10
+			pointer-events: none
+			box-sizing: border-box
+			padding-left: 20px
+			padding-right: 20px
+			transition: top 150ms ease, height 150ms ease
+
+		html[data-dictionary-obsidian-dragging="true"] .dictionary-obsidian-box
+			transition: none
+
+		.dictionary-obsidian-insert-btn
+			pos: absolute
+			left: 0
+			top: 0
+			bottom: 0
+			width: 20px
+			min-width: 20px
+			max-width: 20px
+			background: #a855f7
+			border: none
+			border-radius: 6px 0 0 6px
+			d: flex
+			ai: center
+			jc: center
+			cursor: pointer
+			pointer-events: auto
+			zi: 12
+			padding: 0
+			margin: 0
+			color: white
+			svg
+				width: 14px
+				height: 14px
+				display: block
+
+		.dictionary-obsidian-close-btn
+			pos: absolute
+			right: 0
+			top: 0
+			bottom: 0
+			width: 20px
+			min-width: 20px
+			max-width: 20px
+			background: #a855f7
+			border: none
+			border-radius: 0 6px 6px 0
+			d: flex
+			ai: center
+			jc: center
+			cursor: pointer
+			pointer-events: auto
+			zi: 12
+			padding: 0
+			margin: 0
+			color: white
+			svg
+				width: 14px
+				height: 14px
+				display: block
+
+		.dictionary-obsidian-handle-top
+			pos: absolute
+			left: 50%
+			transform: translateX(-50%)
+			top: -4px
+			width: 64px
+			height: 6px
+			border-radius: 999px
+			background: #a855f7
+			cursor: ns-resize
+			pointer-events: auto
+			zi: 8
+			touch-action: none
+
+		.dictionary-obsidian-handle-bottom
+			pos: absolute
+			left: 50%
+			transform: translateX(-50%)
+			bottom: -4px
+			width: 64px
+			height: 6px
+			border-radius: 999px
+			background: #a855f7
+			cursor: ns-resize
+			pointer-events: auto
+			zi: 8
+			touch-action: none
+
 		.body
 			overflow-y: auto
 			-webkit-overflow-scrolling: touch
@@ -945,13 +1503,18 @@ tag modal < section
 			h:100%
 
 		.definition
+			display: block
 			overflow:hidden
 			lh:1.6
 			fls:0
 
-			header
+			header, .definition-head
 				d:flex
-				ai:center
+				fld: row
+				flw: nowrap
+				ai:flex-start
+				jc: space-between
+				g: 0.5rem
 				pos:sticky
 				p:.5rem .5rem .5rem 0
 				cursor:pointer
@@ -962,10 +1525,19 @@ tag modal < section
 
 			p
 				ws:break-spaces
+				fl: 1 1 auto
+				min-w: 0
+				pr: 0.25rem
 
 			svg
 				transform:$svg-transform
-				ml:auto
+				fls: 0
+				ml: 0
+				mt: 0.15rem
+				w: 1.5rem
+				h: 1.5rem
+				min-inline-size: 1.5rem
+				min-block-size: 1.5rem
 
 		.suggestions
 			d:vflex p:.5rem

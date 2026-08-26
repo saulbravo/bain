@@ -248,7 +248,7 @@ tag reader
 			const isVerseActions = clickTarget.closest('.verse-actions')
 			const isColorOption = clickTarget.closest('.color-option') or clickTarget.classList.contains('color-option')
 			const isButton = clickTarget.tagName == 'BUTTON' or clickTarget.closest('button')
-			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .commentary-pane, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, header, nav, .drawer-handle, .parallel-divider')
+			const isUIElement = clickTarget.closest('.modal, .drawer, .settings-drawer, .books-drawer, .verse-actions, .commentary-modal, .commentary-overlay, .commentary-pane, .menu-popup, button, a, input, select, textarea, .verse-selection-box, .verse-selection-insert-btn, .verse-selection-close-btn, .dictionary-obsidian-box, .dictionary-obsidian-insert-btn, .dictionary-obsidian-close-btn, header, nav, .drawer-handle, .parallel-divider')
 			
 			# If clicking on color options or inside verse-actions, preserve selection
 			if isVerseActions or isColorOption or (isButton and clickTarget.closest('section.verse-actions'))
