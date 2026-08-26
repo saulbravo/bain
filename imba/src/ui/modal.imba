@@ -844,7 +844,8 @@ tag modal < section
 			g:0.5rem
 			w:100%
 			min-width: 0
-			mt:0.5rem
+			mt:0
+			padding-block: 1.25rem
 			pos:relative
 
 		.dictionary-picker
