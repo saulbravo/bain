@@ -349,6 +349,9 @@ var BibleView = class extends import_obsidian.ItemView {
     } else if (event.data && event.data.type === "bible-commentary-selection") {
       console.log("Bible Viewer: Processing commentary selection", event.data);
       this.copyCommentaryToNote(event.data);
+    } else if (event.data && event.data.type === "bible-dictionary-selection") {
+      console.log("Bible Viewer: Processing dictionary selection", event.data);
+      this.copyDictionaryToNote(event.data);
     } else if (event.data && event.data.type === "bible-open-note") {
       this.openNoteAtBlock(event.data.path, event.data.blockId);
     } else {
@@ -513,6 +516,33 @@ ${subtitleLine}
 ${body}`;
     this.insertBlockIntoNote(activeView, formattedText);
     new import_obsidian.Notice(`Copied commentary to note`);
+  }
+  copyDictionaryToNote(data) {
+    const definition = String((data == null ? void 0 : data.definition) || "").trim();
+    if (!definition) {
+      new import_obsidian.Notice("No dictionary entry to copy.");
+      return;
+    }
+    const activeView = this.getMarkdownViewForInsert();
+    if (!activeView) {
+      new import_obsidian.Notice("No active note to copy dictionary entry to.");
+      return;
+    }
+    const translationCode = (data == null ? void 0 : data.translation) || "BBE";
+    const bookId = data.bookId || 1;
+    const chapter = data.chapter || 1;
+    const verse = data.verse || 1;
+    const dictionaryCode = data.dictionary || "";
+    const topic = data.topic || data.query || "";
+    const titleBits = [dictionaryCode, topic].filter((bit) => bit && String(bit).trim().length > 0);
+    const title = titleBits.join(" · ") || data.dictionaryName || "Dictionary";
+    const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verse}`;
+    const body = definition.split(/\n+/).filter((line) => line.trim().length > 0).map((line) => `> ${line.trim()}`).join("\n");
+    const calloutHeader = `> [!dictionary] [${title}](${url})`;
+    const heading = String(data.heading || "").trim();
+    const formattedText = heading ? `${calloutHeader}\n> ${heading}\n${body}` : `${calloutHeader}\n${body}`;
+    this.insertBlockIntoNote(activeView, formattedText);
+    new import_obsidian.Notice("Copied dictionary entry to note");
   }
 };
 var BibleViewerSettingTab = class extends import_obsidian.PluginSettingTab {

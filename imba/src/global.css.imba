@@ -296,6 +296,53 @@ global css
 	s
 		d:none
 
+	# Strong's numbers stacked underneath the word they belong to.
+	# The pair ignores pointer events so the ruby base (the word) cannot steal
+	# clicks meant for the annotation sitting under it.
+	.strong-pair
+		display: ruby
+		ruby-position: under
+		ruby-align: center
+		text-align: center
+		text-decoration: none
+		pointer-events: none
+
+	.strong-gap
+		display: none
+		pointer-events: none
+
+	.strong-nums
+		display: ruby-text
+		font-size: .58em
+		line-height: 1.15
+		white-space: nowrap
+		user-select: none
+		-webkit-user-select: none
+		text-align: center
+		cursor: pointer
+		text-decoration: none
+		pointer-events: auto
+		position: relative
+
+	.strong-nums::before
+		content: ''
+		position: absolute
+		inset: -0.35em -0.3em -0.15em
+
+	.strong-num
+		display: inline
+		font-style: normal
+		font-weight: 400
+		cursor: pointer
+		padding: 0 .12em
+		user-select: none
+		-webkit-user-select: none
+		text-decoration: none
+		opacity: .4
+		color: inherit
+		@hover
+			opacity: 1
+			color: $acc
 
 	.definition
 		a

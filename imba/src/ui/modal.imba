@@ -13,6 +13,7 @@ import Send from 'lucide-static/icons/send.svg'
 import LoaderPinwheel from 'lucide-static/icons/loader-pinwheel.svg'
 import Check from 'lucide-static/icons/check.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
+import Obsidian from '../icons/obsidian.svg'
 import { format } from 'date-fns'
 import Color from "colorjs.io"
 
@@ -148,6 +149,74 @@ tag modal < section
 	def openDictionaryDownloads
 		activities.openModal 'downloads'
 		activities.show_dictionary_downloads = yes
+
+	def definitionPlainText html\string
+		unless html
+			return ''
+		let text = String(html)
+		text = text.replace(/<(br|BR)\s*\/?>/g, '\n')
+		text = text.replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+		text = text.replace(/<li[^>]*>/gi, '- ')
+		text = activities.cleanUpCopyText(text)
+		text = text.replace(/\u00a0/g, ' ')
+		text = text.replace(/[ \t]+\n/g, '\n')
+		text = text.replace(/\n{3,}/g, '\n\n')
+		return text.trim()
+
+	def dictionaryEntryForObsidian
+		unless dictionary.definitions and dictionary.definitions.length
+			return null
+		if dictionary.expandedTopic
+			const expanded = dictionary.definitions.find(do |entry| return entry.topic == dictionary.expandedTopic)
+			if expanded
+				return expanded
+		return dictionary.definitions[0]
+
+	def sendDictionaryToObsidian
+		const entry = dictionaryEntryForObsidian!
+		unless entry
+			return
+		const definitionText = definitionPlainText(entry.definition)
+		unless definitionText
+			return
+		const headingBits = []
+		if entry.lexeme
+			headingBits.push(String(entry.lexeme))
+		if entry.pronunciation
+			headingBits.push(String(entry.pronunciation))
+		if entry.transliteration
+			headingBits.push(String(entry.transliteration))
+		if entry.short_definition
+			headingBits.push(String(entry.short_definition))
+		const messageToSend = {
+			type: 'bible-dictionary-selection'
+			dictionary: String(dictionary.currentDictionary or '')
+			dictionaryName: String(dictionary.currentDictionaryName() or dictionary.currentDictionary or '')
+			query: String(dictionary.query or '')
+			topic: String(entry.topic or dictionary.query or '')
+			heading: headingBits.join(' · ')
+			definition: definitionText
+			translation: String(reader.translation or '')
+			book: String(reader.nameOfCurrentBook or '')
+			chapter: Number(reader.chapter or 1)
+			bookId: Number(reader.book or 1)
+			verse: Number(reader.verse or 1)
+		}
+		try
+			window.parent.postMessage(messageToSend, '*')
+		catch err
+			try
+				window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
+			catch fallbackError
+				pass
+		if window.parent == window
+			const title = [messageToSend.dictionary, messageToSend.topic].filter(do |bit| return bit).join(' · ')
+			const lines = [title]
+			if messageToSend.heading
+				lines.push(messageToSend.heading)
+			lines.push('')
+			lines.push(messageToSend.definition)
+			activities.copyTextToClipboard(lines.join('\n'))
 
 	get backdropColor
 		# get --bgc css variable value from dom
@@ -429,35 +498,35 @@ tag modal < section
 							<p[pt:1rem]> t.empty_history
 						
 					when "dictionary"
-						<header[pos:relative]>
-							<button[c@hover:red4] @click=activities.cleanUp title=t.close>
+						<header.dictionary-header>
+							<button.dictionary-obsidian @click=sendDictionaryToObsidian title="Obsidian">
+								<svg src=Obsidian aria-hidden=yes>
+							<h2> t.dictionary
+							<button.dictionary-close [c@hover:red4] @click=activities.cleanUp title=t.close>
 								<svg src=ICONS.X aria-hidden=yes>
-							<button @click=dictionary.prevDefinition [o:0.5]=(dictionary.historyIndex == 0 or dictionary.history.length == 0) title=t.back>
-								<svg src=ChevronLeft aria-hidden=yes>
-							<button @click=dictionary.nextDefinition [o:0.5]=(dictionary.history.length - 1 == dictionary.historyIndex) title=t.next>
-								<svg src=ChevronRight aria-hidden=yes>
 
-							<input#dictionarysearch [w:100% bg:transparent font:inherit c:inherit p:0 .5rem fs:1.2em min-width:12.5rem bd:none bdb@invalid:1px solid $acc-bgc bxs:none direction:{textDirection(dictionary.query)}]
+						<div.dictionary-search-row>
+							<menu-popup.dictionary-picker bind=activities.show_dictionaries>
+								<div.dictionary-picker-btn
+									title=(dictionary.currentDictionaryName() or dictionary.currentDictionary)
+									@click=(do activities.show_dictionaries = !activities.show_dictionaries)>
+									dictionary.currentDictionary
+									<svg src=ChevronDown aria-hidden=yes [transform:rotateX(180deg)]=activities.show_dictionaries>
+								if activities.show_dictionaries
+									<.popup-menu [l:0 r:auto t:100% y@off:-2rem o@off:0 min-width:22rem] ease>
+										for entry in dictionary.dictionaries
+											<button .active-butt=(dictionary.currentDictionary==entry.abbr) @click=(do
+													dictionary.currentDictionary = entry.abbr
+													dictionary.loadDefinitions!
+													)> entry.name
+							<input#dictionarysearch.dictionary-query
 								bind=dictionary.query minLength=2 type='text' placeholder=(t.search) aria-label=t.search
+								[direction:{textDirection(dictionary.query)}]
 								@keydown.enter=dictionary.loadDefinitions>
-
-							<button @click=dictionary.loadDefinitions title=t.search>
+							<button.dictionary-icon-btn @click=dictionary.loadDefinitions title=t.search>
 								<svg src=Search aria-hidden=yes>
-							<button @click=openDictionaryDownloads title=t.download>
+							<button.dictionary-icon-btn @click=openDictionaryDownloads title=t.download>
 								<svg src=Download aria-hidden=yes>
-
-						<menu-popup bind=activities.show_dictionaries [pos:relative]>
-							<[transform@important:none padding-block:.5rem c@hover:$acc-hover fill:$c @hover:$acc-hover cursor:pointer tt:uppercase fw:500 fs:0.9em d:hss]
-								@click=(do activities.show_dictionaries = !activities.show_dictionaries)>
-								dictionary.currentDictionary
-								<svg src=ChevronDown aria-hidden=yes [transform:rotateX(180deg)]=activities.show_dictionaries>
-							if activities.show_dictionaries
-								<.popup-menu [l:0 t:100% y@off:-2rem o@off:0] ease>
-									for entry in dictionary.dictionaries
-										<button .active-butt=(dictionary.currentDictionary==entry.abbr) @click=(do
-												dictionary.currentDictionary = entry.abbr
-												dictionary.loadDefinitions!
-												)> entry.name
 
 						if window.navigator.onLine
 							<button.option-box.checkbox-parent [fs:0.85em mr:auto ws:pre padding-block:0.5rem]
@@ -731,6 +800,128 @@ tag modal < section
 				p:0 0.5em fs:1.2em min-width:8rem
 				bd:none bdb@invalid:1px solid $acc-bgc bxs:none
 				lh:2rem
+
+			svg
+				min-inline-size: 1.5rem
+				min-block-size: 1.5rem
+
+		header.dictionary-header
+			d:grid
+			grid-template-columns: 2rem 1fr 2rem
+			ai:center
+			g:0.5rem
+			min-height: 2.125rem
+
+			h2
+				m:0
+				p:0
+				ta:center
+				fs:1.05em
+				fw:700
+				lh:1.2
+				white-space:nowrap
+				display:block
+				overflow:visible
+				-webkit-line-clamp: unset
+
+			.dictionary-close
+				justify-self:end
+
+			.dictionary-obsidian
+				justify-self:start
+				c:inherit @hover:$acc-hover
+				d:flex
+				ai:center
+				jc:center
+
+			.dictionary-obsidian svg
+				fill: currentColor
+				c: inherit
+
+		.dictionary-search-row
+			d:flex
+			ai:center
+			g:0.5rem
+			w:100%
+			min-width: 0
+			mt:0.5rem
+			pos:relative
+
+		.dictionary-picker
+			flex: 0 0 auto
+			pos:relative
+
+		.dictionary-picker-btn
+			d:inline-flex
+			ai:center
+			jc:center
+			g:0.25rem
+			box-sizing: border-box
+			h: 2.125rem
+			min-height: 2.125rem
+			min-width: unset
+			w:auto
+			max-width: 9rem
+			p:0 0.65rem
+			rd:0.35rem
+			bd:1px solid $acc-bgc-hover
+			bgc:$acc-bgc @hover:$acc-bgc-hover
+			tt:uppercase
+			fw:600
+			fs:0.8em
+			lh:1
+			c:inherit @hover:$acc-hover
+			cursor:pointer
+			overflow: hidden
+
+			svg
+				w:1.05em
+				h:1.05em
+				min-inline-size: 1.05em
+				min-block-size: 1.05em
+				flex-shrink: 0
+
+		.dictionary-picker .popup-menu
+			min-width: 22rem
+			max-width: 32rem
+			w: max-content
+			of: auto
+			mah: 70vh
+
+			button
+				w: 100%
+				min-width: 0
+				white-space: normal
+				padding: 0.85rem 1rem
+				lh: 1.35
+
+		.dictionary-query
+			flex: 1 1 auto
+			min-width: 0
+			w:auto
+			h:2.125rem
+			box-sizing: border-box
+			p:0 0.65rem
+			fs:1.05em
+			lh:2.125rem
+			bg:transparent
+			font: inherit
+			c: inherit
+			bgc:$acc-bgc @focus:$acc-bgc-hover
+			bd:1px solid $acc-bgc-hover
+			rd:0.35rem
+			bxs:none @focus:0 0 0 1px $acc
+
+		.dictionary-icon-btn
+			bgc:transparent
+			c:inherit @hover:$acc-hover
+			min-width:2rem
+			w:2rem
+			cursor:pointer
+			d:flex
+			ai:center
+			jc:center
+			fls:0
 
 			svg
 				min-inline-size: 1.5rem

@@ -430,6 +430,9 @@ class BibleView extends ItemView {
 		} else if (event.data && event.data.type === "bible-commentary-selection") {
 			console.log("Bible Viewer: Processing commentary selection", event.data);
 			this.copyCommentaryToNote(event.data);
+		} else if (event.data && event.data.type === "bible-dictionary-selection") {
+			console.log("Bible Viewer: Processing dictionary selection", event.data);
+			this.copyDictionaryToNote(event.data);
 		} else if (event.data && event.data.type === "bible-open-note") {
 			this.openNoteAtBlock(event.data.path, event.data.blockId);
 		} else {
@@ -665,6 +668,58 @@ class BibleView extends ItemView {
 		this.insertBlockIntoNote(activeView, formattedText);
 
 		new Notice(`Copied commentary to note`);
+	}
+
+	copyDictionaryToNote(data: {
+		dictionary?: string;
+		dictionaryName?: string;
+		query?: string;
+		topic?: string;
+		heading?: string;
+		definition?: string;
+		translation?: string;
+		book?: string;
+		chapter?: number;
+		bookId?: number | string;
+		verse?: number;
+	}) {
+		const definition = String(data.definition || "").trim();
+		if (!definition) {
+			new Notice("No dictionary entry to copy.");
+			return;
+		}
+
+		const activeView = this.getMarkdownViewForInsert();
+		if (!activeView) {
+			new Notice("No active note to copy dictionary entry to.");
+			return;
+		}
+
+		const translationCode = data?.translation || "BBE";
+		const bookId = data.bookId || 1;
+		const chapter = data.chapter || 1;
+		const verse = data.verse || 1;
+		const dictionaryCode = data.dictionary || "";
+		const topic = data.topic || data.query || "";
+		const titleBits = [dictionaryCode, topic].filter((bit) => bit && String(bit).trim().length > 0);
+		const title = titleBits.join(" · ") || data.dictionaryName || "Dictionary";
+		const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verse}`;
+
+		const body = definition
+			.split(/\n+/)
+			.filter((line) => line.trim().length > 0)
+			.map((line) => `> ${line.trim()}`)
+			.join("\n");
+
+		const calloutHeader = `> [!dictionary] [${title}](${url})`;
+		const heading = String(data.heading || "").trim();
+		const formattedText = heading
+			? `${calloutHeader}\n> ${heading}\n${body}`
+			: `${calloutHeader}\n${body}`;
+
+		this.insertBlockIntoNote(activeView, formattedText);
+
+		new Notice("Copied dictionary entry to note");
 	}
 }
 

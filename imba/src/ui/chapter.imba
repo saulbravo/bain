@@ -16,6 +16,8 @@ tag chapter < section
 	prop headerFontSize = 2 # rem
 	prop versePrefix = ''
 	minHeaderFont = 0 # rem
+	strongPending = null
+	strongPendingTimer = 0
 
 	get liftShift
 		const raw = versePrefix == 'p' ? activities.parallelLiftShift : activities.mainLiftShift
@@ -1124,6 +1126,21 @@ tag chapter < section
 				node = node.parentElement
 			if node and !article.contains(node)
 				return null
+			if isStrongAnnotationText(range.startContainer)
+				let pair = node.closest('.strong-pair')
+				unless pair
+					return null
+				let walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT, null, false)
+				let base = null
+				while (let textNode = walker.nextNode())
+					unless isStrongAnnotationText(textNode)
+						base = textNode
+						break
+				unless base
+					return null
+				range = document.createRange()
+				range.setStart(base, base.textContent.length)
+				range.collapse(yes)
 		return range
 
 	def updateFreehandTextSelection e, isAnchor = no
@@ -1297,10 +1314,18 @@ tag chapter < section
 			window.removeEventListener('touchcancel', globalTouchCancelHandler)
 			globalTouchCancelHandler = null
 		
+	def isStrongAnnotationText node
+		let el = node and node.nodeType == 3 ? node.parentElement : node
+		return !!(el and el.closest and el.closest('.strong-nums'))
+
 	def getCharOffsetInVerseSpan node, offset, root
 		let count = 0
 		let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
 		while (let next = walker.nextNode())
+			if isStrongAnnotationText(next)
+				if next == node
+					return count
+				continue
 			if next == node
 				return count + offset
 			count += next.textContent.length
@@ -1579,10 +1604,15 @@ tag chapter < section
 		let currentChar = 0
 		let highlightIndex = 0
 		let activeHighlights = []
+		let insideStrongNums = no
 
 		for part in parts
 			if part.type == 'tag'
+				if part.content.indexOf('<rt') == 0
+					insideStrongNums = yes
 				result += part.content
+				if part.content.indexOf('</rt') == 0
+					insideStrongNums = no
 				continue
 
 			let text = part.content
@@ -1592,22 +1622,25 @@ tag chapter < section
 				# Check for highlights starting here
 				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 					let h = highlights[highlightIndex]
-					result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+					unless insideStrongNums
+						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 					activeHighlights.push(h)
 					highlightIndex++
 
 				# Check for highlights ending here
 				let highlightsEnding = activeHighlights.filter(do |h| return h.end == currentChar)
 				if highlightsEnding.length > 0
-					for j in [0 ... highlightsEnding.length]
-						let h = highlightsEnding[j]
-						result += freehandWrapClose(h.color, h.decoration or 'fill')
+					unless insideStrongNums
+						for j in [0 ... highlightsEnding.length]
+							let h = highlightsEnding[j]
+							result += freehandWrapClose(h.color, h.decoration or 'fill')
 					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 					
 					# Re-check for new highlights starting exactly here
 					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 						let h = highlights[highlightIndex]
-						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+						unless insideStrongNums
+							result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 						activeHighlights.push(h)
 						highlightIndex++
 
@@ -1618,15 +1651,118 @@ tag chapter < section
 			# Check for highlights ending at the very end of a text node
 			let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
 			if highlightsEndingAtEnd.length > 0
-				for j in [0 ... highlightsEndingAtEnd.length]
-					let h = highlightsEndingAtEnd[j]
-					result += freehandWrapClose(h.color, h.decoration or 'fill')
+				unless insideStrongNums
+					for j in [0 ... highlightsEndingAtEnd.length]
+						let h = highlightsEndingAtEnd[j]
+						result += freehandWrapClose(h.color, h.decoration or 'fill')
 				activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 
 		return result
 
-	def getVerseText verse
-		let verseText = verse.text
+	# Strong's numbers arrive as <S>1234</S> right after the word they belong to.
+	# Wrap the pair so the number can be stacked under its word instead of sitting inline.
+	def annotateStrongNumbers html
+		unless html and (html.indexOf('<S>') > -1 or html.indexOf('<s>') > -1)
+			return html
+		const prefix = me.book < 40 ? 'H' : 'G'
+		# The gap before the tag is kept (hidden) so character offsets used by highlights stay identical.
+		return html.replace(/([^\s<>]+)([ \t]*)((?:<[sS]>\d+<\/[sS]>)+)/g, do |match, word, gap, tags, offset|
+			if gap
+				const nextChar = html[offset + match.length]
+				if nextChar and !nextChar.match(/\s/)
+					return match
+			const numbers = tags.match(/\d+/g) or []
+			let rendered = ''
+			for number in numbers
+				rendered += "<span class=\"strong-num\" data-strong=\"{prefix}{number}\" title=\"{prefix}{number}\">{number}</span>"
+			const spacer = gap ? "<span class=\"strong-gap\">{gap}</span>" : ''
+			return "<ruby class=\"strong-pair\">{word}{spacer}<rt class=\"strong-nums\">{rendered}</rt></ruby>"
+		)
+
+	def openStrongDefinition topic\string
+		return unless topic
+		self.dictionary.loadDefinitions(topic)
+
+	def eventElement e
+		let node = e and e.target
+		if node and node.nodeType == 3
+			node = node.parentElement
+		return node
+
+	def strongFromNode node
+		unless node and node.closest
+			return null
+		const nums = node.closest('.strong-nums')
+		unless nums
+			return null
+		const strongEl = node.closest('.strong-num') or nums.querySelector('.strong-num')
+		unless strongEl
+			return null
+		return { pair: nums.closest('.strong-pair') or nums, strongEl: strongEl }
+
+	def strongAtPoint root, x, y
+		unless root and root.querySelectorAll and typeof x == 'number'
+			return null
+		const nodes = root.querySelectorAll('.strong-nums')
+		for i in [0 ... nodes.length]
+			const nums = nodes[i]
+			const r = nums.getBoundingClientRect()
+			if x >= r.left - 4 and x <= r.right + 4 and y >= r.top - 8 and y <= r.bottom + 4
+				const strongEl = nums.querySelector('.strong-num')
+				if strongEl
+					return { pair: nums.closest('.strong-pair') or nums, strongEl: strongEl }
+		return null
+
+	def strongHitFromEvent e, root = null
+		unless e
+			return null
+		if e.composedPath
+			const path = e.composedPath()
+			for node in path
+				const hit = strongFromNode(node)
+				if hit
+					return hit
+		const fromTarget = strongFromNode(eventElement(e))
+		if fromTarget
+			return fromTarget
+		return strongAtPoint(root or e.currentTarget, e.clientX, e.clientY)
+
+	def handleStrongPointer el, reason, e
+		let hit = strongHitFromEvent(e, el)
+		if !hit and reason == 'click' and strongPending and strongPending.verseEl == el
+			hit = strongPending
+		return no unless hit
+		if reason == 'mousedown'
+			strongPending = {
+				pair: hit.pair
+				strongEl: hit.strongEl
+				verseEl: el
+			}
+			if strongPendingTimer
+				window.clearTimeout(strongPendingTimer)
+			let clearPending = do
+				strongPending = null
+				strongPendingTimer = 0
+			strongPendingTimer = window.setTimeout(clearPending, 300)
+			e.preventDefault()
+			if e.stopPropagation
+				e.stopPropagation()
+			console.log('[STRONG DEBUG] before click', { v: 3, strong: hit.strongEl.dataset.strong, number: hit.strongEl.textContent })
+			openStrongDefinition(hit.strongEl.dataset.strong)
+			return yes
+		if reason == 'click'
+			strongPending = null
+			if strongPendingTimer
+				window.clearTimeout(strongPendingTimer)
+				strongPendingTimer = 0
+			e.preventDefault()
+			if e.stopPropagation
+				e.stopPropagation()
+			return yes
+		return yes
+
+	def getVerseText verse, annotate = no
+		let verseText = annotate ? annotateStrongNumbers(verse.text) : verse.text
 		let relevantHighlights = []
 		
 		for h in me.freehandHighlights
@@ -1879,7 +2015,7 @@ tag chapter < section
 						let displayCollection = bookmark ? me.stripBookmarkMarker(bookmark.collection) : ''
 						let showBookmarkNote = bookmark and (displayCollection or bookmark.note) and not me.nextVerseHasTheSameBookmark(verse_index)
 						let superStyle = "scroll-margin-top:1.4rem;"
-						let verseText = getVerseText(verse)
+						let verseText = getVerseText(verse, yes)
 
 						<>
 							<span 
@@ -1930,7 +2066,10 @@ tag chapter < section
 								
 								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
-									@click.wait(200ms)=(do
+									@mousedown=(do |e| handleStrongPointer(e.currentTarget, 'mousedown', e))
+									@click.wait(200ms)=(do |e|
+										if handleStrongPointer(e.currentTarget, 'click', e)
+											return
 										if drawingArmed
 											# During freehand drag, suppress normal verse click selection side effects.
 											return

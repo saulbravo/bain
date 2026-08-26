@@ -89,6 +89,14 @@ class Dictionary
 					tooltip.left = viewportRectangle.left
 				else
 					tooltip.right = window.innerWidth - viewportRectangle.right
+				# Verses rendered with visible Strong's numbers keep the word and its numbers in one wrapper
+				const strongPair = rangeContainer..closest && rangeContainer.closest('.strong-pair')
+				if strongPair
+					const strongTag = strongPair.querySelector('.strong-num')
+					if strongTag
+						tooltip.strong = strongNumber(selection, strongTag.textContent)
+						return imba.commit!
+
 				# Iterate through selected range nodes and find the first node having S tag type
 				# Avoid using rangeContainer.childNodes cus it containes nodes outside of the selection
 				# use document.createNodeIterator instead
