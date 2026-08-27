@@ -100,6 +100,14 @@ extend tag element
 			return ''
 		translations.find(do |translation| return translation.short_name == tr)..full_name || tr
 
+	def isInterlinearTranslation tr\string
+		unless tr
+			return no
+		if tr == 'INTES'
+			return yes
+		const name = String(translationFullName(tr) or tr).toLowerCase()
+		return name.indexOf('interlineal') >= 0 or name.indexOf('interlinear') >= 0
+
 	def getBookName translation\string, bookid\number|string
 		return bookNameIndex.get("{translation}:{bookid}") || bookid
 

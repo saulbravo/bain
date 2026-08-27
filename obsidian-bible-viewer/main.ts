@@ -228,7 +228,55 @@ class BibleView extends ItemView {
 			.replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, "")
 			.replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, "")
 			.replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
-			.replace(/<\/?ruby[^>]*>/gi, "");
+			.replace(/<\/?ruby[^>]*>/gi, "")
+			.replace(/<\/?span class="strong-word"[^>]*>/gi, "");
+	}
+
+	isInterlinearTranslation(code?: string, fullName?: string): boolean {
+		const abbr = String(code || "").toUpperCase();
+		if (abbr === "INTES") {
+			return true;
+		}
+		const name = String(fullName || "").toLowerCase();
+		return name.includes("interlineal") || name.includes("interlinear");
+	}
+
+	styleInterlinearVerseHtml(html: string): string {
+		const text = String(html || "");
+		if (!text || text.includes("interlinear-src")) {
+			return text;
+		}
+		let out = "";
+		let gloss = 0;
+		let i = 0;
+		while (i < text.length) {
+			if (text[i] === "<") {
+				const end = text.indexOf(">", i);
+				if (end < 0) {
+					out += text.slice(i);
+					break;
+				}
+				const tag = text.slice(i, end + 1);
+				const lower = tag.toLowerCase();
+				if (lower.startsWith("<i") && !lower.startsWith("</")) {
+					gloss += 1;
+				} else if (lower.startsWith("</i")) {
+					gloss = Math.max(0, gloss - 1);
+				}
+				out += tag;
+				i = end + 1;
+			} else {
+				const nextTag = text.indexOf("<", i);
+				const chunk = nextTag === -1 ? text.slice(i) : text.slice(i, nextTag);
+				if (gloss > 0) {
+					out += chunk;
+				} else {
+					out += chunk.replace(/[^\s<]+/g, (word) => `<span class="interlinear-src" style="opacity:.4">${word}</span>`);
+				}
+				i += chunk.length;
+			}
+		}
+		return out;
 	}
 
 	getViewType() {
@@ -535,6 +583,7 @@ class BibleView extends ItemView {
 		blockId?: string;
 		startVerse?: number;
 		endVerse?: number;
+		interlinear?: boolean;
 	}) {
 		const verses = data.verses;
 		console.log("Bible Viewer: copyVersesToNote called with", data);
@@ -599,7 +648,14 @@ class BibleView extends ItemView {
 		// > [!bible] [Reference - Translation Code](url)
 		// > verse text
 		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
-		const verseTexts = verses.map((v) => `> ${v.verse}. ${this.stripStrongNumbersFromVerseHtml(v.text)}`).join("\n");
+		const interlinear = Boolean(data.interlinear) || this.isInterlinearTranslation(translationCode, data.translationFullName);
+		const verseTexts = verses.map((v) => {
+			let text = this.stripStrongNumbersFromVerseHtml(v.text);
+			if (interlinear) {
+				text = this.styleInterlinearVerseHtml(text);
+			}
+			return `> ${v.verse}. ${text}`;
+		}).join("\n");
 		const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
 		const formattedText = `${calloutHeader}\n${verseTexts}\n> ^${blockId}`;
 

@@ -189,7 +189,52 @@ var BibleView = class extends import_obsidian.ItemView {
     this.lastMarkdownLeaf = view.leaf;
   }
   stripStrongNumbersFromVerseHtml(text) {
-    return String(text || "").replace(/<[sS]>\d+<\/[sS]>/g, "").replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, "").replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<\/?ruby[^>]*>/gi, "");
+    return String(text || "").replace(/<[sS]>\d+<\/[sS]>/g, "").replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, "").replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<\/?ruby[^>]*>/gi, "").replace(/<\/?span class="strong-word"[^>]*>/gi, "");
+  }
+  isInterlinearTranslation(code, fullName) {
+    const abbr = String(code || "").toUpperCase();
+    if (abbr === "INTES") {
+      return true;
+    }
+    const name = String(fullName || "").toLowerCase();
+    return name.includes("interlineal") || name.includes("interlinear");
+  }
+  styleInterlinearVerseHtml(html) {
+    const text = String(html || "");
+    if (!text || text.includes("interlinear-src")) {
+      return text;
+    }
+    let out = "";
+    let gloss = 0;
+    let i = 0;
+    while (i < text.length) {
+      if (text[i] === "<") {
+        const end = text.indexOf(">", i);
+        if (end < 0) {
+          out += text.slice(i);
+          break;
+        }
+        const tag = text.slice(i, end + 1);
+        const lower = tag.toLowerCase();
+        if (lower.startsWith("<i") && !lower.startsWith("</")) {
+          gloss += 1;
+        } else if (lower.startsWith("</i")) {
+          gloss = Math.max(0, gloss - 1);
+        }
+        out += tag;
+        i = end + 1;
+      } else {
+        const nextTag = text.indexOf("<", i);
+        const chunk = nextTag === -1 ? text.slice(i) : text.slice(i, nextTag);
+        if (gloss > 0) {
+          out += chunk;
+        } else {
+          out += chunk.replace(/[^\s<]+/g, (word) => `<span class="interlinear-src" style="opacity:.4">${word}</span>`);
+        }
+        i += chunk.length;
+      }
+    }
+    return out;
   }
   getViewType() {
     return "bible-viewer";
@@ -467,7 +512,14 @@ var BibleView = class extends import_obsidian.ItemView {
     }
     const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verseRange}`;
     const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
-    const verseTexts = verses.map((v) => `> ${v.verse}. ${this.stripStrongNumbersFromVerseHtml(v.text)}`).join("\n");
+    const interlinear = Boolean(data.interlinear) || this.isInterlinearTranslation(translationCode, data.translationFullName);
+    const verseTexts = verses.map((v) => {
+      let text = this.stripStrongNumbersFromVerseHtml(v.text);
+      if (interlinear) {
+        text = this.styleInterlinearVerseHtml(text);
+      }
+      return `> ${v.verse}. ${text}`;
+    }).join("\n");
     const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
     const formattedText = `${calloutHeader}
 ${verseTexts}

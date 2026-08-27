@@ -1800,7 +1800,42 @@ tag chapter < section
 		text = text.replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, '')
 		text = text.replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
 		text = text.replace(/<\/?ruby[^>]*>/gi, '')
+		text = text.replace(/<\/?span class="strong-word"[^>]*>/gi, '')
 		return text
+
+	def styleInterlinearForObsidian html
+		unless html
+			return ''
+		if html.indexOf('interlinear-src') >= 0
+			return html
+		let out = ''
+		let gloss = 0
+		let i = 0
+		while i < html.length
+			if html[i] == '<'
+				let end = html.indexOf('>', i)
+				if end < 0
+					out += html.slice(i)
+					break
+				let markup = html.slice(i, end + 1)
+				let lower = markup.toLowerCase()
+				if lower.indexOf('<i') == 0 and lower.indexOf('</') != 0
+					gloss += 1
+				elif lower.indexOf('</i') == 0
+					gloss -= 1
+					if gloss < 0
+						gloss = 0
+				out += markup
+				i = end + 1
+			else
+				let nextTag = html.indexOf('<', i)
+				let chunk = nextTag == -1 ? html.slice(i) : html.slice(i, nextTag)
+				if gloss > 0
+					out += chunk
+				else
+					out += chunk.replace(/[^\s<]+/g, do |word| "<span class=\"interlinear-src\" style=\"opacity:.4\">{word}</span>")
+				i += chunk.length
+		return out
 
 	def getVerseTextForObsidianExport verse
 		let text = getVerseText(verse)
@@ -1810,7 +1845,10 @@ tag chapter < section
 			let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
 			if color != ''
 				text = "<mark style=\"background: {color};\">{text}</mark>"
-		return stripStrongNumbersFromExport(text)
+		text = stripStrongNumbersFromExport(text)
+		if isInterlinearTranslation(me.translation)
+			text = styleInterlinearForObsidian(text)
+		return text
 
 	def getPenStrokePath stroke
 		if !stroke or !stroke.points or stroke.points.length == 0
@@ -1829,7 +1867,7 @@ tag chapter < section
 		return activities.getPenSketchesFor(me.translation, me.book, me.chapter)
 
 	def render
-		<self .parallel=parallelReader.enabled .interlinear=(me.translation == 'INTES')
+		<self .parallel=parallelReader.enabled .interlinear=isInterlinearTranslation(me.translation)
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
 			@pointerdown=handlePointerDown
 			@pointermove=handlePointerMove
@@ -1877,7 +1915,7 @@ tag chapter < section
 			if me.me == 'main'
 				<div.tabs-sticky>
 					<bible-tabs scale=1>
-			<article.interlinear=(me.translation == 'INTES') [text-indent: {settings.verse_number ? 0 : 2.5}em] 
+			<article.interlinear=isInterlinearTranslation(me.translation) [text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
 				[key={(me.translation or '') + ':' + (me.book or 0) + ':' + (me.chapter or 0) + ':' + ((me.verses and me.verses.length) or 0) + ':' + ((me.bookmarks and me.bookmarks.length) or 0)}]
 				[mt: 30px]
@@ -1945,12 +1983,14 @@ tag chapter < section
 											type: 'bible-verse-selection',
 											verses: selectedVerses,
 											translation: translationCode,
+											translationFullName: translationFullName(translationCode),
 											book: bookName,
 											chapter: chapterNum,
 											bookId: bookIdNum,
 											blockId: blockId,
 											startVerse: firstVerseNum,
-											endVerse: lastVerseNum
+											endVerse: lastVerseNum,
+											interlinear: isInterlinearTranslation(translationCode)
 										}
 										
 										# Always try to send - let the parent decide if it wants to handle it
@@ -1962,12 +2002,14 @@ tag chapter < section
 												type: String(messageData.type),
 												verses: Array.from(messageData.verses),
 												translation: String(messageData.translation),
+												translationFullName: String(messageData.translationFullName),
 												book: String(messageData.book),
 												chapter: Number(messageData.chapter),
 												bookId: Number(messageData.bookId),
 												blockId: String(messageData.blockId),
 												startVerse: Number(messageData.startVerse),
-												endVerse: Number(messageData.endVerse)
+												endVerse: Number(messageData.endVerse),
+												interlinear: isInterlinearTranslation(translationCode) ? yes : no
 											}
 											window.parent.postMessage(messageToSend, '*')
 											sent = yes
