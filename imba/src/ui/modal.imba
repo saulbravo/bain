@@ -601,27 +601,37 @@ tag modal < section
 			unless definitionText
 				definitionText = definitionPlainText(entry.definition)
 		unless definitionText
+			definitionText = String(topic or dictionary.query or '').trim()
+		unless definitionText
 			return
-		const messageToSend = {
-			type: 'bible-dictionary-selection'
+		let messageToSend = {
+			type: String('bible-dictionary-selection')
 			dictionary: String(dictionary.currentDictionary or '')
 			dictionaryName: String(dictionary.currentDictionaryName() or dictionary.currentDictionary or '')
 			query: String(dictionary.query or '')
-			topic: topic
-			heading: headingBits.join(' · ')
-			definition: definitionText
+			topic: String(topic)
+			heading: String(headingBits.join(' · '))
+			definition: String(definitionText)
 			translation: String(reader.translation or '')
 			book: String(reader.nameOfCurrentBook or '')
 			chapter: Number(reader.chapter or 1)
 			bookId: Number(reader.book or 1)
 			verse: Number(reader.verse or 1)
 		}
+		let payload = messageToSend
 		try
-			window.parent.postMessage(messageToSend, '*')
-		catch err
+			payload = JSON.parse(JSON.stringify(messageToSend))
+		catch serializeError
+			payload = messageToSend
+		if window.parent and window.parent != window
 			try
-				window.parent.postMessage(JSON.parse(JSON.stringify(messageToSend)), '*')
-			catch fallbackError
+				window.parent.postMessage(payload, '*')
+			catch err
+				pass
+		if window.top and window.top != window and window.top != window.parent
+			try
+				window.top.postMessage(payload, '*')
+			catch topError
 				pass
 		if window.parent == window
 			const title = [messageToSend.dictionary, messageToSend.topic].filter(do |bit| return bit).join(' · ')
@@ -983,9 +993,15 @@ tag modal < section
 												@mousedown.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))
 												@touchstart.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))
 												@pointerdown.prevent.stop=(do |e| startDictionaryObsidianDrag('bottom', e))>
-											<button.dictionary-obsidian-insert-btn @click.stop.prevent=sendDictionaryToObsidian title="Obsidian">
+											<button.dictionary-obsidian-insert-btn
+												@pointerdown.stop
+												@click.stop.prevent=(do sendDictionaryToObsidian!)
+												title="Obsidian">
 												<svg src=ChevronLeft aria-hidden=yes>
-											<button.dictionary-obsidian-close-btn @click.stop.prevent=exitDictionaryObsidian title="Close">
+											<button.dictionary-obsidian-close-btn
+												@pointerdown.stop
+												@click.stop.prevent=(do exitDictionaryObsidian!)
+												title="Close">
 												<svg src=ICONS.X aria-hidden=yes>
 
 						if dictionary.definitions.length == 0 and !dictionary.loading && dictionary.history.length

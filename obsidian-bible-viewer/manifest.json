@@ -1,9 +1,9 @@
 {
   "id": "bible-viewer",
   "name": "Bible Viewer",
-  "version": "0.3.4",
-  "minAppVersion": "1.5.0",
-  "description": "Embed Bible app in right pane; copy verses and commentary into the active note",
+	"version": "0.3.5",
+	"minAppVersion": "1.5.0",
+	"description": "Embed Bible app in right pane; copy verses, commentary, and dictionary entries into the active note",
   "author": "saulbravo",
   "isDesktopOnly": false
 }

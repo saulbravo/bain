@@ -259,7 +259,7 @@ var BibleView = class extends import_obsidian.ItemView {
         };
       }
     }, 10);
-    window.addEventListener("message", this.messageHandler);
+    this.registerDomEvent(window, "message", this.messageHandler);
     console.log("Bible Viewer: Message listener added, iframe loaded with cache-buster:", cacheBuster);
   }
   async onload() {
