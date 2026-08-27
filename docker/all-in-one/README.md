@@ -4,7 +4,7 @@ Deploy Bolls Bible as one Docker image: PostgreSQL, Django, Imba, and Nginx run 
 
 ## Docker Hub image
 
-`docker.io/maxivious/bolls:v4.2.22`
+`docker.io/maxivious/bolls:v4.2.23`
 
 Published from this repo via `make build-all-in-one` and `make publish-all-in-one`.
 
@@ -14,7 +14,7 @@ Published from this repo via `make build-all-in-one` and `make publish-all-in-on
 2. **Application name:** `bolls` (or any name you prefer).
 3. **Container image:**
    - Repository: `maxivious/bolls`
-   - Tag: `v4.2.22`
+   - Tag: `v4.2.23`
 4. Leave **Entrypoint**, **CMD**, and **Args** empty (use image defaults).
 5. **Port forwarding:**
 
@@ -58,7 +58,7 @@ On a fresh install the database schema is created automatically, but **Bible ver
 
 Alternatively, import your own PostgreSQL dump into the mounted data directory before or after the first start.
 
-The 13 Spanish translations converted from e-Sword modules are bundled in the image and imported on every start if the database doesn't already have them, since the public backup doesn't carry them. See `docs/HOW_TO_ADD_TRANSLATIONS_FROM_ESWORD.md`.
+The Spanish translations and dictionaries converted from e-Sword modules are bundled in the image and imported on every start if the database doesn't already have them, since the public backup doesn't carry them. Dictionary search also needs the `unaccent` Postgres extension; the image creates it on every boot. See `docs/HOW_TO_ADD_TRANSLATIONS_FROM_ESWORD.md` and `docs/HOW_TO_ADD_DICTIONARIES_FROM_ESWORD.md`.
 
 ## Local test
 
@@ -102,4 +102,4 @@ Tag a new release by changing the version in the Makefile `build-all-in-one` / `
 | Setup | Use case |
 |-------|----------|
 | `docker compose up` (see [docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md](../../docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md)) | Local development |
-| `maxivious/bolls:v4.2.22` all-in-one image | TrueNAS Scale, single-container production |
+| `maxivious/bolls:v4.2.23` all-in-one image | TrueNAS Scale, single-container production |

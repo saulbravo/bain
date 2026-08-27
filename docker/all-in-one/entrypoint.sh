@@ -82,13 +82,25 @@ if [ "${verse_count:-0}" = "0" ] && [ "${AUTO_RESTORE_DB:-0}" = "1" ]; then
   if [ -f /sql/restore-indexes-sequences.sql ]; then
     gosu postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /sql/restore-indexes-sequences.sql
   fi
-  if [ -f /sql/unaccent_plus.rules ]; then
-    cp /sql/unaccent_plus.rules /usr/share/postgresql/tsearch_data/unaccent_plus.rules
-    gosu postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE EXTENSION IF NOT EXISTS unaccent;"
-    gosu postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER TEXT SEARCH DICTIONARY unaccent (RULES='unaccent_plus');"
-    gosu postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
-  fi
   rm -f "$restore_file"
+fi
+
+# Dictionary search needs unaccent; verse search needs pg_trgm. These used to be
+# created only during the first restore, so a database that already had verses
+# never got them and /dictionary-definition/ 500'd. The app user is not a
+# superuser, so create them as the postgres admin on every boot.
+echo "Ensuring PostgreSQL search extensions..."
+SHAREDIR="$(pg_config --sharedir)"
+mkdir -p "$SHAREDIR/tsearch_data"
+if [ -f /sql/unaccent_plus.rules ]; then
+  cp /sql/unaccent_plus.rules "$SHAREDIR/tsearch_data/unaccent_plus.rules"
+fi
+gosu postgres psql -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 <<-EOSQL
+	CREATE EXTENSION IF NOT EXISTS unaccent;
+	CREATE EXTENSION IF NOT EXISTS pg_trgm;
+EOSQL
+if [ -f "$SHAREDIR/tsearch_data/unaccent_plus.rules" ]; then
+  gosu postgres psql -d "$POSTGRES_DB" -c "ALTER TEXT SEARCH DICTIONARY unaccent (RULES='unaccent_plus');" || true
 fi
 
 # Spanish modules the upstream backup doesn't carry. Skips anything already there.

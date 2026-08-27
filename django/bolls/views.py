@@ -1,4 +1,3 @@
-from django.db.models import F, Func
 import re
 import os
 import unicodedata
@@ -6,6 +5,7 @@ import json
 import html
 import time
 from django.db.models import Count, Q
+from django.db.utils import ProgrammingError
 from django.contrib.postgres.search import (
     SearchQuery,
     SearchRank,
@@ -1340,62 +1340,64 @@ def parse_links(text, translation):
 
 def dictionary_search(request, dict, query):
     query = query.strip()
+    translation = "international/SYNOD" if dict == "RUSD" else "international/KJV"
+
+    def serialize(results):
+        payload = []
+        for result in results:
+            serialized_result = {
+                "topic": result.topic,
+                "definition": parse_links(result.definition, translation),
+                "lexeme": result.lexeme,
+                "transliteration": result.transliteration,
+                "pronunciation": result.pronunciation,
+                "weight": getattr(result, "rank", 0) or 0,
+            }
+            if result.short_definition:
+                serialized_result["short_definition"] = result.short_definition
+            payload.append(serialized_result)
+        return payload
+
+    # Strong's numbers are stored as topics (H1, G2316). Exact match skips the
+    # unaccent search path, which 500s if that Postgres extension was never created.
+    if re.fullmatch(r"[GHgh]\d+", query):
+        results = Dictionary.objects.filter(dictionary=dict, topic=query.upper())
+        return cross_origin(JsonResponse(serialize(results), safe=False))
+
     unaccented_query = strip_vowels(query.lower())
+    similarity_rank = 0.3 if request.GET.get("extended", False) else 0.5
 
-    similarity_rank = 0.5
-    if request.GET.get("extended", False):
-        similarity_rank = 0.3
-
-    # Rank search
-    search_vector = SearchVector("lexeme__unaccent")
-    search_query = SearchQuery(unaccented_query)
-    results_of_rank = (
-        Dictionary.objects.annotate(rank=SearchRank(search_vector, search_query))
-        .filter(
-            Q(short_definition__search=unaccented_query) | Q(topic=query.upper()) | Q(rank__gt=0),
-            dictionary=dict,
+    try:
+        search_vector = SearchVector("lexeme__unaccent")
+        search_query = SearchQuery(unaccented_query)
+        results_of_rank = (
+            Dictionary.objects.annotate(rank=SearchRank(search_vector, search_query))
+            .filter(
+                Q(short_definition__search=unaccented_query) | Q(topic=query.upper()) | Q(rank__gt=0),
+                dictionary=dict,
+            )
+            .order_by("-rank")
         )
-        .order_by("-rank")
-    )
+        results_of_similarity = (
+            Dictionary.objects.annotate(rank=TrigramWordSimilarity(unaccented_query, "lexeme__unaccent"))
+            .filter(dictionary=dict, rank__gt=similarity_rank)
+            .order_by("-rank")
+        )
+        results_of_search = list(results_of_similarity) + list(set(results_of_rank) - set(results_of_similarity))
+        results_of_search.sort(key=lambda verse: verse.rank, reverse=True)
+    except ProgrammingError:
+        results_of_search = list(
+            Dictionary.objects.filter(
+                Q(topic__iexact=query) | Q(lexeme__icontains=query) | Q(short_definition__icontains=query),
+                dictionary=dict,
+            )[:80]
+        )
 
-    # SImilarity search
-    results_of_similarity = (
-        Dictionary.objects.annotate(rank=TrigramWordSimilarity(unaccented_query, "lexeme__unaccent"))
-        .filter(dictionary=dict, rank__gt=similarity_rank)
-        .order_by("-rank")
-    )
-
-    # Merge both kinds of search
-    results_of_search = list(results_of_similarity) + list(set(results_of_rank) - set(results_of_similarity))
-    results_of_search.sort(key=lambda verse: verse.rank, reverse=True)
-
-    # for farther refactoring of inner Bible links
-    translation = ""
-    if dict == "RUSD":
-        translation = "international/SYNOD"
-    else:
-        translation = "international/KJV"
-
-    # Serialize final data
-    d = []
-    for result in results_of_search:
-        serialized_result = {
-            "topic": result.topic,
-            "definition": parse_links(result.definition, translation),
-            "lexeme": result.lexeme,
-            "transliteration": result.transliteration,
-            "pronunciation": result.pronunciation,
-            "weight": result.rank,
-        }
-        if result.short_definition:
-            serialized_result["short_definition"] = result.short_definition
-
-        d.append(serialized_result)
-    return cross_origin(JsonResponse(d, safe=False))
+    return cross_origin(JsonResponse(serialize(results_of_search), safe=False))
 
 
 def get_dictionary(_, dictionary):
-    definitions = Dictionary.objects.annotate(unaccented_lexeme=Func(F("lexeme"), function="unaccent")).filter(dictionary=dictionary)
+    definitions = Dictionary.objects.filter(dictionary=dictionary)
 
     d = []
     for definition in definitions:
