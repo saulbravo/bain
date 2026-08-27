@@ -344,6 +344,15 @@ global css
 			opacity: 1
 			color: $acc
 
+	.interlinear .strong-word
+		opacity: .4
+		color: inherit
+
+	.interlinear i
+		opacity: 1
+		color: inherit
+		font-style: italic
+
 	.definition
 		a
 			color:$acc @hover:$acc-hover

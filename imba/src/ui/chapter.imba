@@ -1676,7 +1676,7 @@ tag chapter < section
 			for number in numbers
 				rendered += "<span class=\"strong-num\" data-strong=\"{prefix}{number}\" title=\"{prefix}{number}\">{number}</span>"
 			const spacer = gap ? "<span class=\"strong-gap\">{gap}</span>" : ''
-			return "<ruby class=\"strong-pair\">{word}{spacer}<rt class=\"strong-nums\">{rendered}</rt></ruby>"
+			return "<ruby class=\"strong-pair\"><span class=\"strong-word\">{word}</span>{spacer}<rt class=\"strong-nums\">{rendered}</rt></ruby>"
 		)
 
 	def openStrongDefinition topic\string
@@ -1829,7 +1829,7 @@ tag chapter < section
 		return activities.getPenSketchesFor(me.translation, me.book, me.chapter)
 
 	def render
-		<self .parallel=parallelReader.enabled
+		<self .parallel=parallelReader.enabled .interlinear=(me.translation == 'INTES')
 			@scroll.debounce(50ms)=changeHeadersSizeOnScroll
 			@pointerdown=handlePointerDown
 			@pointermove=handlePointerMove
@@ -1877,7 +1877,7 @@ tag chapter < section
 			if me.me == 'main'
 				<div.tabs-sticky>
 					<bible-tabs scale=1>
-			<article[text-indent: {settings.verse_number ? 0 : 2.5}em] 
+			<article.interlinear=(me.translation == 'INTES') [text-indent: {settings.verse_number ? 0 : 2.5}em] 
 					data-verse-break="{settings.verse_break}"
 				[key={(me.translation or '') + ':' + (me.book or 0) + ':' + (me.chapter or 0) + ':' + ((me.verses and me.verses.length) or 0) + ':' + ((me.bookmarks and me.bookmarks.length) or 0)}]
 				[mt: 30px]
