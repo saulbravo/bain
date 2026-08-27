@@ -347,11 +347,16 @@ global css
 	.interlinear .strong-word
 		opacity: .4
 		color: inherit
+		pointer-events: auto
 
 	.interlinear i
 		opacity: 1
 		color: inherit
 		font-style: italic
+		pointer-events: auto
+
+	html.freehand-mode .strong-word
+		pointer-events: auto
 
 	.definition
 		a

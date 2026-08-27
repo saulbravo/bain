@@ -391,6 +391,8 @@ tag chapter < section
 		let lastNode = null
 		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
 		while (let next = walker.nextNode())
+			if isStrongAnnotationText(next)
+				continue
 			const length = next.textContent.length
 			if length > 0
 				lastNode = next
@@ -455,6 +457,8 @@ tag chapter < section
 		let text = ''
 		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
 		while (let node = walker.nextNode())
+			if isStrongAnnotationText(node)
+				continue
 			text += node.textContent
 		return text
 
@@ -482,6 +486,8 @@ tag chapter < section
 		let base = 0
 		const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null, false)
 		while (let node = walker.nextNode())
+			if isStrongAnnotationText(node)
+				continue
 			const length = node.textContent.length
 			if length > 0
 				# Coarse pass first so long verses stay cheap, then refine around it.
@@ -1130,17 +1136,20 @@ tag chapter < section
 				let pair = node.closest('.strong-pair')
 				unless pair
 					return null
-				let walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT, null, false)
-				let base = null
-				while (let textNode = walker.nextNode())
-					unless isStrongAnnotationText(textNode)
-						base = textNode
-						break
-				unless base
+				let bases = firstLastBaseTextInPair(pair)
+				unless bases.first
 					return null
-				range = document.createRange()
-				range.setStart(base, base.textContent.length)
-				range.collapse(yes)
+				let pick = bases.last or bases.first
+				let pairRect = pair.getBoundingClientRect()
+				if pairRect and pairRect.width > 0 and clientX < pairRect.left + pairRect.width / 2
+					pick = bases.first
+					range = document.createRange()
+					range.setStart(pick, 0)
+					range.collapse(yes)
+				else
+					range = document.createRange()
+					range.setStart(pick, pick.textContent.length)
+					range.collapse(yes)
 		return range
 
 	def updateFreehandTextSelection e, isAnchor = no
@@ -1318,6 +1327,20 @@ tag chapter < section
 		let el = node and node.nodeType == 3 ? node.parentElement : node
 		return !!(el and el.closest and el.closest('.strong-nums'))
 
+	def firstLastBaseTextInPair pair
+		unless pair
+			return { first: null, last: null }
+		let walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT, null, false)
+		let first = null
+		let last = null
+		while (let textNode = walker.nextNode())
+			if isStrongAnnotationText(textNode)
+				continue
+			unless first
+				first = textNode
+			last = textNode
+		return { first: first, last: last }
+
 	def getCharOffsetInVerseSpan node, offset, root
 		let count = 0
 		let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false)
@@ -1402,6 +1425,8 @@ tag chapter < section
 		let offset = 0
 		let found = no
 		while (let node = walker.nextNode())
+			if isStrongAnnotationText(node)
+				continue
 			let text = node.textContent or ''
 			let len = text.length
 			if len == 0
@@ -1581,6 +1606,25 @@ tag chapter < section
 		selection.removeAllRanges()
 		imba.commit!
 
+	def rubyBaseLengthFromParts parts, rubyIndex
+		let length = 0
+		let inRt = no
+		let i = rubyIndex + 1
+		while i < parts.length
+			let piece = parts[i]
+			if piece.type == 'tag'
+				let html = piece.content.toLowerCase()
+				if html.indexOf('<rt') == 0
+					inRt = yes
+				elif html.indexOf('</rt') == 0
+					inRt = no
+				elif html.indexOf('</ruby') == 0
+					return length
+			elif !inRt
+				length += piece.content.length
+			i += 1
+		return length
+
 	def applyHighlightsToHtml html, highlights
 		# Parse the HTML into a list of "parts": either a tag or a text node
 		let parts = []
@@ -1605,14 +1649,40 @@ tag chapter < section
 		let highlightIndex = 0
 		let activeHighlights = []
 		let insideStrongNums = no
+		let insideRuby = no
 
-		for part in parts
+		for part, partIndex in parts
 			if part.type == 'tag'
-				if part.content.indexOf('<rt') == 0
+				let lower = part.content.toLowerCase()
+				if lower.indexOf('<ruby') == 0
+					let baseLen = rubyBaseLengthFromParts(parts, partIndex)
+					while highlightIndex < highlights.length and highlights[highlightIndex].start >= currentChar and highlights[highlightIndex].start < currentChar + baseLen
+						let h = highlights[highlightIndex]
+						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+						activeHighlights.push(h)
+						highlightIndex++
+					result += part.content
+					insideRuby = yes
+					continue
+				if lower.indexOf('</ruby') == 0
+					result += part.content
+					insideRuby = no
+					let highlightsEnding = activeHighlights.filter(do |h| return h.end <= currentChar)
+					if highlightsEnding.length > 0
+						for j in [0 ... highlightsEnding.length]
+							let h = highlightsEnding[j]
+							result += freehandWrapClose(h.color, h.decoration or 'fill')
+						activeHighlights = activeHighlights.filter(do |h| return h.end > currentChar)
+					continue
+				if lower.indexOf('<rt') == 0
 					insideStrongNums = yes
 				result += part.content
-				if part.content.indexOf('</rt') == 0
+				if lower.indexOf('</rt') == 0
 					insideStrongNums = no
+				continue
+
+			if insideStrongNums
+				result += part.content
 				continue
 
 			let text = part.content
@@ -1622,25 +1692,23 @@ tag chapter < section
 				# Check for highlights starting here
 				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 					let h = highlights[highlightIndex]
-					unless insideStrongNums
-						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+					result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 					activeHighlights.push(h)
 					highlightIndex++
 
 				# Check for highlights ending here
 				let highlightsEnding = activeHighlights.filter(do |h| return h.end == currentChar)
 				if highlightsEnding.length > 0
-					unless insideStrongNums
+					unless insideRuby
 						for j in [0 ... highlightsEnding.length]
 							let h = highlightsEnding[j]
 							result += freehandWrapClose(h.color, h.decoration or 'fill')
-					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
+						activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 					
 					# Re-check for new highlights starting exactly here
 					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 						let h = highlights[highlightIndex]
-						unless insideStrongNums
-							result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
 						activeHighlights.push(h)
 						highlightIndex++
 
@@ -1649,24 +1717,29 @@ tag chapter < section
 				currentChar++
 			
 			# Check for highlights ending at the very end of a text node
-			let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
-			if highlightsEndingAtEnd.length > 0
-				unless insideStrongNums
+			unless insideRuby
+				let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
+				if highlightsEndingAtEnd.length > 0
 					for j in [0 ... highlightsEndingAtEnd.length]
 						let h = highlightsEndingAtEnd[j]
 						result += freehandWrapClose(h.color, h.decoration or 'fill')
-				activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
+					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
+
+		for h in activeHighlights
+			result += freehandWrapClose(h.color, h.decoration or 'fill')
 
 		return result
 
 	# Strong's numbers arrive as <S>1234</S> right after the word they belong to.
 	# Wrap the pair so the number can be stacked under its word instead of sitting inline.
+	# Interlinear glosses (<i>Así</i>) belong in the same ruby so a highlight covers
+	# the whole Greek + Spanish + Strong's cluster.
 	def annotateStrongNumbers html
 		unless html and (html.indexOf('<S>') > -1 or html.indexOf('<s>') > -1)
 			return html
 		const prefix = me.book < 40 ? 'H' : 'G'
 		# The gap before the tag is kept (hidden) so character offsets used by highlights stay identical.
-		return html.replace(/([^\s<>]+)([ \t]*)((?:<[sS]>\d+<\/[sS]>)+)/g, do |match, word, gap, tags, offset|
+		return html.replace(/([^\s<>]+)([ \t]*)((?:<[sS]>\d+<\/[sS]>)+)([ \t]*<i>[\s\S]*?<\/i>)?/g, do |match, word, gap, tags, gloss, offset|
 			if gap
 				const nextChar = html[offset + match.length]
 				if nextChar and !nextChar.match(/\s/)
@@ -1676,7 +1749,8 @@ tag chapter < section
 			for number in numbers
 				rendered += "<span class=\"strong-num\" data-strong=\"{prefix}{number}\" title=\"{prefix}{number}\">{number}</span>"
 			const spacer = gap ? "<span class=\"strong-gap\">{gap}</span>" : ''
-			return "<ruby class=\"strong-pair\"><span class=\"strong-word\">{word}</span>{spacer}<rt class=\"strong-nums\">{rendered}</rt></ruby>"
+			const glossHtml = gloss or ''
+			return "<ruby class=\"strong-pair\"><span class=\"strong-word\">{word}</span>{spacer}{glossHtml}<rt class=\"strong-nums\">{rendered}</rt></ruby>"
 		)
 
 	def openStrongDefinition topic\string
@@ -2118,12 +2192,16 @@ tag chapter < section
 								
 								<span innerHTML=verseText
 									id="{versePrefix}{verse.verse}"
-									@mousedown=(do |e| handleStrongPointer(e.currentTarget, 'mousedown', e))
-									@click.wait(200ms)=(do |e|
-										if handleStrongPointer(e.currentTarget, 'click', e)
+									@mousedown=(do |e|
+										if drawingArmed
 											return
+										handleStrongPointer(e.currentTarget, 'mousedown', e)
+									)
+									@click.wait(200ms)=(do |e|
 										if drawingArmed
 											# During freehand drag, suppress normal verse click selection side effects.
+											return
+										if handleStrongPointer(e.currentTarget, 'click', e)
 											return
 										console.log('[DEBUG] Verse clicked in chapter view:', { pk: verse.pk, verse: verse.verse, prefix: versePrefix })
 										me.selectVerse(verse.pk, verse.verse)
