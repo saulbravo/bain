@@ -222,6 +222,15 @@ class BibleView extends ItemView {
 		this.lastMarkdownLeaf = view.leaf;
 	}
 
+	stripStrongNumbersFromVerseHtml(text: string): string {
+		return String(text || "")
+			.replace(/<[sS]>\d+<\/[sS]>/g, "")
+			.replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, "")
+			.replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, "")
+			.replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
+			.replace(/<\/?ruby[^>]*>/gi, "");
+	}
+
 	getViewType() {
 		return "bible-viewer";
 	}
@@ -590,7 +599,7 @@ class BibleView extends ItemView {
 		// > [!bible] [Reference - Translation Code](url)
 		// > verse text
 		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
-		const verseTexts = verses.map((v) => `> ${v.verse}. ${v.text}`).join("\n");
+		const verseTexts = verses.map((v) => `> ${v.verse}. ${this.stripStrongNumbersFromVerseHtml(v.text)}`).join("\n");
 		const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
 		const formattedText = `${calloutHeader}\n${verseTexts}\n> ^${blockId}`;
 

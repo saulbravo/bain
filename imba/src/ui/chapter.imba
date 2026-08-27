@@ -1791,16 +1791,26 @@ tag chapter < section
 		
 		return verseText
 
+	def stripStrongNumbersFromExport html
+		unless html
+			return ''
+		let text = String(html)
+		text = text.replace(/<[sS]>\d+<\/[sS]>/g, '')
+		text = text.replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, '')
+		text = text.replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, '')
+		text = text.replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+		text = text.replace(/<\/?ruby[^>]*>/gi, '')
+		return text
+
 	def getVerseTextForObsidianExport verse
 		let text = getVerseText(verse)
 		# Freehand / inline marks are already embedded in getVerseText output.
-		if text.indexOf('<mark') >= 0
-			return text
-		let bookmark = me.getBookmark(verse.pk)
-		let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
-		if color != ''
-			return "<mark style=\"background: {color};\">{text}</mark>"
-		return text
+		if text.indexOf('<mark') < 0
+			let bookmark = me.getBookmark(verse.pk)
+			let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
+			if color != ''
+				text = "<mark style=\"background: {color};\">{text}</mark>"
+		return stripStrongNumbersFromExport(text)
 
 	def getPenStrokePath stroke
 		if !stroke or !stroke.points or stroke.points.length == 0
