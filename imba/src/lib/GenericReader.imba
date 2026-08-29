@@ -696,11 +696,13 @@ class GenericReader
 			return
 
 		const boundingRect = verseElement.getBoundingClientRect()
-		const scroller = verseElement.closest('#main-reader') or verseElement.closest('#parallel-reader')
-		const atBottom = scroller and (scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop) <= 80
-		unless atBottom
-			if boundingRect.bottom + activities.bottomDrawerOffset > window.innerHeight - 124 # 124 is the relative height of the bottom drawer
-				verseElement.scrollIntoView({behavior: theme.scrollBehavior, block: 'center'})
+		const scroller = getVerseScroller(verseElement)
+		if scroller
+			const box = scroller.getBoundingClientRect()
+			const belowFold = boundingRect.bottom + activities.bottomDrawerOffset > box.bottom - 124
+			const aboveFold = boundingRect.top < box.top + 8
+			if belowFold or aboveFold
+				scrollVerseIntoView(verseElement, belowFold)
 
 		if activities.commentaryCompareMode and me == 'main' and activities.selectedVersesPKs.length
 			let verseNum = Number(id)
@@ -767,14 +769,37 @@ class GenericReader
 		return row
 
 
+	def getVerseScroller el
+		if myRenderer
+			return myRenderer
+		unless el
+			return null
+		return el.closest('#main-reader') or el.closest('#parallel-reader') or el.closest('chapter')
+
+	def scrollVerseIntoView el, center = no
+		const scroller = getVerseScroller(el)
+		unless el and scroller
+			return no
+		const elRect = el.getBoundingClientRect()
+		const box = scroller.getBoundingClientRect()
+		const pad = theme.fontSize or 16
+		let next = scroller.scrollTop + (elRect.top - box.top) - pad
+		if center
+			next = scroller.scrollTop + (elRect.top - box.top) - Math.max(pad, (scroller.clientHeight - elRect.height) / 2)
+		if next < 0
+			next = 0
+		const maxScroll = scroller.scrollHeight - scroller.clientHeight
+		if maxScroll > 0 and next > maxScroll
+			next = maxScroll
+		if Math.abs(next - scroller.scrollTop) > 1
+			scroller.scrollTop = next
+		return yes
+
 	def findVerse id, endverse\string|number = undefined, highlight = no
 		setTimeout(&,250) do
 			const verseNumberElement = document.getElementById(id)
 			if verseNumberElement
-				verseNumberElement.offsetParent.scrollTo({
-					behavior: theme.scrollBehavior,
-					top: verseNumberElement.offsetTop - theme.fontSize
-				})
+				scrollVerseIntoView(verseNumberElement)
 				if highlight then highlightLinkedVerses(id, endverse)
 			else
 				findVerse(id, endverse, highlight)
@@ -782,21 +807,23 @@ class GenericReader
 	def scrollVerseToTop verseNum, offsetFromTop = null
 		const id = me == 'main' ? String(verseNum) : "p{verseNum}"
 		const el = document.getElementById(id)
-		const scroller = myRenderer
-		unless el and scroller
+		unless el
 			return
-		const elTop = el.getBoundingClientRect().top
-		const scrollerTop = scroller.getBoundingClientRect().top
-		const target = offsetFromTop != null ? offsetFromTop : (theme.fontSize or 16)
-		let next = scroller.scrollTop + (elTop - scrollerTop - target)
-		if next < 0
-			next = 0
-		const maxScroll = scroller.scrollHeight - scroller.clientHeight
-		if maxScroll > 0 and next > maxScroll
-			next = maxScroll
-		if Math.abs(next - scroller.scrollTop) < 1
+		if offsetFromTop != null
+			const scroller = getVerseScroller(el)
+			unless scroller
+				return
+			const elTop = el.getBoundingClientRect().top
+			const scrollerTop = scroller.getBoundingClientRect().top
+			let next = scroller.scrollTop + (elTop - scrollerTop - offsetFromTop)
+			if next < 0
+				next = 0
+			const maxScroll = scroller.scrollHeight - scroller.clientHeight
+			if maxScroll > 0 and next > maxScroll
+				next = maxScroll
+			scroller.scrollTop = next
 			return
-		scroller.scrollTop = next
+		scrollVerseIntoView(el)
 
 	def goToAndSelectVerse verseNum, versePk\number = null, token\number = null, center\boolean = no
 		unless token
@@ -845,19 +872,9 @@ class GenericReader
 				if token != self._verseNavToken
 					return
 				let el = document.getElementById(scrollId)
-				if el and el.offsetParent
-					const container = el.offsetParent
-					let top = el.offsetTop - theme.fontSize
-					if shouldCenter
-						top = el.offsetTop - Math.max(theme.fontSize, (container.clientHeight - el.offsetHeight) / 2)
-					container.scrollTo({
-						behavior: shouldCenter ? theme.scrollBehavior : 'auto',
-						top: Math.max(0, top)
-					})
-					if shouldCenter and theme.scrollBehavior == 'smooth'
-						setTimeout(afterScroll, 350)
-					else
-						afterScroll!
+				if el
+					scrollVerseIntoView(el, shouldCenter)
+					afterScroll!
 				else
 					scrollToVerse()
 

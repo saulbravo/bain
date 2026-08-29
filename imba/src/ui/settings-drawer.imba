@@ -53,6 +53,13 @@ tag settings-drawer < aside
 			# & reload
 			window.history.go()
 
+	def goToLogin
+		let next = window.location.pathname + (window.location.search or '')
+		window.location.assign('/accounts/login/?next=' + window.encodeURIComponent(next))
+
+	def goToSignup
+		window.location.assign('/signup/')
+
 	<self>
 		<p[fs:1.5rem h:2rem d:flex jc:space-between ai:center p:0.5rem]>
 			t.settings
@@ -69,10 +76,10 @@ tag settings-drawer < aside
 				<svg src=CandyOff aria-hidden=true>
 				t.logout
 		else
-			<a.settings-btn href="/accounts/login/">
+			<button.settings-btn @click.stop.prevent=goToLogin>
 				<svg src=Lollipop aria-hidden=true>
 				t.login
-			<a.settings-btn href="/signup/">
+			<button.settings-btn @click.stop.prevent=goToSignup>
 				<svg src=Candy aria-hidden=true>
 				t.signin
 		<button.settings-btn[d@lg:none] @click=activities.showSearch>

@@ -993,6 +993,16 @@ class Activities
 					selectedVerses: selectedVerses.length
 				})
 		
+	@action def openSettingsFromModal
+		if activeModal
+			window.history.replaceState({}, '')
+		activeModal = ''
+		activeVerseAction = ''
+		def revealSettings
+			settingsDrawerOffset = 0
+			imba.commit!
+		window.setTimeout(revealSettings, 10)
+
 	def toggleSettingsMenu
 		if settingsDrawerOffset
 			if !booksDrawerOffset && hasTouchEvents

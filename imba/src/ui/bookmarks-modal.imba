@@ -14,6 +14,7 @@ import Link2 from 'lucide-static/icons/link-2.svg'
 import Link2Off from 'lucide-static/icons/link-2-off.svg'
 import List from 'lucide-static/icons/list.svg'
 import Search from 'lucide-static/icons/search.svg'
+import SettingsIcon from 'lucide-static/icons/settings.svg'
 import Trash2 from 'lucide-static/icons/trash-2.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
@@ -949,10 +950,11 @@ tag bookmarks-modal
 
 	<self.bookmarks-modal-root>
 		<header.header-with-close>
-			<button.close-btn @click=activities.cleanUp title=t.close>
-				<svg src=ICONS.X aria-hidden=yes>
+			<button.header-icon-btn @click.stop.prevent=activities.openSettingsFromModal title=t.settings>
+				<svg src=SettingsIcon aria-hidden=yes>
 			<h2.header-title> "Highlights and Bookmarks"
-			<span.header-spacer>
+			<button.header-icon-btn.close-btn @click=activities.cleanUp title=t.close>
+				<svg src=ICONS.X aria-hidden=yes>
 
 		<div.toggle-row>
 			<button.toggle-btn .active=(activeTab == 'bookmarks') @click=switchToBookmarksTab>
@@ -1128,7 +1130,7 @@ tag bookmarks-modal
 			overscroll-behavior: contain
 
 		header
-			mb:0.5rem
+			mb:1.25rem
 
 		.header-with-close
 			d:grid
@@ -1136,15 +1138,26 @@ tag bookmarks-modal
 			ai:center
 			g:0.5rem
 
-		.close-btn
+		.header-icon-btn
 			bgc:transparent
-			c:inherit
+			c:inherit @hover:$acc-hover
 			min-width:2rem
 			w:2rem
+			h:2rem
+			p:0
 			cursor:pointer
 			d:flex
+			ai:center
+			jc:center
 			fls:0
 			grid-column:1
+
+		.header-icon-btn svg
+			w:1.5rem
+			h:1.5rem
+
+		.close-btn
+			grid-column:3
 
 		.header-title
 			text-align:center
@@ -1156,11 +1169,6 @@ tag bookmarks-modal
 			fs:1.1em
 			grid-column:2
 			justify-self:center
-
-		.header-spacer
-			grid-column:3
-			w:2rem
-			fls:0
 
 		.bookmark-filter
 			d:flex

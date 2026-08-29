@@ -8,6 +8,7 @@ import ArrowLeft from 'lucide-static/icons/arrow-left.svg'
 import BookOpen from 'lucide-static/icons/book-open.svg'
 import Clock from 'lucide-static/icons/clock.svg'
 import Palette from 'lucide-static/icons/palette.svg'
+import Trash2 from 'lucide-static/icons/trash-2.svg'
 import * as ICONS from 'imba-phosphor-icons'
 
 import TimelineIcon from '../icons/timeline.svg'
@@ -163,6 +164,15 @@ tag books-modal
 
 	@action def toggleFullBookNames
 		showFullBookNames = !showFullBookNames
+
+	@action def clearRecentHistory
+		unless readingHistory.history.length
+			return
+		const confirmed = await window.confirm("{t.history}?")
+		if confirmed
+			readingHistory.clear!
+			searchQuery = ''
+			imba.commit!
 	
 	@computed get filteredHistory
 		unless searchQuery.trim()
@@ -353,11 +363,13 @@ tag books-modal
 				chapter: chapter
 			}, source)
 
-	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string
-		# Change translation if needed
+	@action def goToChapterFromHistory bookid\number, chapter\number, translation\string, verse = null
 		if translation != activeTranslation
 			changeTranslation(translation)
-		goToChapter(bookid, chapter)
+		if verse != null and verse != undefined and verse != ''
+			goToVerse(bookid, chapter, verse)
+		else
+			goToChapter(bookid, chapter)
 
 	@action def goBack
 		console.log('[DEBUG] goBack called, current modalState:', modalState)
@@ -367,14 +379,15 @@ tag books-modal
 			selectedChapterNumber = null
 			verseCount = 0
 		elif modalState == 'chapter'
-			# Set flag to prevent auto-initialization from running again
-			autoInitialized = yes
-			modalState = 'book'
-			selectedBook = null
-			selectedChapter = null
-			selectedChapterNumber = null
-			verseCount = 0
-			console.log('[DEBUG] Went back to book view, preventing auto-initialization')
+			goToBookPicker!
+
+	@action def goToBookPicker
+		autoInitialized = yes
+		modalState = 'book'
+		selectedBook = null
+		selectedChapter = null
+		selectedChapterNumber = null
+		verseCount = 0
 
 	def handleKeydown event\KeyboardEvent
 		# Only handle if we're in browse mode and books modal is active
@@ -458,10 +471,11 @@ tag books-modal
 		<header>
 			<[d:flex jc:center ai:center g:0.75rem]>
 				if selectedBook != null and books[selectedBook]
-					<span.bible-selected-book-name> 
+					<button.bible-selected-book-name type="button" @click.stop.prevent=goToBookPicker title=t.book>
 						books[selectedBook].name
-						if modalState == 'verse' and selectedChapterNumber != null
-							" {selectedChapterNumber}"
+					if modalState == 'verse' and selectedChapterNumber != null
+						<button.bible-selected-chapter-name type="button" @click.stop.prevent=goBack>
+							selectedChapterNumber
 					<span.bible-separator> "|"
 				if parallelReader.enabled
 					<[d:flex mih:2.25rem g:0.5rem ai:center]>
@@ -507,17 +521,23 @@ tag books-modal
 			
 			if mode == 'history'
 				<div.bible-history-results>
-					<input.bible-modal-input
-						type="text"
-						placeholder="Search history or type a reference…"
-						bind=searchQuery
-						aria-label="Search history">
+					<div.bible-history-toolbar>
+						<input.bible-modal-input
+							type="text"
+							placeholder="Search history or type a reference…"
+							bind=searchQuery
+							aria-label="Search history">
+						<button.bible-history-clear type="button"
+							disabled=(!readingHistory.history.length)
+							@click.stop.prevent=clearRecentHistory
+							title=t.history>
+							<svg src=Trash2 aria-hidden=true>
 					<div.bible-history-list>
 						if filteredHistory.length > 0
 							for item in filteredHistory
 								const bookData = ALL_BOOKS[item.translation]?.find(do(b) return b.bookid == item.book)
 								if bookData
-									<div.bible-history-item @click=goToChapterFromHistory(item.book, item.chapter, item.translation)>
+									<div.bible-history-item @click=goToChapterFromHistory(item.book, item.chapter, item.translation, item.verse)>
 										<span.bible-history-item-icon>
 											<svg src=BookOpen width="16" height="16" aria-hidden=true>
 										<div.bible-history-item-text>
@@ -1075,6 +1095,38 @@ tag books-modal
 			gap: 12px
 			padding: 8px
 
+		.bible-history-toolbar
+			display: flex
+			align-items: center
+			gap: 8px
+
+		.bible-history-clear
+			display: flex
+			align-items: center
+			justify-content: center
+			flex-shrink: 0
+			width: 2.25rem
+			height: 2.25rem
+			padding: 0
+			border: none
+			border-radius: 4px
+			background: transparent
+			color: inherit
+			cursor: pointer
+
+		.bible-history-clear@hover
+			color: $acc-hover
+			background: var(--acc-bgc-hover, rgba(0, 0, 0, 0.1))
+
+		.bible-history-clear@disabled
+			opacity: 0.35
+			cursor: default
+			background: transparent
+
+		.bible-history-clear svg
+			width: 1.15rem
+			height: 1.15rem
+
 		.bible-modal-input
 			width: 100%
 			padding: 8px 12px
@@ -1174,11 +1226,19 @@ tag books-modal
 		.active
 			c:$acc
 		
-		.bible-selected-book-name
+		.bible-selected-book-name, .bible-selected-chapter-name
 			font-size: 1.25rem
 			font-weight: bold
-			color: inherit
+			color: inherit @hover:$acc-hover
 			white-space: nowrap
+			background: transparent
+			padding: 0
+			cursor: pointer
+			font: inherit
+			fw: bold
+		
+		.bible-selected-chapter-name
+			ml: 0.35em
 		
 		header .btn
 			font-size: 1.25rem
