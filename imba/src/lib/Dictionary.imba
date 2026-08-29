@@ -168,22 +168,44 @@ class Dictionary
 		# Clear Greek
 		return res.normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
-	# Get query results from the dictionary, or Strong's number 
+	def strongTopicFrom value
+		const match = String(value or '').trim().match(/[GHgh]\d+/)
+		if match
+			return match[0].toUpperCase()
+		return ''
+
+	def strongTopicFromLink target
+		unless target
+			return ''
+		if target.nodeType == 3
+			target = target.parentElement
+		unless target and target.closest
+			return ''
+		const link = target.closest('a')
+		unless link
+			return ''
+		return strongTopicFrom(link.getAttribute('data-strong')) or strongTopicFrom(link.getAttribute('href')) or strongTopicFrom(link.getAttribute('onclick')) or strongTopicFrom(link.textContent)
+
+	# Get query results from the dictionary, or Strong's number
 	def loadDefinitions newQuery = undefined
-		let selected_text = window.getSelection!.toString!.trim!
-		if typeof newQuery === 'string' # imba may pass the event object from input
-			query = newQuery
-		elif selected_text
-			query = selected_text
-		else
-			const searchInput = document.getElementById('dictionarysearch')
-			if searchInput and searchInput.value
-				query = String(searchInput.value).trim()
+		if typeof newQuery === 'string' and String(newQuery).trim()
+			query = String(newQuery).trim()
+		elif !String(query or '').trim()
+			let selected_text = window.getSelection!.toString!.trim!
+			if selected_text
+				query = selected_text
+			else
+				const searchInput = document.getElementById('dictionarysearch')
+				if searchInput and searchInput.value
+					query = String(searchInput.value).trim()
 
-		activities.cleanUp { onPopState: yes }
-		activities.openModal 'dictionary'
+		# Already-open dictionary: keep the modal and jump. Opening from the
+		# reader still needs cleanUp so the previous overlay is gone.
+		unless activities.activeModal == 'dictionary'
+			activities.cleanUp { onPopState: yes }
+			activities.openModal 'dictionary'
+			definitions = []
 
-		definitions = []
 		if query && (window.navigator.onLine or vault.downloaded_dictionaries.length)
 			if history.indexOf(query) == -1
 				historyIndex += 1
@@ -224,29 +246,31 @@ class Dictionary
 	# Since I use MyBible modules they have their own links format, which is not supported by the browser.
 	# So we have to parse them and replace with custom click events.
 	def parseDefinitionsLinks
-		# Parse Strong links
-		let patterns = [
-			/<a href='S:(.*?)'>/g,
-			/<a href=\"S:(.*?)\">/g,
-			/<a href=S:(.*?)>/g
-		]
-		for definition, index in definitions
-			for pattern in patterns
-				let matches = [... definition.definition.matchAll(pattern)]
-				for match in matches
-					definition.definition = definition.definition.replace(match[0], "<a onclick='strongDefinition(\"{match[1]}\")'>")
-
-		# Unlink TWOT links
-		patterns = [
+		# TWOT first so those anchors never become jump links.
+		let twotPatterns = [
 			/<a class="T" href='S:(.*?)'>/g,
 			/<a class="T" href=\"S:(.*?)\">/g,
 			/<a class="T" href=S:(.*?)>/g
 		]
-		for definition, index in definitions
-			for pattern in patterns
-				let matches = [... definition.definition.matchAll(pattern)]
+		for definition in definitions
+			unless definition.definition
+				continue
+			for pattern in twotPatterns
+				let matches = [... String(definition.definition).matchAll(pattern)]
 				for match in matches
 					definition.definition = definition.definition.replace(match[0], match[1])
+
+		# MyBible / e-Sword Strong's links are not real URLs. Mark them so a
+		# click on the definition body can load that number.
+		let linkPattern = /<a\b[^>]*\bhref\s*=\s*['"]?S:([^'">\s]+)['"]?[^>]*>/gi
+		for definition in definitions
+			unless definition.definition
+				continue
+			let matches = [... String(definition.definition).matchAll(linkPattern)]
+			for match in matches
+				const strong = strongTopicFrom(match[1])
+				if strong
+					definition.definition = definition.definition.replace(match[0], "<a data-strong='{strong}'>")
 
 
 	def prevDefinition

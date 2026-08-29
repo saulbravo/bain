@@ -329,8 +329,8 @@ tag reader
 		document.addEventListener('click', handleClickOutside.bind(self), true)
 
 		window.strongDefinition = do(topic)
-			self.dictionary.query = topic
-			self.dictionary.loadDefinitions!
+			if typeof topic === 'string' and topic
+				self.dictionary.loadDefinitions(topic)
 
 		# TODO clean up this at some point
 		if getValue('enable_dynamic_contrast')

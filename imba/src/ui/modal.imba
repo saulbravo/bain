@@ -29,6 +29,7 @@ tag dictionary-entry
 	index = 0
 	expanded = no
 	obsidian = no
+	#onStrongClick = null
 
 	def pick
 		emit('pick', index)
@@ -36,6 +37,30 @@ tag dictionary-entry
 	def onSelfClick
 		if obsidian
 			pick!
+
+	def jumpStrongLink e
+		const native = e and (e.event or e)
+		const target = native and native.target
+		const topic = dictionary.strongTopicFromLink(target)
+		unless topic
+			return no
+		if native.preventDefault
+			native.preventDefault()
+		if native.stopPropagation
+			native.stopPropagation()
+		if native.stopImmediatePropagation
+			native.stopImmediatePropagation()
+		dictionary.loadDefinitions(topic)
+		return yes
+
+	def mount
+		#onStrongClick = do |e| jumpStrongLink(e)
+		self.addEventListener('click', #onStrongClick, yes)
+
+	def unmount
+		if #onStrongClick
+			self.removeEventListener('click', #onStrongClick, yes)
+			#onStrongClick = null
 
 	def render
 		<self.definition .expanded=expanded id="dict-{definition.topic}" @click=onSelfClick>
@@ -1544,6 +1569,9 @@ tag modal < section
 				fl: 1 1 auto
 				min-w: 0
 				pr: 0.25rem
+
+			a
+				cursor: pointer
 
 			svg
 				transform:$svg-transform
