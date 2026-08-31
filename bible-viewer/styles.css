@@ -34,6 +34,14 @@
   font-style: italic;
 }
 
+/* Light highlight fills keep black text in Obsidian dark themes. */
+.callout[data-callout='bible'] mark,
+.callout[data-callout='bible'] [style*="background-color"],
+.callout[data-callout='bible'] [style*="background:"] {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+}
+
 .bible-verse-ref {
   color: var(--link-color);
   text-decoration: underline;

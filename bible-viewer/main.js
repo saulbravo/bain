@@ -537,11 +537,32 @@ var BibleView = class extends import_obsidian.ItemView {
     }
     return text;
   }
+  forceBlackHighlightText(html) {
+    if (!html) {
+      return html || "";
+    }
+    const black = "color: #000; -webkit-text-fill-color: #000;";
+    return html.replace(/<(mark|span)(\s[^>]*?)?>/gi, (tag, name, attrs = "") => {
+      const isMark = String(name).toLowerCase() === "mark";
+      const hasFill = /background(-color)?\s*:/i.test(attrs);
+      if (!isMark && !hasFill) {
+        return tag;
+      }
+      if (/style\s*=/i.test(attrs)) {
+        return `<${name}${attrs.replace(/style\s*=\s*(["'])([\s\S]*?)\1/i, (_m, quote, style) => {
+          let next = String(style).replace(/-webkit-text-fill-color\s*:[^;]*;?/gi, "").replace(/(?:^|;)\s*color\s*:[^;]*/gi, "").replace(/^;+|;+$/g, "").trim();
+          next = `${black} ${next}`.trim();
+          return `style=${quote}${next}${quote}`;
+        })}>`;
+      }
+      return `<${name}${attrs} style="${black}">`;
+    });
+  }
   insertBlockIntoNote(view, block) {
     var _a, _b;
     const editor = view.editor;
     const from = this.getInsertPosition(view);
-    const text = this.isolateBlockText(editor, from, block);
+    const text = this.isolateBlockText(editor, from, this.forceBlackHighlightText(block));
     editor.replaceRange(text, from);
     const end = this.positionAfterInsert(from, text);
     editor.setCursor(end);

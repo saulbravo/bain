@@ -61,7 +61,7 @@ export def highlightStyleCss raw\string, decoration\string = '', underlineStyle\
 	if mode == 'underline' and color
 		return underlineCss(style, color)
 	if mode == 'fill' and color
-		return "background-image: linear-gradient({color} 0px, {color} 100%); color: black;"
+		return "background-image: linear-gradient({color} 0px, {color} 100%); color: #000; -webkit-text-fill-color: #000;"
 	return ''
 
 export def freehandWrapOpen raw\string, decoration\string = 'fill', underlineStyle\string = 'solid'
@@ -72,7 +72,7 @@ export def freehandWrapOpen raw\string, decoration\string = 'fill', underlineSty
 	if mode == 'underline' and color
 		return "<span style=\"{underlineCss(style, color)}\">"
 	if color
-		return "<mark style=\"background-color:{color}; color: black;\">"
+		return "<mark style=\"background-color:{color}; color: #000; -webkit-text-fill-color: #000;\">"
 	return '<span>'
 
 export def freehandWrapClose raw\string, decoration\string = 'fill'

@@ -1918,7 +1918,7 @@ tag chapter < section
 			let bookmark = me.getBookmark(verse.pk)
 			let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
 			if color != ''
-				text = "<mark style=\"background: {color};\">{text}</mark>"
+				text = "<mark style=\"background: {color}; color: #000; -webkit-text-fill-color: #000;\">{text}</mark>"
 		text = stripStrongNumbersFromExport(text)
 		if isInterlinearTranslation(me.translation)
 			text = styleInterlinearForObsidian(text)
