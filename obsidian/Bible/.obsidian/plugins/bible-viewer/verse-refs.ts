@@ -3,6 +3,7 @@ export interface VerseHit {
 	chapter: number;
 	verse: number;
 	endVerse?: number;
+	translation?: string;
 	from: number;
 	to: number;
 	text: string;
@@ -155,6 +156,81 @@ export function findVerseRefs(text: string): VerseHit[] {
 		});
 	}
 	return hits;
+}
+
+const BIBLE_PATH_RE = /^\/([A-Za-z][A-Za-z0-9]{0,11})\/(\d{1,3})\/(\d{1,3})(?:\/(\d{1,3}(?:-\d{1,3})?))?\/?$/;
+const KNOWN_BIBLE_HOSTS = new Set([
+	"bolls.life",
+	"www.bolls.life",
+	"bolls.familybravo.com",
+	"localhost",
+	"127.0.0.1",
+]);
+
+function hostFromAppUrl(appUrl: string): string {
+	try {
+		return new URL(appUrl).hostname.toLowerCase();
+	} catch {
+		return "";
+	}
+}
+
+export function parseBibleAppLink(href: string, linkText: string, appUrl = ""): VerseHit | null {
+	if (!href) {
+		return null;
+	}
+	let url: URL;
+	try {
+		url = new URL(href, appUrl || "https://bolls.life");
+	} catch {
+		return null;
+	}
+
+	const host = url.hostname.toLowerCase();
+	const extra = hostFromAppUrl(appUrl);
+	if (!KNOWN_BIBLE_HOSTS.has(host) && host !== extra) {
+		return null;
+	}
+
+	const path = url.pathname.replace(/\/{2,}/g, "/");
+	const match = path.match(BIBLE_PATH_RE);
+	if (!match) {
+		return null;
+	}
+
+	const translation = match[1];
+	const bookId = Number(match[2]);
+	const chapter = Number(match[3]);
+	let verse = 1;
+	let endVerse: number | undefined;
+	if (match[4]) {
+		const parts = match[4].split("-");
+		verse = Number(parts[0]);
+		if (parts[1]) {
+			endVerse = Number(parts[1]);
+		}
+	} else {
+		const fromText = findVerseRefs(String(linkText || ""))[0];
+		if (fromText) {
+			verse = fromText.verse;
+			endVerse = fromText.endVerse;
+		}
+	}
+
+	if (!bookId || !chapter || !verse) {
+		return null;
+	}
+
+	return {
+		bookId,
+		chapter,
+		verse,
+		endVerse,
+		translation,
+		from: 0,
+		to: 0,
+		text: String(linkText || href).trim(),
+	};
 }
 
 export function verseHitFromEl(el: Element | null): VerseHit | null {

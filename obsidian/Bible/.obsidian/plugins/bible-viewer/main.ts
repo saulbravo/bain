@@ -13,17 +13,19 @@ import {
 } from "obsidian";
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
-import { decorateVerseRefs, findVerseRefs, verseHitFromEl, VerseHit } from "./verse-refs";
+import { decorateVerseRefs, findVerseRefs, parseBibleAppLink, verseHitFromEl, VerseHit } from "./verse-refs";
 
 interface BibleViewerSettings {
 	bibleAppUrl: string;
 	detectVerseReferences: boolean;
+	openBibleLinksInViewer: boolean;
 	lastTranslation: string;
 }
 
 const DEFAULT_SETTINGS: BibleViewerSettings = {
 	bibleAppUrl: "https://bolls.familybravo.com",
 	detectVerseReferences: true,
+	openBibleLinksInViewer: true,
 	lastTranslation: "",
 };
 
@@ -70,10 +72,26 @@ export default class BibleViewerPlugin extends Plugin {
 			document,
 			"click",
 			(event: MouseEvent) => {
-				if (!this.settings.detectVerseReferences) {
+				if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
 					return;
 				}
 				const target = event.target as HTMLElement | null;
+				if (this.settings.openBibleLinksInViewer) {
+					const link = target?.closest?.("a");
+					if (link) {
+						const href = link.getAttribute("href") || link.getAttribute("data-href") || "";
+						const hit = parseBibleAppLink(href, link.textContent || "", this.settings.bibleAppUrl);
+						if (hit) {
+							event.preventDefault();
+							event.stopPropagation();
+							void this.openVerseReference(hit);
+							return;
+						}
+					}
+				}
+				if (!this.settings.detectVerseReferences) {
+					return;
+				}
 				const el = target?.closest?.(".bible-verse-ref");
 				if (!el) {
 					return;
@@ -527,7 +545,7 @@ class BibleView extends ItemView {
 
 	verseAppUrl(hit: VerseHit): string {
 		const base = this.plugin.settings.bibleAppUrl.replace(/\/$/, "");
-		const translation = this.currentTranslation();
+		const translation = hit.translation || this.currentTranslation();
 		const versePart =
 			hit.endVerse && hit.endVerse !== hit.verse
 				? `${hit.verse}-${hit.endVerse}`
@@ -536,6 +554,9 @@ class BibleView extends ItemView {
 	}
 
 	navigateToVerse(hit: VerseHit) {
+		if (hit.translation) {
+			this.rememberTranslation(hit.translation);
+		}
 		const url = this.verseAppUrl(hit);
 		this.pendingNavigation = url;
 		if (this.iframe) {
@@ -926,6 +947,18 @@ class BibleViewerSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.detectVerseReferences)
 					.onChange(async (value) => {
 						this.plugin.settings.detectVerseReferences = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Open Bible links in Bible Viewer")
+			.setDesc("Clicks on links like [Génesis 2:8 - NVI](https://bolls.life/NVI/1/2/) open your Bible Viewer instead of the browser. The note is not changed.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.openBibleLinksInViewer)
+					.onChange(async (value) => {
+						this.plugin.settings.openBibleLinksInViewer = value;
 						await this.plugin.saveSettings();
 					})
 			);

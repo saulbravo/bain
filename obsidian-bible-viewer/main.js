@@ -154,6 +154,73 @@ function findVerseRefs(text) {
   }
   return hits;
 }
+var BIBLE_PATH_RE = /^\/([A-Za-z][A-Za-z0-9]{0,11})\/(\d{1,3})\/(\d{1,3})(?:\/(\d{1,3}(?:-\d{1,3})?))?\/?$/;
+var KNOWN_BIBLE_HOSTS = /* @__PURE__ */ new Set([
+  "bolls.life",
+  "www.bolls.life",
+  "bolls.familybravo.com",
+  "localhost",
+  "127.0.0.1"
+]);
+function hostFromAppUrl(appUrl) {
+  try {
+    return new URL(appUrl).hostname.toLowerCase();
+  } catch (e) {
+    return "";
+  }
+}
+function parseBibleAppLink(href, linkText, appUrl = "") {
+  if (!href) {
+    return null;
+  }
+  let url;
+  try {
+    url = new URL(href, appUrl || "https://bolls.life");
+  } catch (e) {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  const extra = hostFromAppUrl(appUrl);
+  if (!KNOWN_BIBLE_HOSTS.has(host) && host !== extra) {
+    return null;
+  }
+  const path = url.pathname.replace(/\/{2,}/g, "/");
+  const match = path.match(BIBLE_PATH_RE);
+  if (!match) {
+    return null;
+  }
+  const translation = match[1];
+  const bookId = Number(match[2]);
+  const chapter = Number(match[3]);
+  let verse = 1;
+  let endVerse;
+  if (match[4]) {
+    const parts = match[4].split("-");
+    verse = Number(parts[0]);
+    if (parts[1]) {
+      endVerse = Number(parts[1]);
+    }
+  } else {
+    const fromText = findVerseRefs(String(linkText || ""))[0];
+    if (fromText) {
+      verse = fromText.verse;
+      endVerse = fromText.endVerse;
+    }
+  }
+  if (!bookId || !chapter || !verse) {
+    return null;
+  }
+  return {
+    bookId,
+    chapter,
+    verse,
+    endVerse,
+    translation,
+    from: 0,
+    to: 0,
+    text: String(linkText || href).trim()
+  };
+}
 function verseHitFromEl(el) {
   if (!el) {
     return null;
@@ -238,6 +305,7 @@ function decorateVerseRefs(root) {
 var DEFAULT_SETTINGS = {
   bibleAppUrl: "https://bolls.familybravo.com",
   detectVerseReferences: true,
+  openBibleLinksInViewer: true,
   lastTranslation: ""
 };
 var BibleViewerPlugin = class extends import_obsidian.Plugin {
@@ -269,12 +337,28 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
       document,
       "click",
       (event) => {
-        var _a;
-        if (!this.settings.detectVerseReferences) {
+        var _a, _b;
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
           return;
         }
         const target = event.target;
-        const el = (_a = target == null ? void 0 : target.closest) == null ? void 0 : _a.call(target, ".bible-verse-ref");
+        if (this.settings.openBibleLinksInViewer) {
+          const link = (_a = target == null ? void 0 : target.closest) == null ? void 0 : _a.call(target, "a");
+          if (link) {
+            const href = link.getAttribute("href") || link.getAttribute("data-href") || "";
+            const hit2 = parseBibleAppLink(href, link.textContent || "", this.settings.bibleAppUrl);
+            if (hit2) {
+              event.preventDefault();
+              event.stopPropagation();
+              void this.openVerseReference(hit2);
+              return;
+            }
+          }
+        }
+        if (!this.settings.detectVerseReferences) {
+          return;
+        }
+        const el = (_b = target == null ? void 0 : target.closest) == null ? void 0 : _b.call(target, ".bible-verse-ref");
         if (!el) {
           return;
         }
@@ -642,11 +726,14 @@ var BibleView = class extends import_obsidian.ItemView {
   }
   verseAppUrl(hit) {
     const base = this.plugin.settings.bibleAppUrl.replace(/\/$/, "");
-    const translation = this.currentTranslation();
+    const translation = hit.translation || this.currentTranslation();
     const versePart = hit.endVerse && hit.endVerse !== hit.verse ? `${hit.verse}-${hit.endVerse}` : `${hit.verse}`;
     return `${base}/${translation}/${hit.bookId}/${hit.chapter}/${versePart}`;
   }
   navigateToVerse(hit) {
+    if (hit.translation) {
+      this.rememberTranslation(hit.translation);
+    }
     const url = this.verseAppUrl(hit);
     this.pendingNavigation = url;
     if (this.iframe) {
@@ -919,6 +1006,12 @@ var BibleViewerSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Detect verse references").setDesc("Turn written references like Genesis 3:5 into links that open that verse in Bible Viewer. On by default.").addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.detectVerseReferences).onChange(async (value) => {
         this.plugin.settings.detectVerseReferences = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName("Open Bible links in Bible Viewer").setDesc("Clicks on links like [G\xE9nesis 2:8 - NVI](https://bolls.life/NVI/1/2/) open your Bible Viewer instead of the browser. The note is not changed.").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.openBibleLinksInViewer).onChange(async (value) => {
+        this.plugin.settings.openBibleLinksInViewer = value;
         await this.plugin.saveSettings();
       })
     );
