@@ -116,9 +116,25 @@ ALIASES.sort((a, b) => b.length - a.length);
 
 const BOOK_RE = ALIASES.map((alias) => escapeRegExp(alias).replace(/ /g, "\\s+")).join("|");
 const VERSE_RE = new RegExp(
-	`(^|[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñ])(${BOOK_RE})\\s+(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?`,
+	`(^|[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñ])(${BOOK_RE})\\s+(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-–—]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?`,
 	"giu"
 );
+
+function firstVerseOfRange(raw: string): { verse: number; endVerse?: number } | null {
+	const match = String(raw || "").match(/^(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?$/);
+	if (!match) {
+		return null;
+	}
+	const verse = Number(match[1]);
+	const endVerse = match[2] ? Number(match[2]) : undefined;
+	if (!verse) {
+		return null;
+	}
+	return {
+		verse,
+		endVerse: endVerse && endVerse !== verse ? endVerse : undefined,
+	};
+}
 
 const SKIP_PARENTS = "a, code, pre, .bible-verse-ref, .cm-inline-code, .internal-link, .external-link";
 
@@ -136,12 +152,14 @@ export function findVerseRefs(text: string): VerseHit[] {
 		const bookId = ALIAS_TO_ID.get(fold(bookRaw));
 		const chapter = Number(match[3]);
 		const verse = Number(match[4]);
-		const endVerse = match[5] ? Number(match[5]) : undefined;
+		const endChapter = match[5] ? Number(match[5]) : undefined;
+		const lastNum = match[6] ? Number(match[6]) : undefined;
 		if (!bookId || !chapter || !verse) {
 			continue;
 		}
-		if (endVerse && endVerse < verse) {
-			continue;
+		let endVerse = lastNum;
+		if (endChapter || (endVerse && endVerse < verse)) {
+			endVerse = undefined;
 		}
 		const from = match.index + boundary.length;
 		const to = match.index + match[0].length;
@@ -158,7 +176,7 @@ export function findVerseRefs(text: string): VerseHit[] {
 	return hits;
 }
 
-const BIBLE_PATH_RE = /^\/([A-Za-z][A-Za-z0-9]{0,11})\/(\d{1,3})\/(\d{1,3})(?:\/(\d{1,3}(?:-\d{1,3})?))?\/?$/;
+const BIBLE_PATH_RE = /^\/([A-Za-z][A-Za-z0-9]{0,11})\/(\d{1,3})\/(\d{1,3})(?:\/(\d{1,3}(?:[-–—]\d{1,3})?))?\/?$/;
 const KNOWN_BIBLE_HOSTS = new Set([
 	"bolls.life",
 	"www.bolls.life",
@@ -201,20 +219,24 @@ export function parseBibleAppLink(href: string, linkText: string, appUrl = ""): 
 	const translation = match[1];
 	const bookId = Number(match[2]);
 	const chapter = Number(match[3]);
-	let verse = 1;
+	let verse = 0;
 	let endVerse: number | undefined;
 	if (match[4]) {
-		const parts = match[4].split("-");
-		verse = Number(parts[0]);
-		if (parts[1]) {
-			endVerse = Number(parts[1]);
+		const fromPath = firstVerseOfRange(match[4]);
+		if (fromPath) {
+			verse = fromPath.verse;
+			endVerse = fromPath.endVerse;
 		}
-	} else {
+	}
+	if (!verse) {
 		const fromText = findVerseRefs(String(linkText || ""))[0];
 		if (fromText) {
 			verse = fromText.verse;
 			endVerse = fromText.endVerse;
 		}
+	}
+	if (!verse) {
+		verse = 1;
 	}
 
 	if (!bookId || !chapter || !verse) {

@@ -39,8 +39,8 @@ When installed from the **bain** monorepo, use manual install (path above).
 | Setting | Default | Example |
 |---------|---------|---------|
 | **Bible App URL** | `https://bolls.familybravo.com` | `http://192.168.1.15:9080` for local LAN |
-| **Detect verse references** | On | Turns `Genesis 3:5` in notes into a link that opens that verse in Bible Viewer |
-| **Open Bible links in Bible Viewer** | On | Clicks on `[Génesis 2:8 - NVI](https://bolls.life/NVI/1/2/)` open your Bible Viewer. The note is not changed. |
+| **Detect verse references** | On | Turns `Genesis 3:5` or `Genesis 1:14-15` into a link that opens the first verse of the range in Bible Viewer |
+| **Open Bible links in Bible Viewer** | On | Clicks on Bible links, including ranges like `[Genesis 1:14-15 - YLT](https://bolls.familybravo.com/YLT/1/1/14-15)`, open the first verse. The note is not changed. |
 
 Enable the plugin under **Settings → Community plugins**.
 
@@ -50,8 +50,8 @@ Enable the plugin under **Settings → Community plugins**.
 2. Have a markdown note open in the editor (insert goes into the active note).
 3. **Verses:** enable verse copy/select mode, select verses, use the ← arrow to insert.
 4. **Commentary:** open the commentary modal, select paragraph(s), use the ← arrow to insert.
-5. **Plain references:** in a note, `Genesis 3:5` (or `Génesis 3:5`, `Jn 3:16`) is clickable and opens that verse in Bible Viewer. Turn this off under **Settings → Bible Viewer → Detect verse references**.
-6. **Existing Bible links:** a callout like `[Génesis 2:8 - NVI](https://bolls.life/NVI/1/2/)` stays as written. A normal click opens your Bible Viewer; Ctrl/Cmd-click still uses the original URL. Turn this off under **Settings → Bible Viewer → Open Bible links in Bible Viewer**.
+5. **Plain references:** in a note, `Genesis 3:5` (or `Génesis 3:5`, `Jn 3:16`, `Genesis 1:14-15`) is clickable and opens the first verse of the range in Bible Viewer. Turn this off under **Settings → Bible Viewer → Detect verse references**.
+6. **Existing Bible links:** a callout like `[Genesis 1:14-15 - YLT](https://bolls.familybravo.com/YLT/1/1/14-15)` stays as written. A normal click opens the first verse in Bible Viewer; Ctrl/Cmd-click still uses the original URL. Turn this off under **Settings → Bible Viewer → Open Bible links in Bible Viewer**.
 
 **Requirements for commentary:** Bible app **v2.8+** (Docker tag `maxivious/bolls:v2.8` or newer) and plugin **v0.3.1+**. Multi-paragraph selections are merged into a single callout.
 

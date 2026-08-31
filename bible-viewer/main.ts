@@ -546,11 +546,7 @@ class BibleView extends ItemView {
 	verseAppUrl(hit: VerseHit): string {
 		const base = this.plugin.settings.bibleAppUrl.replace(/\/$/, "");
 		const translation = hit.translation || this.currentTranslation();
-		const versePart =
-			hit.endVerse && hit.endVerse !== hit.verse
-				? `${hit.verse}-${hit.endVerse}`
-				: `${hit.verse}`;
-		return `${base}/${translation}/${hit.bookId}/${hit.chapter}/${versePart}`;
+		return `${base}/${translation}/${hit.bookId}/${hit.chapter}/${hit.verse}`;
 	}
 
 	navigateToVerse(hit: VerseHit) {
@@ -941,7 +937,7 @@ class BibleViewerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Detect verse references")
-			.setDesc("Turn written references like Genesis 3:5 into links that open that verse in Bible Viewer. On by default.")
+			.setDesc("Turn written references like Genesis 3:5 or Genesis 1:14-15 into links that open the first verse of the range in Bible Viewer. On by default.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.detectVerseReferences)
@@ -953,7 +949,7 @@ class BibleViewerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Open Bible links in Bible Viewer")
-			.setDesc("Clicks on links like [Génesis 2:8 - NVI](https://bolls.life/NVI/1/2/) open your Bible Viewer instead of the browser. The note is not changed.")
+			.setDesc("Clicks on Bible links, including ranges like Genesis 1:14-15, open the first verse of the range in Bible Viewer. The note is not changed.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.openBibleLinksInViewer)
