@@ -55,6 +55,14 @@ tag verse-commentary-modal
 	freehandSelectionFocus = null
 	#onCommentaryClear = null
 	#onCommentaryUndo = null
+	stylusHighlightActive = no
+	stylusEraseActive = no
+	stylusGuardUntil = 0
+	lastPenSeenAt = 0
+	#stylusSelectGuard = null
+	#onCommentaryContextMenu = null
+	#onCommentaryPenDown = null
+	#onCommentaryPenMove = null
 
 	get currentReader
 		if activities.selectedParallel == 'main'
@@ -85,12 +93,16 @@ tag verse-commentary-modal
 			return commentaryHtml
 
 	get commentaryFreehandArmed
-		return activities.freehandHighlightMode and !obsidianMode
+		return !obsidianMode and (activities.freehandHighlightMode or stylusHighlightActive or stylusEraseActive)
 
 	get commentaryEraseArmed
-		return commentaryFreehandArmed and activities.freehandEraserMode
+		return commentaryFreehandArmed and (activities.freehandEraserMode or stylusEraseActive)
 
 	get commentaryHighlightColor
+		if stylusHighlightActive
+			let color = activities.freehandHighlightColor or ''
+			if color == '#000000' or color == '#DC2626'
+				return '#F9E2A0'
 		return activities.freehandHighlightColor or '#F9E2A0'
 
 	def commentaryHighlightStorageKey
@@ -226,6 +238,102 @@ tag verse-commentary-modal
 			return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
 		return { x: e.clientX, y: e.clientY }
 
+	def isPenPointer e
+		return e and e.pointerType == 'pen'
+
+	def recentlyUsedPen
+		return (Date.now() - lastPenSeenAt) < 1500
+
+	def rememberPen e
+		unless e
+			return
+		if e.pointerType == 'pen'
+			lastPenSeenAt = Date.now()
+			activities.lastPenSeenAt = lastPenSeenAt
+
+	def isPenInContact e
+		unless e
+			return no
+		if (e.buttons & 1) != 0 or (e.buttons & 32) != 0
+			return yes
+		if typeof e.pressure == 'number' and e.pressure > 0.05
+			return yes
+		return no
+
+	def isPenContactLost e
+		unless e
+			return no
+		unless isPenPointer(e)
+			return no
+		if e.buttons != 0
+			return no
+		if typeof e.pressure == 'number' and e.pressure > 0.05
+			return no
+		return yes
+
+	def isPenBarrel e
+		unless e
+			return no
+		const barrel = e.button == 2 or (e.buttons & 2) != 0
+		unless barrel
+			return no
+		return isPenPointer(e) or recentlyUsedPen
+
+	def isPenEraser e
+		unless e
+			return no
+		if e.button == 5 or (e.buttons & 32) != 0
+			return isPenPointer(e) or recentlyUsedPen
+		return no
+
+	def suppressPenBrowserGesture e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+
+	def commentaryEventOnText e
+		let t = e and e.target
+		unless t and t.closest
+			return no
+		if t.closest('button, a, .commentary-tab, header, .commentary-obsidian-root, freehand-highlight-menu')
+			return no
+		return t.closest('.commentary-text') or t.closest('.content')
+
+	def startStylusSelectGuard
+		unless #stylusSelectGuard
+			#stylusSelectGuard = do |ev|
+				if ev and ev.preventDefault
+					ev.preventDefault()
+				return no
+			document.addEventListener('selectstart', #stylusSelectGuard, true)
+			document.addEventListener('dragstart', #stylusSelectGuard, true)
+
+	def stopStylusSelectGuard
+		if #stylusSelectGuard
+			document.removeEventListener('selectstart', #stylusSelectGuard, true)
+			document.removeEventListener('dragstart', #stylusSelectGuard, true)
+			#stylusSelectGuard = null
+		try
+			window.getSelection().removeAllRanges()
+		catch err
+			pass
+
+	def clearCommentaryStylusOverrides
+		stylusHighlightActive = no
+		stylusEraseActive = no
+		activities.stylusDrawing = no
+		stopStylusSelectGuard!
+		stylusGuardUntil = 0
+
+	def handleCommentaryContextMenu e
+		rememberPen(e)
+		const fromPen = isPenPointer(e) or isPenBarrel(e) or recentlyUsedPen or stylusHighlightActive or stylusEraseActive or Date.now() < stylusGuardUntil
+		unless fromPen
+			return no
+		suppressPenBrowserGesture(e)
+		return yes
+
 	def ensureCommentaryFreehandCanvas
 		let canvas = self.querySelector('.commentary-freehand-canvas')
 		return unless canvas
@@ -306,7 +414,7 @@ tag verse-commentary-modal
 				saveCommentaryHighlights!
 			else
 				activities.commentaryFreehandCount = commentaryHighlights.length
-				imba.commit!.then do applyCommentaryTypography!
+				imba.commit!
 			return
 		let decoration = activities.patternHighlightMode ? 'underline' : 'fill'
 		let highlight = {
@@ -326,7 +434,7 @@ tag verse-commentary-modal
 			saveCommentaryHighlights!
 		else
 			activities.commentaryFreehandCount = commentaryHighlights.length
-			imba.commit!.then do applyCommentaryTypography!
+			imba.commit!
 
 	def commitCommentaryFreehandFromStroke isFinal = yes
 		return unless commentaryFreehandArmed
@@ -376,8 +484,75 @@ tag verse-commentary-modal
 		clearCommentaryFreehandStroke!
 		currentDragHighlight = null
 
+	def startCommentaryFreehandStroke e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		stopCommentaryFreehandListeners!
+		freehandStrokeDrawing = yes
+		currentDragHighlight = null
+		let point = commentaryClientPoint(e)
+		let content = getContentEl!
+		let rect = content ? content.getBoundingClientRect() : { left: 0, top: 0 }
+		freehandStrokePoints = [{
+			x: point.x - rect.left
+			y: point.y - rect.top
+			clientX: point.x
+			clientY: point.y
+		}]
+		freehandSelectionAnchor = commentaryPlainOffsetFromPoint(point.x, point.y)
+		freehandSelectionFocus = freehandSelectionAnchor
+		if typeof e.pointerId == 'number'
+			try
+				if content and content.setPointerCapture
+					content.setPointerCapture(e.pointerId)
+					capturedPointerId = e.pointerId
+				elif self.setPointerCapture
+					self.setPointerCapture(e.pointerId)
+					capturedPointerId = e.pointerId
+			catch err
+				pass
+		#boundFreehandMove = handleCommentaryFreehandMove.bind(self)
+		#boundFreehandUp = handleCommentaryFreehandUp.bind(self)
+		window.addEventListener('pointermove', #boundFreehandMove, { passive: no })
+		window.addEventListener('pointerup', #boundFreehandUp)
+		window.addEventListener('pointercancel', #boundFreehandUp)
+		unless activities.patternHighlightMode
+			drawCommentaryFreehandStroke!
+		unless commentaryEraseArmed
+			commitCommentaryFreehandFromStroke(no)
+
+	def startCommentaryStylusStroke e, kind = null
+		if freehandStrokeDrawing and (stylusHighlightActive or stylusEraseActive)
+			return
+		stylusGuardUntil = Date.now() + 2000
+		activities.stylusDrawing = yes
+		const erase = kind == 'erase' or (kind != 'highlight' and isPenBarrel(e))
+		if erase
+			stylusEraseActive = yes
+			stylusHighlightActive = no
+		else
+			stylusHighlightActive = yes
+			stylusEraseActive = no
+		startStylusSelectGuard!
+		startCommentaryFreehandStroke(e)
+
 	def handleCommentaryFreehandMove e
-		return unless freehandStrokeDrawing
+		rememberPen(e)
+		if !freehandStrokeDrawing
+			if obsidianMode
+				return
+			if isPenBarrel(e) or isPenEraser(e)
+				if commentaryEventOnText(e)
+					startCommentaryStylusStroke(e, isPenBarrel(e) ? 'erase' : 'highlight')
+				return
+			if isPenPointer(e) and isPenInContact(e) and commentaryFreehandArmed and commentaryEventOnText(e)
+				startCommentaryFreehandStroke(e)
+			return
+		if isPenContactLost(e)
+			handleCommentaryFreehandUp(e)
+			return
 		if e and e.preventDefault
 			e.preventDefault()
 		let point = commentaryClientPoint(e)
@@ -391,9 +566,7 @@ tag verse-commentary-modal
 		})
 		unless activities.patternHighlightMode
 			drawCommentaryFreehandStroke!
-		if commentaryEraseArmed
-			commitCommentaryFreehandFromStroke(no)
-		elif activities.patternHighlightMode
+		if !commentaryEraseArmed and activities.patternHighlightMode
 			let off = commentaryPlainOffsetFromPoint(point.x, point.y)
 			if off != null
 				freehandSelectionFocus = off
@@ -414,7 +587,7 @@ tag verse-commentary-modal
 							selection.addRange(range)
 					catch err
 						pass
-			commitCommentaryFreehandFromStroke(no)
+		commitCommentaryFreehandFromStroke(no)
 
 	def locateForSelection root, offset
 		let remaining = Number(offset or 0)
@@ -428,47 +601,63 @@ tag verse-commentary-modal
 		return null
 
 	def handleCommentaryFreehandUp e
+		return unless freehandStrokeDrawing
 		if e and e.preventDefault
 			e.preventDefault()
 		commitCommentaryFreehandFromStroke(yes)
 		stopCommentaryFreehandListeners!
+		clearCommentaryStylusOverrides!
+		imba.commit!
 
 	def handleCommentaryFreehandDown e
-		return unless commentaryFreehandArmed
+		if freehandStrokeDrawing
+			return
+		rememberPen(e)
 		if e and e.target and e.target.closest
-			if e.target.closest('button, a, .commentary-tab, header')
+			if e.target.closest('button, a, .commentary-tab, header, freehand-highlight-menu')
 				return
-		if e and e.preventDefault
-			e.preventDefault()
-		if e and e.stopPropagation
-			e.stopPropagation()
-		stopCommentaryFreehandListeners!
-		freehandStrokeDrawing = yes
-		currentDragHighlight = null
-		let point = commentaryClientPoint(e)
-		let content = getContentEl!
-		let rect = content ? content.getBoundingClientRect() : { left: 0, top: 0 }
-		freehandStrokePoints = [{
-			x: point.x - rect.left
-			y: point.y - rect.top
-			clientX: point.x
-			clientY: point.y
-		}]
-		freehandSelectionAnchor = commentaryPlainOffsetFromPoint(point.x, point.y)
-		freehandSelectionFocus = freehandSelectionAnchor
-		if typeof e.pointerId == 'number' and content and content.setPointerCapture
-			try
-				content.setPointerCapture(e.pointerId)
-				capturedPointerId = e.pointerId
-			catch err
-				pass
-		#boundFreehandMove = handleCommentaryFreehandMove.bind(self)
-		#boundFreehandUp = handleCommentaryFreehandUp.bind(self)
-		window.addEventListener('pointermove', #boundFreehandMove, { passive: no })
-		window.addEventListener('pointerup', #boundFreehandUp)
-		window.addEventListener('pointercancel', #boundFreehandUp)
-		unless activities.patternHighlightMode
-			drawCommentaryFreehandStroke!
+		if obsidianMode
+			return
+		if isPenBarrel(e)
+			suppressPenBrowserGesture(e)
+			startCommentaryStylusStroke(e, 'erase')
+			return
+		if isPenEraser(e)
+			suppressPenBrowserGesture(e)
+			startCommentaryStylusStroke(e, 'highlight')
+			return
+		if isPenPointer(e)
+			suppressPenBrowserGesture(e)
+			if activities.freehandHighlightMode or stylusHighlightActive or stylusEraseActive
+				startCommentaryFreehandStroke(e)
+			else
+				startCommentaryStylusStroke(e, 'highlight')
+			return
+		return unless commentaryFreehandArmed
+		startCommentaryFreehandStroke(e)
+
+	def handleGlobalCommentaryPenDown e
+		unless isPenPointer(e) or isPenBarrel(e) or isPenEraser(e)
+			return
+		unless commentaryEventOnText(e)
+			return
+		if freehandStrokeDrawing
+			return
+		handleCommentaryFreehandDown(e)
+
+	def handleGlobalCommentaryPenMove e
+		rememberPen(e)
+		if freehandStrokeDrawing
+			return
+		unless isPenPointer(e) or isPenBarrel(e) or isPenEraser(e)
+			return
+		unless commentaryEventOnText(e)
+			return
+		if isPenBarrel(e) or isPenEraser(e)
+			startCommentaryStylusStroke(e, isPenBarrel(e) ? 'erase' : 'highlight')
+			return
+		if isPenPointer(e) and isPenInContact(e) and (activities.freehandHighlightMode or stylusHighlightActive)
+			startCommentaryFreehandStroke(e)
 
 	def clearCommentaryFreehandHighlights
 		commentaryHighlights = []
@@ -588,8 +777,14 @@ tag verse-commentary-modal
 		watchCompareHeaderOffset!
 		#onCommentaryClear = do clearCommentaryFreehandHighlights!
 		#onCommentaryUndo = do undoCommentaryFreehandHighlight!
+		#onCommentaryContextMenu = do |ev| handleCommentaryContextMenu(ev)
+		#onCommentaryPenDown = do |ev| handleGlobalCommentaryPenDown(ev)
+		#onCommentaryPenMove = do |ev| handleGlobalCommentaryPenMove(ev)
 		window.addEventListener('commentary-freehand-clear', #onCommentaryClear)
 		window.addEventListener('commentary-freehand-undo', #onCommentaryUndo)
+		window.addEventListener('contextmenu', #onCommentaryContextMenu, true)
+		window.addEventListener('pointerdown', #onCommentaryPenDown, { capture: yes, passive: no })
+		window.addEventListener('pointermove', #onCommentaryPenMove, { capture: yes, passive: no })
 		await commentaries.load!
 		imba.commit!.then do
 			scrollActiveTabIntoView!
@@ -598,6 +793,7 @@ tag verse-commentary-modal
 	def unmount
 		teardownObsidianUI!
 		stopCommentaryFreehandListeners!
+		clearCommentaryStylusOverrides!
 		unwatchCompareHeaderOffset!
 		if #onCommentaryClear
 			window.removeEventListener('commentary-freehand-clear', #onCommentaryClear)
@@ -605,6 +801,15 @@ tag verse-commentary-modal
 		if #onCommentaryUndo
 			window.removeEventListener('commentary-freehand-undo', #onCommentaryUndo)
 			#onCommentaryUndo = null
+		if #onCommentaryContextMenu
+			window.removeEventListener('contextmenu', #onCommentaryContextMenu, true)
+			#onCommentaryContextMenu = null
+		if #onCommentaryPenDown
+			window.removeEventListener('pointerdown', #onCommentaryPenDown, true)
+			#onCommentaryPenDown = null
+		if #onCommentaryPenMove
+			window.removeEventListener('pointermove', #onCommentaryPenMove, true)
+			#onCommentaryPenMove = null
 		activities.commentaryFreehandCount = 0
 
 	# In compare mode the header grows until its bottom border lines up with the
@@ -665,6 +870,7 @@ tag verse-commentary-modal
 		stopObsidianDragListeners!
 		teardownObsidianUI!
 		stopCommentaryFreehandListeners!
+		clearCommentaryStylusOverrides!
 		obsidianMode = no
 		resetExportRange!
 		lastLoadKey = ''
@@ -1576,6 +1782,14 @@ tag verse-commentary-modal
 		.content.commentary-freehand-active
 			touch-action: none
 			-webkit-touch-callout: none
+			user-select: none
+			-webkit-user-select: none
+
+		.content.commentary-freehand-active .commentary-text
+			touch-action: none
+			-webkit-touch-callout: none
+			user-select: none
+			-webkit-user-select: none
 
 		.commentary-freehand-canvas
 			pos: absolute
