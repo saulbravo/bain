@@ -127,6 +127,7 @@ class Activities
 	freehandHighlightMode = no
 	freehandEraserMode = no
 	freehandHighlightColor = '#F9E2A0'
+	commentaryFreehandCount = 0
 	penToolMode = no
 	penEraserMode = no
 	@observable stylusDrawing = no
@@ -753,11 +754,13 @@ class Activities
 			if freehandHighlightColor == '#000000' or freehandHighlightColor == '#DC2626'
 				freehandHighlightColor = '#F9E2A0'
 			penToolMode = no
-			# Clear verse selection and hide regular slideup
-			selectedVerses = []
-			selectedVersesPKs = []
-			selectedParallel = undefined
-			activeVerseAction = ''
+			# Keep commentary open so its highlighter can share this toolbar.
+			const keepCommentary = activeVerseAction == 'commentary' or commentaryCompareMode
+			unless keepCommentary
+				selectedVerses = []
+				selectedVersesPKs = []
+				selectedParallel = undefined
+				activeVerseAction = ''
 			show_sharing = no
 			show_bookmarks = no
 			show_add_bookmark = no

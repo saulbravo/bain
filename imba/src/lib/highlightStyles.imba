@@ -92,3 +92,77 @@ export def canvasLineDash style\string
 			return [7, 5]
 		else
 			return []
+
+def locateTextOffset root, target
+	let remaining = Number(target or 0)
+	if remaining < 0
+		return null
+	let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+	while walker.nextNode!
+		let node = walker.currentNode
+		let len = (node.textContent or '').length
+		if remaining <= len
+			return { node: node, offset: remaining }
+		remaining -= len
+	return null
+
+def highlightWrapElement raw\string, decoration\string = 'fill', underlineStyle\string = 'solid'
+	let parsed = parseHighlightColor(raw)
+	let mode = decoration == 'underline' ? 'underline' : parsed.mode
+	let style = mode == 'underline' ? (underlineStyle or parsed.style or 'solid') : parsed.style
+	let color = parsed.color or normalizeColorToHex(raw)
+	if mode == 'underline'
+		let el = document.createElement('span')
+		el.setAttribute('style', underlineCss(style, color or '#F9E2A0'))
+		return el
+	if color
+		let el = document.createElement('mark')
+		el.setAttribute('style', "background-color:{color}; color: #000; -webkit-text-fill-color: #000;")
+		return el
+	return document.createElement('span')
+
+def wrapDomTextRange root, h
+	let start = Number(h.start or 0)
+	let end = Number(h.end or 0)
+	if !(end > start)
+		return
+	let a = locateTextOffset(root, start)
+	let b = locateTextOffset(root, end)
+	if !a
+		return
+	if !b
+		b = locateTextOffset(root, Math.max(0, end - 1))
+		if b
+			b.offset = (b.node.textContent or '').length
+	if !b
+		return
+	let range = document.createRange()
+	try
+		range.setStart(a.node, a.offset)
+		range.setEnd(b.node, b.offset)
+	catch err
+		return
+	if range.collapsed
+		return
+	let el = highlightWrapElement(h.color or '#F9E2A0', h.decoration or 'fill', h.underlineStyle or 'solid')
+	try
+		let contents = range.extractContents()
+		el.appendChild(contents)
+		range.insertNode(el)
+	catch err
+		try
+			range.surroundContents(el)
+		catch nested
+			pass
+
+export def wrapHtmlTextHighlights html, highlights
+	if !html
+		return html or ''
+	if !highlights or highlights.length == 0
+		return html
+	let sorted = highlights.slice().sort(do |a, b| return Number(b.start or 0) - Number(a.start or 0))
+	let host = document.createElement('div')
+	host.innerHTML = html
+	for h in sorted
+		wrapDomTextRange(host, h)
+	return host.innerHTML

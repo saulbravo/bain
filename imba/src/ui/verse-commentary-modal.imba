@@ -4,13 +4,16 @@ import commentaries from '../lib/Commentaries'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 import theme from '../lib/Theme'
-import { getBookName } from '../utils'
+import user from '../lib/User'
+import { getBookName, getValue, setValue } from '../utils'
 import { localizeCommentaryRefs, htmlToPlainText, splitCommentaryHtmlIntoBlocks } from '../utils/cbaBooks'
+import { wrapHtmlTextHighlights } from '../lib/highlightStyles'
 import X from 'lucide-static/icons/x.svg'
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import ChevronRight from 'lucide-static/icons/chevron-right.svg'
 import Pencil from 'lucide-static/icons/pencil.svg'
 import Check from 'lucide-static/icons/check.svg'
+import Highlighter from 'lucide-static/icons/highlighter.svg'
 import Obsidian from '../icons/obsidian.svg'
 import Split from 'lucide-static/icons/split.svg'
 
@@ -38,6 +41,20 @@ tag verse-commentary-modal
 	lastDragBlockIdx = -1
 	obsidianDragRAF = null
 	#obsidianBlockClickLock = no
+	commentaryHighlights = []
+	chapterCommentaryHighlights = []
+	freehandStrokeCanvas = null
+	freehandStrokeCtx = null
+	freehandStrokePoints = []
+	freehandStrokeDrawing = no
+	currentDragHighlight = null
+	capturedPointerId = null
+	#boundFreehandMove = null
+	#boundFreehandUp = null
+	freehandSelectionAnchor = null
+	freehandSelectionFocus = null
+	#onCommentaryClear = null
+	#onCommentaryUndo = null
 
 	get currentReader
 		if activities.selectedParallel == 'main'
@@ -56,6 +73,412 @@ tag verse-commentary-modal
 
 	get commentaryTitle
 		return commentaries.currentName
+
+	get displayedCommentaryHtml
+		if !commentaryHtml
+			return ''
+		if !commentaryHighlights or commentaryHighlights.length == 0
+			return commentaryHtml
+		try
+			return wrapHtmlTextHighlights(commentaryHtml, commentaryHighlights)
+		catch err
+			return commentaryHtml
+
+	get commentaryFreehandArmed
+		return activities.freehandHighlightMode and !obsidianMode
+
+	get commentaryEraseArmed
+		return commentaryFreehandArmed and activities.freehandEraserMode
+
+	get commentaryHighlightColor
+		return activities.freehandHighlightColor or '#F9E2A0'
+
+	def commentaryHighlightStorageKey
+		return "commentary-freehand:{commentaries.current}:{currentReader.book}:{currentReader.chapter}:{currentVerse}"
+
+	def commentaryApiTranslation
+		let id = String(commentaries.current or 'cba').replace(/[^A-Za-z0-9_-]/g, '-')
+		return "cmt-{id}"
+
+	def highlightsForCurrentVerse list
+		let verse = Number(currentVerse)
+		let out = []
+		for item in (list or [])
+			if Number(item.startVerse) != verse
+				continue
+			out.push({
+				start: Number(item.startOffset or 0)
+				end: Number(item.endOffset or 0)
+				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
+				date: item.date or Date.now()
+			})
+		return out
+
+	def loadCommentaryHighlights
+		let stored = getValue(commentaryHighlightStorageKey!)
+		commentaryHighlights = Array.isArray(stored) ? stored.slice() : []
+		activities.commentaryFreehandCount = commentaryHighlights.length
+		chapterCommentaryHighlights = []
+		if !user.username or !window.navigator.onLine
+			return
+		try
+			let remote = await API.getJson("/get-freehand-highlights/{commentaryApiTranslation!}/{currentReader.book}/{currentReader.chapter}/")
+			if Array.isArray(remote)
+				chapterCommentaryHighlights = remote.slice()
+				let fromRemote = highlightsForCurrentVerse(remote)
+				if fromRemote.length or commentaryHighlights.length == 0
+					commentaryHighlights = fromRemote
+					activities.commentaryFreehandCount = commentaryHighlights.length
+		catch err
+			pass
+
+	def saveCommentaryHighlights
+		const now = Date.now()
+		commentaryHighlights = (commentaryHighlights or []).map(do |item|
+			return {
+				start: Number(item.start or 0)
+				end: Number(item.end or 0)
+				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
+				date: item.date or now
+			}
+		)
+		setValue(commentaryHighlightStorageKey!, commentaryHighlights)
+		activities.commentaryFreehandCount = commentaryHighlights.length
+		let verse = Number(currentVerse)
+		let others = []
+		for item in (chapterCommentaryHighlights or [])
+			if Number(item.startVerse) == verse
+				continue
+			others.push(item)
+		for item in commentaryHighlights
+			others.push({
+				startVerse: verse
+				startOffset: item.start
+				endVerse: verse
+				endOffset: item.end
+				color: item.color
+				decoration: item.decoration or 'fill'
+				underlineStyle: item.underlineStyle or 'solid'
+				date: item.date or now
+			})
+		chapterCommentaryHighlights = others
+		if !user.username or !window.navigator.onLine
+			imba.commit!
+			return
+		try
+			await API.post("/save-freehand-highlights/", {
+				translation: commentaryApiTranslation!
+				book: currentReader.book
+				chapter: currentReader.chapter
+				highlights: chapterCommentaryHighlights
+			})
+		catch err
+			pass
+		imba.commit!
+
+	def toggleCommentaryFreehand
+		if obsidianMode
+			obsidianMode = no
+			teardownObsidianUI!
+		activities.toggleFreehandHighlightMode!
+
+	def commentaryTextRoot
+		return self.querySelector('.commentary-text')
+
+	def commentaryPlainOffsetFromNode root, node, offset
+		let total = 0
+		let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+		while walker.nextNode!
+			let n = walker.currentNode
+			if n == node
+				return total + Number(offset or 0)
+			total += (n.textContent or '').length
+		return total
+
+	def commentaryPlainOffsetFromPoint x, y
+		let root = commentaryTextRoot!
+		return unless root
+		let range = null
+		if document.caretRangeFromPoint
+			range = document.caretRangeFromPoint(x, y)
+		elif document.caretPositionFromPoint
+			let pos = document.caretPositionFromPoint(x, y)
+			if pos and pos.offsetNode
+				range = document.createRange()
+				range.setStart(pos.offsetNode, pos.offset)
+				range.collapse(yes)
+		return unless range
+		let node = range.startContainer
+		if node and node.nodeType == 3
+			node = node.parentElement
+		if node and root.contains(node)
+			return commentaryPlainOffsetFromNode(root, range.startContainer, range.startOffset)
+		return null
+
+	def commentaryClientPoint e
+		if e and e.touches and e.touches[0]
+			return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+		if e and e.changedTouches and e.changedTouches[0]
+			return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+		return { x: e.clientX, y: e.clientY }
+
+	def ensureCommentaryFreehandCanvas
+		let canvas = self.querySelector('.commentary-freehand-canvas')
+		return unless canvas
+		let content = getContentEl!
+		return unless content
+		let width = content.clientWidth
+		let height = content.clientHeight
+		if canvas.width != width or canvas.height != height
+			canvas.width = width
+			canvas.height = height
+		freehandStrokeCanvas = canvas
+		freehandStrokeCtx = canvas.getContext('2d')
+		return freehandStrokeCtx
+
+	def drawCommentaryFreehandStroke
+		# Underline mode draws straight onto the text, so no canvas preview.
+		return if activities.patternHighlightMode
+		let ctx = ensureCommentaryFreehandCanvas!
+		return unless ctx and freehandStrokeCanvas
+		ctx.clearRect(0, 0, freehandStrokeCanvas.width, freehandStrokeCanvas.height)
+		return unless freehandStrokePoints.length
+		let color = commentaryHighlightColor
+		ctx.strokeStyle = color
+		ctx.lineWidth = 14
+		ctx.lineCap = 'round'
+		ctx.lineJoin = 'round'
+		ctx.globalAlpha = 0.35
+		ctx.setLineDash([])
+		ctx.beginPath!
+		ctx.moveTo(freehandStrokePoints[0].x, freehandStrokePoints[0].y)
+		for point, index in freehandStrokePoints
+			if index == 0
+				continue
+			ctx.lineTo(point.x, point.y)
+		ctx.stroke!
+
+	def clearCommentaryFreehandStroke
+		if freehandStrokeCtx and freehandStrokeCanvas
+			freehandStrokeCtx.clearRect(0, 0, freehandStrokeCanvas.width, freehandStrokeCanvas.height)
+		freehandStrokePoints = []
+		freehandStrokeDrawing = no
+
+	def applyCommentaryHighlightRange start, end, isFinal = no
+		if !(end > start)
+			let tmp = start
+			start = end
+			end = tmp
+		if !(end > start)
+			return
+		if commentaryEraseArmed
+			let out = []
+			for h in (commentaryHighlights or [])
+				let hs = Number(h.start or 0)
+				let he = Number(h.end or 0)
+				if he <= start or hs >= end
+					out.push(h)
+					continue
+				if hs < start
+					out.push({
+						start: hs
+						end: start
+						color: h.color
+						decoration: h.decoration or 'fill'
+						underlineStyle: h.underlineStyle or 'solid'
+						date: h.date or Date.now()
+					})
+				if he > end
+					out.push({
+						start: end
+						end: he
+						color: h.color
+						decoration: h.decoration or 'fill'
+						underlineStyle: h.underlineStyle or 'solid'
+						date: h.date or Date.now()
+					})
+			commentaryHighlights = out
+			if isFinal
+				saveCommentaryHighlights!
+			else
+				activities.commentaryFreehandCount = commentaryHighlights.length
+				imba.commit!
+			return
+		let decoration = activities.patternHighlightMode ? 'underline' : 'fill'
+		let highlight = {
+			start: start
+			end: end
+			color: commentaryHighlightColor
+			decoration: decoration
+			underlineStyle: activities.underlineStyle or 'solid'
+			date: Date.now()
+		}
+		if currentDragHighlight
+			commentaryHighlights[commentaryHighlights.length - 1] = highlight
+		else
+			commentaryHighlights.push(highlight)
+		currentDragHighlight = isFinal ? null : highlight
+		if isFinal
+			saveCommentaryHighlights!
+		else
+			activities.commentaryFreehandCount = commentaryHighlights.length
+			imba.commit!
+
+	def commitCommentaryFreehandFromStroke isFinal = yes
+		return unless commentaryFreehandArmed
+		let start = null
+		let end = null
+		for point in freehandStrokePoints
+			let off = commentaryPlainOffsetFromPoint(point.clientX, point.clientY)
+			if off == null
+				continue
+			if start == null or off < start
+				start = off
+			if end == null or off > end
+				end = off
+		let selection = window.getSelection()
+		if selection and !selection.isCollapsed
+			let root = commentaryTextRoot!
+			if root
+				try
+					let range = selection.getRangeAt(0)
+					let a = commentaryPlainOffsetFromNode(root, range.startContainer, range.startOffset)
+					let b = commentaryPlainOffsetFromNode(root, range.endContainer, range.endOffset)
+					if a != null and b != null
+						start = Math.min(a, b)
+						end = Math.max(a, b)
+				catch err
+					pass
+		if start == null or end == null
+			return
+		applyCommentaryHighlightRange(start, end, isFinal)
+		if isFinal and selection
+			selection.removeAllRanges()
+
+	def stopCommentaryFreehandListeners
+		if #boundFreehandMove
+			window.removeEventListener('pointermove', #boundFreehandMove)
+			window.removeEventListener('pointerup', #boundFreehandUp)
+			window.removeEventListener('pointercancel', #boundFreehandUp)
+			#boundFreehandMove = null
+			#boundFreehandUp = null
+		if typeof capturedPointerId == 'number'
+			try
+				if self.releasePointerCapture
+					self.releasePointerCapture(capturedPointerId)
+			catch err
+				pass
+			capturedPointerId = null
+		clearCommentaryFreehandStroke!
+		currentDragHighlight = null
+
+	def handleCommentaryFreehandMove e
+		return unless freehandStrokeDrawing
+		if e and e.preventDefault
+			e.preventDefault()
+		let point = commentaryClientPoint(e)
+		let content = getContentEl!
+		let rect = content ? content.getBoundingClientRect() : { left: 0, top: 0 }
+		freehandStrokePoints.push({
+			x: point.x - rect.left
+			y: point.y - rect.top
+			clientX: point.x
+			clientY: point.y
+		})
+		unless activities.patternHighlightMode
+			drawCommentaryFreehandStroke!
+		if commentaryEraseArmed
+			commitCommentaryFreehandFromStroke(no)
+		elif activities.patternHighlightMode
+			let off = commentaryPlainOffsetFromPoint(point.x, point.y)
+			if off != null
+				freehandSelectionFocus = off
+				let root = commentaryTextRoot!
+				let selection = window.getSelection()
+				if root and selection and freehandSelectionAnchor != null
+					try
+						let a = locateForSelection(root, freehandSelectionAnchor)
+						let b = locateForSelection(root, off)
+						if a and b
+							let range = document.createRange()
+							range.setStart(a.node, a.offset)
+							range.setEnd(b.node, b.offset)
+							if range.collapsed
+								range.setStart(b.node, b.offset)
+								range.setEnd(a.node, a.offset)
+							selection.removeAllRanges()
+							selection.addRange(range)
+					catch err
+						pass
+			commitCommentaryFreehandFromStroke(no)
+
+	def locateForSelection root, offset
+		let remaining = Number(offset or 0)
+		let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+		while walker.nextNode!
+			let node = walker.currentNode
+			let len = (node.textContent or '').length
+			if remaining <= len
+				return { node: node, offset: remaining }
+			remaining -= len
+		return null
+
+	def handleCommentaryFreehandUp e
+		if e and e.preventDefault
+			e.preventDefault()
+		commitCommentaryFreehandFromStroke(yes)
+		stopCommentaryFreehandListeners!
+
+	def handleCommentaryFreehandDown e
+		return unless commentaryFreehandArmed
+		if e and e.target and e.target.closest
+			if e.target.closest('button, a, .commentary-tab, header')
+				return
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		stopCommentaryFreehandListeners!
+		freehandStrokeDrawing = yes
+		currentDragHighlight = null
+		let point = commentaryClientPoint(e)
+		let content = getContentEl!
+		let rect = content ? content.getBoundingClientRect() : { left: 0, top: 0 }
+		freehandStrokePoints = [{
+			x: point.x - rect.left
+			y: point.y - rect.top
+			clientX: point.x
+			clientY: point.y
+		}]
+		freehandSelectionAnchor = commentaryPlainOffsetFromPoint(point.x, point.y)
+		freehandSelectionFocus = freehandSelectionAnchor
+		if typeof e.pointerId == 'number' and content and content.setPointerCapture
+			try
+				content.setPointerCapture(e.pointerId)
+				capturedPointerId = e.pointerId
+			catch err
+				pass
+		#boundFreehandMove = handleCommentaryFreehandMove.bind(self)
+		#boundFreehandUp = handleCommentaryFreehandUp.bind(self)
+		window.addEventListener('pointermove', #boundFreehandMove, { passive: no })
+		window.addEventListener('pointerup', #boundFreehandUp)
+		window.addEventListener('pointercancel', #boundFreehandUp)
+		unless activities.patternHighlightMode
+			drawCommentaryFreehandStroke!
+
+	def clearCommentaryFreehandHighlights
+		commentaryHighlights = []
+		saveCommentaryHighlights!
+
+	def undoCommentaryFreehandHighlight
+		if !commentaryHighlights or commentaryHighlights.length == 0
+			return
+		commentaryHighlights = commentaryHighlights.slice(0, -1)
+		saveCommentaryHighlights!
 
 	def selectCommentary id\string
 		return if id == commentaries.current
@@ -163,6 +586,10 @@ tag verse-commentary-modal
 
 	def mount
 		watchCompareHeaderOffset!
+		#onCommentaryClear = do clearCommentaryFreehandHighlights!
+		#onCommentaryUndo = do undoCommentaryFreehandHighlight!
+		window.addEventListener('commentary-freehand-clear', #onCommentaryClear)
+		window.addEventListener('commentary-freehand-undo', #onCommentaryUndo)
 		await commentaries.load!
 		imba.commit!.then do
 			scrollActiveTabIntoView!
@@ -170,7 +597,15 @@ tag verse-commentary-modal
 
 	def unmount
 		teardownObsidianUI!
+		stopCommentaryFreehandListeners!
 		unwatchCompareHeaderOffset!
+		if #onCommentaryClear
+			window.removeEventListener('commentary-freehand-clear', #onCommentaryClear)
+			#onCommentaryClear = null
+		if #onCommentaryUndo
+			window.removeEventListener('commentary-freehand-undo', #onCommentaryUndo)
+			#onCommentaryUndo = null
+		activities.commentaryFreehandCount = 0
 
 	# In compare mode the header grows until its bottom border lines up with the
 	# line under the reader's tabs, so both panes share one divider.
@@ -220,12 +655,21 @@ tag verse-commentary-modal
 			#compareObserver.disconnect!
 			#compareObserver = null
 
+	def closeFromBackdrop e
+		if e and e.target and e.target.closest
+			if e.target.closest('freehand-highlight-menu')
+				return
+		close!
+
 	def close
 		stopObsidianDragListeners!
 		teardownObsidianUI!
+		stopCommentaryFreehandListeners!
 		obsidianMode = no
 		resetExportRange!
 		lastLoadKey = ''
+		if activities.freehandHighlightMode
+			activities.toggleFreehandHighlightMode!
 		if activities.commentaryCompareMode
 			activities.commentaryCompareMode = no
 			activities.commentaryCompareVerse = 0
@@ -628,6 +1072,7 @@ tag verse-commentary-modal
 			error = err and err.message ? err.message : (t.commentary_unavailable or 'Unable to load commentary')
 		finally
 			loading = no
+			loadCommentaryHighlights!
 			imba.commit!
 			imba.commit!.then do applyCommentaryTypography!
 
@@ -672,7 +1117,7 @@ tag verse-commentary-modal
 
 	<self .commentary-root .commentary-embedded=embedded style=rootStyle>
 		unless embedded
-			<div.commentary-overlay @click=close>
+			<div.commentary-overlay @click=closeFromBackdrop>
 		<section .commentary-modal=!embedded .commentary-pane=embedded @click.stop style=paneStyle>
 			<header [padding-top:{compareTopPad}px]=(embedded and compareTopPad > 0)>
 				<div.header-top>
@@ -680,6 +1125,9 @@ tag verse-commentary-modal
 						if commentaryHtml and commentaryHtml.length
 							<button.obsidian-btn.header-action-btn .obsidian-active=obsidianMode @click.stop=toggleObsidianMode title="Obsidian">
 								<svg src=Obsidian aria-hidden=yes>
+						if commentaryHtml and commentaryHtml.length
+							<button.freehand-btn.header-action-btn .freehand-active=activities.freehandHighlightMode @click.stop=toggleCommentaryFreehand title="Freehand Highlight">
+								<svg src=Highlighter aria-hidden=yes>
 						if activities.commentaryCompareMode or loading or (commentaryHtml and commentaryHtml.length)
 							<button.compare-btn.header-action-btn .compare-active=activities.commentaryCompareMode @click.stop=toggleCompareMode title=(t.compare or "Compare")>
 								<svg src=Split aria-hidden=yes>
@@ -713,13 +1161,16 @@ tag verse-commentary-modal
 						<button.commentary-tab .active=(source.id == commentaries.current)
 							@click.stop=(do selectCommentary(source.id)) title=source.name>
 							commentaries.shortNameFor(source)
-			<div.content [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight}] style=contentStyle>
+			<div.content .commentary-obsidian-active=obsidianMode .commentary-freehand-active=commentaryFreehandArmed [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{theme.lineHeight} fw:{theme.fontWeight}] style=contentStyle
+				@pointerdown=handleCommentaryFreehandDown>
 				if loading
 					<p.status> (t.commentary_loading or "Loading commentary...")
 				elif error
 					<p.error> error
 				elif commentaryHtml and commentaryHtml.length
-					<div.commentary-text [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{commentaryLineHeight} fw:{theme.fontWeight}] style=contentStyle innerHTML=commentaryHtml>
+					if commentaryFreehandArmed
+						<canvas.commentary-freehand-canvas>
+					<div.commentary-text [ff:{theme.fontFamily} fs:{theme.fontSize}px lh:{commentaryLineHeight} fw:{theme.fontWeight}] style=contentStyle innerHTML=displayedCommentaryHtml>
 					if obsidianMode
 						<div.commentary-obsidian-root>
 							if obsidianBoxVisible
@@ -1063,6 +1514,23 @@ tag verse-commentary-modal
 				c: GoldenRod
 				opacity: 1
 
+		.freehand-btn
+			bgc: transparent
+			c: $acc @hover:$acc-hover
+			border: none
+			opacity: 0.75 @hover:1
+			svg
+				size: 1.35rem
+				c: inherit
+				opacity: 0.75 @hover:1
+
+		.freehand-btn.freehand-active
+			c: var(--freehand-color, GoldenRod)
+			opacity: 1
+			svg
+				c: var(--freehand-color, GoldenRod)
+				opacity: 1
+
 		.close-btn
 			bgc: transparent
 			c: $c @hover:$acc-hover
@@ -1102,7 +1570,20 @@ tag verse-commentary-modal
 			margin-right: 20px
 			flex: 1 1 auto
 			min-h: 0
+			pos: relative
 			-webkit-overflow-scrolling: touch
+
+		.content.commentary-freehand-active
+			touch-action: none
+			-webkit-touch-callout: none
+
+		.commentary-freehand-canvas
+			pos: absolute
+			inset: 0
+			w: 100%
+			h: 100%
+			pointer-events: none
+			zi: 3
 
 		.content.commentary-obsidian-active
 			pos: relative

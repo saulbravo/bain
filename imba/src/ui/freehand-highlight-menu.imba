@@ -22,11 +22,18 @@ tag freehand-highlight-menu
 		if event.detail
 			activities.freehandHighlightColor = event.detail
 
+	get commentaryToolTarget
+		return activities.activeVerseAction == 'commentary' or activities.commentaryCompareMode
+
 	def clearAllHighlights e
 		if e and e.preventDefault
 			e.preventDefault()
 		if e and e.stopPropagation
 			e.stopPropagation()
+		if commentaryToolTarget
+			if hasTouchEvents or window.confirm("Clear all highlights in this commentary?")
+				window.dispatchEvent(new CustomEvent('commentary-freehand-clear'))
+			return
 		if activities.penToolMode
 			console.log('[PEN DEBUG] clear all sketches', { chapter: "{reader.translation}:{reader.book}:{reader.chapter}" })
 			reader.clearPenSketchesForCurrentChapter!
@@ -61,6 +68,8 @@ tag freehand-highlight-menu
 	get canUndoFreehand
 		if activities.penToolMode
 			return no
+		if commentaryToolTarget
+			return activities.commentaryFreehandCount > 0
 		if reader.freehandHighlights and reader.freehandHighlights.length > 0
 			return yes
 		if parallelReader.enabled and parallelReader.freehandHighlights and parallelReader.freehandHighlights.length > 0
@@ -80,6 +89,9 @@ tag freehand-highlight-menu
 			e.stopPropagation()
 		if activities.penToolMode or !canUndoFreehand
 			return
+		if commentaryToolTarget
+			window.dispatchEvent(new CustomEvent('commentary-freehand-undo'))
+			return
 		let target = null
 		for r in undoReaders!
 			if !r.freehandHighlights or r.freehandHighlights.length == 0
@@ -98,7 +110,9 @@ tag freehand-highlight-menu
 		return #dy == DEFAULT_Y ? '0.5s' : '0s'
 
 	<self [y:{(activities.freehandHighlightMode or activities.penToolMode) ? (activities.isFreehandHighlightMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px') : '100%'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
-		.is-minimized=activities.isFreehandHighlightMinimized>
+		[zi:1400]=(activities.activeVerseAction == 'commentary' or activities.commentaryCompareMode)
+		.is-minimized=activities.isFreehandHighlightMinimized
+		@click.stop @pointerdown.stop @pointerup.stop>
 		<div.control-tabs>
 			<button.tab.minimize @click=(do
 				activities.isFreehandHighlightMinimized = !activities.isFreehandHighlightMinimized
