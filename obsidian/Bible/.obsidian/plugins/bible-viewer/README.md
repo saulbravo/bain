@@ -15,18 +15,18 @@ Embed [Bolls Bible](https://github.com/saulbravo/bain) in Obsidian’s right sid
 
 ```bash
 git clone https://github.com/saulbravo/bain.git
-cd bain/obsidian-bible-viewer
+cd bain/bible-viewer
 # copy into your vault’s plugins folder:
 cp -r . /path/to/your/vault/.obsidian/plugins/bible-viewer/
 ```
 
-Or download this folder from GitHub and copy it to:
+Or download the **New-Bolls-Bible** ZIP and copy the `bible-viewer` folder to:
 
 ```text
 YourVault/.obsidian/plugins/bible-viewer/
 ```
 
-Required files: `manifest.json`, `main.js`, `styles.css`.
+The folder name must stay `bible-viewer`. Required files: `manifest.json`, `main.js`, `styles.css`.
 
 ### BRAT (Beta Reviewers Auto Tester)
 
@@ -60,7 +60,7 @@ After updating the plugin on another device, copy the whole `bible-viewer` folde
 ## Development
 
 ```bash
-cd obsidian-bible-viewer
+cd bible-viewer
 npm install
 npm run build    # writes main.js
 npm run dev      # watch mode

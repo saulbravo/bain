@@ -6,7 +6,7 @@ Go to [docs/LOCAL_DEV_WITH_DOCKER_COMPOSER.md](docs/LOCAL_DEV_WITH_DOCKER_COMPOS
 
 ## Obsidian plugin
 
-Embed the Bible reader in Obsidian and copy verses into notes. See [obsidian-bible-viewer/README.md](obsidian-bible-viewer/README.md).
+Embed the Bible reader in Obsidian and copy verses into notes. See [bible-viewer/README.md](bible-viewer/README.md).
 
 ## Docker / TrueNAS Scale (single container)
 

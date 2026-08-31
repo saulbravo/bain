@@ -1,16 +1,16 @@
 ---
 description: Keep the vault Bible Viewer plugin in sync with source
-globs: obsidian-bible-viewer/**
+globs: bible-viewer/**
 alwaysApply: false
 ---
 
 # Obsidian plugin install path
 
-After any change to `obsidian-bible-viewer/` (especially `main.ts`, `main.js`, `manifest.json`, `styles.css`):
+After any change to `bible-viewer/` (especially `main.ts`, `main.js`, `manifest.json`, `styles.css`):
 
 1. Rebuild `main.js` if `main.ts` changed.
 2. Copy `main.js`, `main.ts`, `manifest.json`, and `styles.css` to:
 
 `obsidian/Bible/.obsidian/plugins/bible-viewer/`
 
-Obsidian loads that vault folder, not `obsidian-bible-viewer/`. Do not skip the copy.
+Obsidian loads that vault folder, not the repo `bible-viewer/` copy unless they are the same path. Do not skip the copy.
