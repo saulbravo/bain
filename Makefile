@@ -25,7 +25,7 @@ help:
 	@echo -e "    "${CYAN}"build"${RESET}"                 Build the docker images"
 	@echo -e "    "${CYAN}"build-no-cache"${RESET}"        Build the docker images without cache"
 	@echo -e "    "${CYAN}"build-all-in-one"${RESET}"      Build single TrueNAS/Docker Hub image"
-	@echo -e "    "${CYAN}"publish-all-in-one"${RESET}"    Build and push maxivious/bolls:v4.2.33"
+	@echo -e "    "${CYAN}"publish-all-in-one"${RESET}"    Build and push maxivious/bolls:v4.2.34"
 	@echo -e "    "${CYAN}"load-translations"${RESET}"     Import the bundled Spanish translations"
 	@echo -e "    "${CYAN}"load-dictionaries"${RESET}"     Import the bundled Spanish dictionaries"
 	@echo -e "    "${CYAN}"restore-db"${RESET}"            Restore the database"
@@ -72,10 +72,10 @@ build-no-cache:
 	$(DOCKER) compose build --no-cache
 
 build-all-in-one:
-	$(DOCKER) build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v4.2.33 .
+	$(DOCKER) build -f docker/all-in-one/Dockerfile -t docker.io/maxivious/bolls:v4.2.34 .
 
 publish-all-in-one: build-all-in-one
-	$(DOCKER) push --format v2s2 docker.io/maxivious/bolls:v4.2.33
+	$(DOCKER) push --format v2s2 docker.io/maxivious/bolls:v4.2.34
 
 restore-db:
 	# first, make sure we have all migrations run
