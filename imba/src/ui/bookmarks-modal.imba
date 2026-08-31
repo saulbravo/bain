@@ -1,5 +1,6 @@
 import API from '../lib/Api'
 import activities from '../lib/Activities'
+import commentaries from '../lib/Commentaries'
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 import vault from '../lib/Vault'
@@ -492,6 +493,76 @@ tag bookmarks-modal
 			return base
 		return base.filter(do |entry| return matchesHighlightFilters(entry))
 
+	def isCommentaryHighlight entry
+		return String(entry.translation or '').indexOf('cmt-') == 0
+
+	def commentaryModuleId entry
+		return String(entry.translation or '').slice(4)
+
+	def commentaryLabel entry
+		let id = commentaryModuleId(entry)
+		unless id
+			return ''
+		for source in commentaries.sources
+			if source.id == id
+				return commentaries.shortNameFor(source)
+		return id
+
+	def bibleTranslationForHighlight entry
+		if isCommentaryHighlight(entry)
+			return reader.translation
+		return entry.translation
+
+	def readerForHighlight entry
+		if !entry or isCommentaryHighlight(entry)
+			return null
+		if reader.translation == entry.translation and reader.book == entry.book and reader.chapter == entry.chapter and reader.verses and reader.verses.length
+			return reader
+		if parallelReader.enabled and parallelReader.translation == entry.translation and parallelReader.book == entry.book and parallelReader.chapter == entry.chapter and parallelReader.verses and parallelReader.verses.length
+			return parallelReader
+		return null
+
+	def longestHighlightSnippet texts
+		let best = ''
+		for piece in texts
+			let t = piece ? String(piece) : ''
+			if t.length > best.length
+				best = t
+		return best
+
+	# One preview for a merged range: rebuild from verse text when available so
+	# overlapping re-highlights do not concatenate duplicate snippets.
+	def snippetForMergedRun run
+		let r = readerForHighlight(run)
+		if r
+			const data = getFreehandHighlightSnippetData(r, {
+				startVerse: run.verse
+				startOffset: run.startOffset != null ? run.startOffset : 0
+				endVerse: run.endVerse != null ? run.endVerse : run.verse
+				endOffset: run.endOffset != null ? run.endOffset : 0
+			})
+			if data and data.text and data.text != '...'
+				return data.text
+		return longestHighlightSnippet(run._texts or [])
+
+	def pushGroupedRun grouped, run
+		unless run
+			return
+		grouped.push({
+			date: run.date
+			color: run.color
+			decoration: run.decoration
+			underlineStyle: run.underlineStyle
+			translation: run.translation
+			book: run.book
+			chapter: run.chapter
+			verse: run.verse
+			startOffset: run.startOffset
+			endVerse: run.endVerse
+			endOffset: run.endOffset
+			text: snippetForMergedRun(run)
+		})
+
 	# Display list for Highlights pane: use instance state or fall back to module cache so UI is correct when computed lags
 	def groupContinuousHighlights entries
 		let buckets = {}
@@ -543,24 +614,13 @@ tag bookmarks-modal
 					elif startVerse == (run.endVerse + 1) and run.endOffset >= 999999 and startOffset <= 0
 						canMerge = yes
 					if canMerge
+						if startOffset < run.startOffset
+							run.startOffset = startOffset
 						if endVerse > run.endVerse or (endVerse == run.endVerse and endOffset > run.endOffset)
 							run.endVerse = endVerse
 							run.endOffset = endOffset
 					else
-						grouped.push({
-							date: run.date
-							color: run.color
-							decoration: run.decoration
-							underlineStyle: run.underlineStyle
-							translation: run.translation
-							book: run.book
-							chapter: run.chapter
-							verse: run.verse
-							startOffset: run.startOffset
-							endVerse: run.endVerse
-							endOffset: run.endOffset
-							text: run._texts.join(' ')
-						})
+						pushGroupedRun(grouped, run)
 						run = {
 							date: toDateMs(item.date)
 							color: item.color
@@ -579,20 +639,7 @@ tag bookmarks-modal
 					if item.text and !run._texts.includes(item.text)
 						run._texts.push(item.text)
 			if run != null
-				grouped.push({
-					date: run.date
-					color: run.color
-					decoration: run.decoration
-					underlineStyle: run.underlineStyle
-					translation: run.translation
-					book: run.book
-					chapter: run.chapter
-					verse: run.verse
-					startOffset: run.startOffset
-					endVerse: run.endVerse
-					endOffset: run.endOffset
-					text: run._texts.join(' ')
-				})
+				pushGroupedRun(grouped, run)
 		return grouped.sort(do |a, b| return (b.date or 0) - (a.date or 0))
 
 	def baseHighlightEntries
@@ -726,7 +773,7 @@ tag bookmarks-modal
 		if !q
 			return list
 		return list.filter(do |entry|
-			const haystack = [highlightTitle(entry), entry.translation or '', entry.text or ''].join(' ').toLowerCase()
+			const haystack = [highlightTitle(entry), highlightMeta(entry), entry.text or ''].join(' ').toLowerCase()
 			return haystack.includes(q)
 		)
 
@@ -734,7 +781,13 @@ tag bookmarks-modal
 		let versesPart = String(entry.verse)
 		if entry.endVerse and entry.endVerse != entry.verse
 			versesPart = "{entry.verse}-{entry.endVerse}"
-		return "{getBookName(entry.translation, entry.book)} {entry.chapter}:{versesPart}"
+		let translation = bibleTranslationForHighlight(entry)
+		return "{getBookName(translation, entry.book)} {entry.chapter}:{versesPart}"
+
+	def highlightMeta entry
+		if isCommentaryHighlight(entry)
+			return commentaryLabel(entry)
+		return entry.translation
 
 	# Unique colors present in current highlights (including custom colors) — only show filters for colors that exist
 	def getDisplayHighlightColors
@@ -783,6 +836,8 @@ tag bookmarks-modal
 		activities.cleanUp { onPopState: yes }
 
 	def openVerseBookmark entry
+		if isCommentaryHighlight(entry)
+			return openCommentaryHighlight(entry)
 		const translation = entry.translation
 		const book = entry.book
 		const chapter = entry.chapter
@@ -807,6 +862,40 @@ tag bookmarks-modal
 			reader.goToAndSelectVerse(verse, null, null, yes)
 		else
 			ensureVerseSelected(translation, book, chapter, verse)
+
+	def enableCommentaryModule commentaryId
+		unless commentaryId
+			return
+		commentaries.load!
+		commentaries.select(commentaryId)
+		unless commentaries.isEnabled(commentaryId)
+			commentaries.toggle(commentaryId)
+			commentaries.select(commentaryId)
+
+	def openCommentaryHighlight entry
+		const commentaryId = commentaryModuleId(entry)
+		unless commentaryId
+			return
+		enableCommentaryModule(commentaryId)
+		const book = entry.book
+		const chapter = entry.chapter
+		const verse = entry.verse or (entry.verses and entry.verses[0])
+		const translation = reader.translation
+		const samePlace = reader.book == book and reader.chapter == chapter
+		activities.tabUpdateTargetIndex = activities.activeTabIndex
+		if !samePlace
+			activities.applyTabToReader({
+				translation: translation
+				book: book
+				chapter: chapter
+			}, 'bookmarks-modal:commentary')
+			if verse != undefined and verse != null
+				reader.verse = verse
+				reader.centerNextVerseNav = yes
+		activities.cleanUp { onPopState: yes }
+		if verse == undefined or verse == null
+			return
+		ensureCommentaryOpened(translation, book, chapter, verse, commentaryId)
 
 	def obsidianLinkTitle link
 		let bookName = getBookName(link.translation, link.book) or "Book {link.book}"
@@ -847,6 +936,28 @@ tag bookmarks-modal
 			if activities.selectedVersesPKs.length > 0
 				return
 			reader.goToAndSelectVerse(verse, null, null, yes)
+
+	def ensureCommentaryOpened translation, book, chapter, verse, commentaryId, attempts = 0
+		if attempts > 25
+			return
+		const delay = attempts == 0 ? 50 : 400
+		setTimeout(&, delay) do
+			const ready = reader.book == book and reader.chapter == chapter and !reader.loading and reader.verses and reader.verses.length > 0
+			unless ready
+				return ensureCommentaryOpened(translation, book, chapter, verse, commentaryId, attempts + 1)
+			let match = reader.verses.find(do |item| return Number(item.verse) == Number(verse))
+			unless match
+				return ensureCommentaryOpened(translation, book, chapter, verse, commentaryId, attempts + 1)
+			enableCommentaryModule(commentaryId)
+			activities.selectedVersesPKs = [match.pk]
+			activities.selectedVerses = [match.verse]
+			activities.selectedCategories = []
+			activities.selectedParallel = 'main'
+			activities.activeVerseAction = 'commentary'
+			let el = document.getElementById(String(verse))
+			if el and el.scrollIntoView
+				el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+			imba.commit!
 
 	def openBookmark entry
 		if entry.type == 'book'
@@ -909,6 +1020,7 @@ tag bookmarks-modal
 		imba.commit!
 
 	def mount
+		commentaries.load!
 		# Restore from cache so new instance shows last known highlights (parent may re-create modal on re-render)
 		if _cachedHighlightEntries.length > 0
 			highlightEntries = _cachedHighlightEntries.slice()
@@ -1089,7 +1201,7 @@ tag bookmarks-modal
 										<span.color-swatch [bgc:{entry.color or '#eab308'}]>
 								<div.bookmark-text>
 									<div.bookmark-title> highlightTitle(entry)
-									<div.bookmark-meta> entry.translation
+									<div.bookmark-meta> highlightMeta(entry)
 									<div.bookmark-snippet innerHTML=(entry.text or '')>
 					if canLoadMoreHighlights()
 						<button.load-more-btn @click=loadMoreHighlights> "Load More"
