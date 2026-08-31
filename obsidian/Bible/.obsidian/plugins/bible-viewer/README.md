@@ -1,74 +1,70 @@
-# Bible Viewer Plugin for Obsidian
+# Bible Viewer — Obsidian plugin
 
-This plugin embeds the Bible app in the right sidebar pane of Obsidian and allows you to copy selected verses directly into your current note.
+Embed [Bolls Bible](https://github.com/saulbravo/bain) in Obsidian’s right sidebar and copy selected verses or commentary into the active note.
 
 ## Features
 
-- **Hybrid Embed**: The Bible app is embedded in an iframe in the right sidebar
-- **Verse Copy Select**: When verse copy select mode is enabled in the Bible app and verses are selected, click the left arrow button to copy them to your current Obsidian note
-- **Automatic Formatting**: Verses are automatically formatted as markdown with bold references
+- Bible app embedded in an iframe (right sidebar)
+- Copy selected verses from the reader into the current note (markdown with bold references)
+- Copy commentary paragraphs from the commentary modal into the active note (one blue `[!note]` callout with commentary title and verse reference)
+- Configurable app URL (local Docker, TrueNAS, or public domain)
 
-## Installation
+## Install from GitHub
 
-1. Make sure the Bible app is running at `http://localhost:8080` (or configure a different URL in settings)
-2. In Obsidian, go to Settings → Community plugins → Browse and search for "Bible Viewer", or manually install from this folder
-3. Enable the plugin
-4. The Bible viewer will automatically open in the right sidebar
+### Manual
 
-## Usage
+```bash
+git clone https://github.com/saulbravo/bain.git
+cd bain/obsidian-bible-viewer
+# copy into your vault’s plugins folder:
+cp -r . /path/to/your/vault/.obsidian/plugins/bible-viewer/
+```
 
-1. Open the Bible app in the right sidebar (it should open automatically when the plugin is enabled)
-2. Navigate to any book, chapter, and verse
-3. Enable "Verse Copy Select" mode in the Bible app (look for the copy select button/toggle)
-4. Select one or more verses by clicking on them
-5. Use the handles to extend the selection if needed
-6. Click the left arrow button (←) in the selection box to copy the verses to your current Obsidian note
+Or download this folder from GitHub and copy it to:
+
+```text
+YourVault/.obsidian/plugins/bible-viewer/
+```
+
+Required files: `manifest.json`, `main.js`, `styles.css`.
+
+### BRAT (Beta Reviewers Auto Tester)
+
+If this plugin is published as its own repository with these files at the repo root, add via BRAT using that repo URL.
+
+When installed from the **bain** monorepo, use manual install (path above).
 
 ## Settings
 
-- **Bible App URL**: Configure the URL where your Bible app is running (default: `http://localhost:8080`)
+| Setting | Default | Example |
+|---------|---------|---------|
+| **Bible App URL** | `https://bolls.familybravo.com` | `http://192.168.1.15:9080` for local LAN |
+| **Detect verse references** | On | Turns `Genesis 3:5` in notes into a link that opens that verse in Bible Viewer |
+
+Enable the plugin under **Settings → Community plugins**.
+
+## Usage
+
+1. Open **Bible Viewer** (ribbon icon or command palette).
+2. Have a markdown note open in the editor (insert goes into the active note).
+3. **Verses:** enable verse copy/select mode, select verses, use the ← arrow to insert.
+4. **Commentary:** open the commentary modal, select paragraph(s), use the ← arrow to insert.
+5. **Plain references:** in a note, `Genesis 3:5` (or `Génesis 3:5`, `Jn 3:16`) is clickable and opens that verse in Bible Viewer. Turn this off under **Settings → Bible Viewer → Detect verse references**.
+
+**Requirements for commentary:** Bible app **v2.8+** (Docker tag `maxivious/bolls:v2.8` or newer) and plugin **v0.3.1+**. Multi-paragraph selections are merged into a single callout.
+
+After updating the plugin on another device, copy the whole `bible-viewer` folder again (or pull latest from git) — `main.js` must include the `bible-commentary-selection` handler.
 
 ## Development
 
-### Building the Plugin
-
-The plugin needs to be built before it can be used in Obsidian. You have two options:
-
-#### Option 1: Using npm (if you have Node.js installed)
-
 ```bash
-cd /home/maxivious/Documents/Bible/obsidian/Bible/.obsidian/plugins/bible-viewer
+cd obsidian-bible-viewer
 npm install
-npm run build
+npm run build    # writes main.js
+npm run dev      # watch mode
 ```
 
-This will create the `main.js` file that Obsidian needs.
+## Related
 
-#### Option 2: Using Obsidian's Hot Reload Plugin
-
-1. Install the "Hot Reload" plugin in Obsidian
-2. The plugin will automatically compile TypeScript files when you save them
-
-### File Structure
-
-- `main.ts` - Main plugin code
-- `manifest.json` - Plugin metadata
-- `styles.css` - Plugin styles
-- `package.json` - Dependencies
-- `tsconfig.json` - TypeScript configuration
-- `esbuild.config.mjs` - Build configuration
-
-### How It Works
-
-1. The plugin creates an iframe in the right sidebar that loads the Bible app
-2. When verse copy select mode is enabled and verses are selected, the Bible app sends a `postMessage` to the parent window
-3. The plugin listens for these messages and copies the formatted verses to the current note
-
-## Troubleshooting
-
-### Translation Code Not Showing
-
-If verses are being inserted with "BBE" instead of the actual translation code (YLT, KJV, etc.), see `FIX_TRANSLATION_CODE_ISSUE.md` for details on the fix and why it was needed.
-
-The issue was related to how `postMessage` serializes objects - reactive/observable properties from Imba weren't being properly serialized. The fix ensures all properties are converted to plain JavaScript primitives before sending.
-
+- Main app: [saulbravo/bain](https://github.com/saulbravo/bain)
+- Docker / TrueNAS deploy: [docker/all-in-one/README.md](../docker/all-in-one/README.md)

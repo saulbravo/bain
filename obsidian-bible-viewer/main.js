@@ -23,8 +23,222 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
+var import_state = require("@codemirror/state");
+var import_view = require("@codemirror/view");
+
+// verse-refs.ts
+var BOOKS = [
+  { id: 1, names: ["genesis", "g\xE9nesis", "gen", "gn"] },
+  { id: 2, names: ["exodus", "\xE9xodo", "exodo", "exod", "exo", "ex"] },
+  { id: 3, names: ["leviticus", "lev\xEDtico", "levitico", "lev", "lv"] },
+  { id: 4, names: ["numbers", "n\xFAmeros", "numeros", "num", "n\xFAm", "nu"] },
+  { id: 5, names: ["deuteronomy", "deuteronomio", "deut", "deu", "dt"] },
+  { id: 6, names: ["joshua", "josu\xE9", "josue", "josh", "jos"] },
+  { id: 7, names: ["judges", "jueces", "judg", "jdg", "jue"] },
+  { id: 8, names: ["ruth", "rut", "rth"] },
+  { id: 9, names: ["1 samuel", "1sam", "1 sam", "1 sa", "1sa", "1\xBA samuel", "1o samuel"] },
+  { id: 10, names: ["2 samuel", "2sam", "2 sam", "2 sa", "2sa", "2\xBA samuel", "2o samuel"] },
+  { id: 11, names: ["1 kings", "1 reyes", "1 kgs", "1 ki", "1ki", "1re", "1 re", "1\xBA reyes"] },
+  { id: 12, names: ["2 kings", "2 reyes", "2 kgs", "2 ki", "2ki", "2re", "2 re", "2\xBA reyes"] },
+  { id: 13, names: ["1 chronicles", "1 cr\xF3nicas", "1 cronicas", "1 chron", "1 chr", "1 cr", "1ch", "1\xBA cr\xF3nicas"] },
+  { id: 14, names: ["2 chronicles", "2 cr\xF3nicas", "2 cronicas", "2 chron", "2 chr", "2 cr", "2ch", "2\xBA cr\xF3nicas"] },
+  { id: 15, names: ["ezra", "esdras", "ezr", "esd"] },
+  { id: 16, names: ["nehemiah", "nehem\xEDas", "nehemias", "neh"] },
+  { id: 17, names: ["esther", "ester", "esth", "est"] },
+  { id: 18, names: ["job"] },
+  { id: 19, names: ["psalms", "psalm", "salmos", "salmo", "psa", "ps", "sal"] },
+  { id: 20, names: ["proverbs", "proverbios", "prov", "pro", "prv"] },
+  { id: 21, names: ["ecclesiastes", "eclesiast\xE9s", "eclesiastes", "eccl", "ecc", "ecl"] },
+  { id: 22, names: ["song of solomon", "song of songs", "cantar de los cantares", "cantares", "song", "cant", "cnt"] },
+  { id: 23, names: ["isaiah", "isa\xEDas", "isaias", "isa"] },
+  { id: 24, names: ["jeremiah", "jerem\xEDas", "jeremias", "jer"] },
+  { id: 25, names: ["lamentations", "lamentaciones", "lam"] },
+  { id: 26, names: ["ezekiel", "ezequiel", "ezek", "ezeq", "eze"] },
+  { id: 27, names: ["daniel", "dan", "dn"] },
+  { id: 28, names: ["hosea", "oseas", "hos", "os"] },
+  { id: 29, names: ["joel", "jl"] },
+  { id: 30, names: ["amos", "am\xF3s"] },
+  { id: 31, names: ["obadiah", "abd\xEDas", "abdias", "obad", "oba", "abd"] },
+  { id: 32, names: ["jonah", "jon\xE1s", "jonas", "jon"] },
+  { id: 33, names: ["micah", "miqueas", "mic", "miq"] },
+  { id: 34, names: ["nahum", "nah"] },
+  { id: 35, names: ["habakkuk", "habacuc", "hab"] },
+  { id: 36, names: ["zephaniah", "sofon\xEDas", "sofonias", "zeph", "zep", "sof"] },
+  { id: 37, names: ["haggai", "hageo", "hag"] },
+  { id: 38, names: ["zechariah", "zacar\xEDas", "zacarias", "zech", "zec", "zac"] },
+  { id: 39, names: ["malachi", "malaqu\xEDas", "malaquias", "mal"] },
+  { id: 40, names: ["matthew", "mateo", "matt", "mat", "mt"] },
+  { id: 41, names: ["mark", "marcos", "mrk", "mar", "mk", "mc"] },
+  { id: 42, names: ["luke", "lucas", "luk", "lk", "lc"] },
+  { id: 62, names: ["1 john", "1 juan", "1 jn", "1jn", "1\xBA juan", "1o juan"] },
+  { id: 63, names: ["2 john", "2 juan", "2 jn", "2jn", "2\xBA juan", "2o juan"] },
+  { id: 64, names: ["3 john", "3 juan", "3 jn", "3jn", "3\xBA juan", "3o juan"] },
+  { id: 43, names: ["john", "juan", "jhn", "jn"] },
+  { id: 44, names: ["acts", "hechos", "act", "hch", "hc"] },
+  { id: 45, names: ["romans", "romanos", "rom", "ro"] },
+  { id: 46, names: ["1 corinthians", "1 corintios", "1 cor", "1cor", "1 co", "1\xBA corintios"] },
+  { id: 47, names: ["2 corinthians", "2 corintios", "2 cor", "2cor", "2 co", "2\xBA corintios"] },
+  { id: 48, names: ["galatians", "g\xE1latas", "galatas", "gal"] },
+  { id: 49, names: ["ephesians", "efesios", "eph", "ef"] },
+  { id: 50, names: ["philippians", "filipenses", "phil", "php", "fil"] },
+  { id: 51, names: ["colossians", "colosenses", "col"] },
+  { id: 52, names: ["1 thessalonians", "1 tesalonicenses", "1 thess", "1 tes", "1th", "1tes"] },
+  { id: 53, names: ["2 thessalonians", "2 tesalonicenses", "2 thess", "2 tes", "2th", "2tes"] },
+  { id: 54, names: ["1 timothy", "1 timoteo", "1 tim", "1tim", "1 ti"] },
+  { id: 55, names: ["2 timothy", "2 timoteo", "2 tim", "2tim", "2 ti"] },
+  { id: 56, names: ["titus", "tito", "tit", "tt"] },
+  { id: 57, names: ["philemon", "filem\xF3n", "filemon", "phlm", "phm", "flm"] },
+  { id: 58, names: ["hebrews", "hebreos", "heb"] },
+  { id: 59, names: ["james", "santiago", "jas", "stg", "st"] },
+  { id: 60, names: ["1 peter", "1 pedro", "1 pet", "1 pe", "1pe", "1ped"] },
+  { id: 61, names: ["2 peter", "2 pedro", "2 pet", "2 pe", "2pe", "2ped"] },
+  { id: 65, names: ["jude", "judas"] },
+  { id: 66, names: ["revelation", "apocalipsis", "rev", "apoc", "ap"] }
+];
+function fold(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[ºª]/g, "o").replace(/\s+/g, " ").trim();
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+var ALIAS_TO_ID = /* @__PURE__ */ new Map();
+var ALIASES = [];
+for (const book of BOOKS) {
+  for (const name of book.names) {
+    const key = fold(name);
+    if (!key || ALIAS_TO_ID.has(key)) {
+      continue;
+    }
+    ALIAS_TO_ID.set(key, book.id);
+    ALIASES.push(key);
+  }
+}
+ALIASES.sort((a, b) => b.length - a.length);
+var BOOK_RE = ALIASES.map((alias) => escapeRegExp(alias).replace(/ /g, "\\s+")).join("|");
+var VERSE_RE = new RegExp(
+  `(^|[^A-Za-z0-9\xC1\xC9\xCD\xD3\xDA\xE1\xE9\xED\xF3\xFA\xD1\xF1])(${BOOK_RE})\\s+(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-\u2013\u2014]\\s*(\\d{1,3}))?`,
+  "giu"
+);
+var SKIP_PARENTS = "a, code, pre, .bible-verse-ref, .cm-inline-code, .internal-link, .external-link";
+function findVerseRefs(text) {
+  const hits = [];
+  if (!text || text.indexOf(":") < 0) {
+    return hits;
+  }
+  VERSE_RE.lastIndex = 0;
+  let match;
+  while ((match = VERSE_RE.exec(text)) !== null) {
+    const boundary = match[1] || "";
+    const bookRaw = match[2];
+    const bookId = ALIAS_TO_ID.get(fold(bookRaw));
+    const chapter = Number(match[3]);
+    const verse = Number(match[4]);
+    const endVerse = match[5] ? Number(match[5]) : void 0;
+    if (!bookId || !chapter || !verse) {
+      continue;
+    }
+    if (endVerse && endVerse < verse) {
+      continue;
+    }
+    const from = match.index + boundary.length;
+    const to = match.index + match[0].length;
+    hits.push({
+      bookId,
+      chapter,
+      verse,
+      endVerse: endVerse && endVerse !== verse ? endVerse : void 0,
+      from,
+      to,
+      text: text.slice(from, to)
+    });
+  }
+  return hits;
+}
+function verseHitFromEl(el) {
+  if (!el) {
+    return null;
+  }
+  const bookId = Number(el.getAttribute("data-book-id"));
+  const chapter = Number(el.getAttribute("data-chapter"));
+  const verse = Number(el.getAttribute("data-verse"));
+  const endRaw = el.getAttribute("data-end-verse");
+  const endVerse = endRaw ? Number(endRaw) : void 0;
+  if (!bookId || !chapter || !verse) {
+    return null;
+  }
+  return {
+    bookId,
+    chapter,
+    verse,
+    endVerse: endVerse || void 0,
+    from: 0,
+    to: 0,
+    text: el.textContent || ""
+  };
+}
+function applyHitAttributes(el, hit) {
+  el.classList.add("bible-verse-ref");
+  el.setAttribute("data-book-id", String(hit.bookId));
+  el.setAttribute("data-chapter", String(hit.chapter));
+  el.setAttribute("data-verse", String(hit.verse));
+  if (hit.endVerse) {
+    el.setAttribute("data-end-verse", String(hit.endVerse));
+  }
+  el.setAttribute("title", `Open ${hit.text} in Bible Viewer`);
+}
+function decorateVerseRefs(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      if (parent.closest(SKIP_PARENTS)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      const value = node.nodeValue || "";
+      if (value.indexOf(":") < 0) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  let current = walker.nextNode();
+  while (current) {
+    nodes.push(current);
+    current = walker.nextNode();
+  }
+  for (const node of nodes) {
+    const value = node.nodeValue || "";
+    const hits = findVerseRefs(value);
+    if (!hits.length || !node.parentNode) {
+      continue;
+    }
+    const frag = document.createDocumentFragment();
+    let cursor = 0;
+    for (const hit of hits) {
+      if (hit.from > cursor) {
+        frag.appendChild(document.createTextNode(value.slice(cursor, hit.from)));
+      }
+      const link = document.createElement("span");
+      applyHitAttributes(link, hit);
+      link.textContent = value.slice(hit.from, hit.to);
+      frag.appendChild(link);
+      cursor = hit.to;
+    }
+    if (cursor < value.length) {
+      frag.appendChild(document.createTextNode(value.slice(cursor)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+}
+
+// main.ts
 var DEFAULT_SETTINGS = {
-  bibleAppUrl: "https://bolls.familybravo.com"
+  bibleAppUrl: "https://bolls.familybravo.com",
+  detectVerseReferences: true,
+  lastTranslation: ""
 };
 var BibleViewerPlugin = class extends import_obsidian.Plugin {
   async onload() {
@@ -44,9 +258,48 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
       this.activateView();
     });
     this.addSettingTab(new BibleViewerSettingTab(this.app, this));
+    this.registerMarkdownPostProcessor((el) => {
+      if (!this.settings.detectVerseReferences) {
+        return;
+      }
+      decorateVerseRefs(el);
+    });
+    this.registerEditorExtension(createVerseRefExtension(this));
+    this.registerDomEvent(
+      document,
+      "click",
+      (event) => {
+        var _a;
+        if (!this.settings.detectVerseReferences) {
+          return;
+        }
+        const target = event.target;
+        const el = (_a = target == null ? void 0 : target.closest) == null ? void 0 : _a.call(target, ".bible-verse-ref");
+        if (!el) {
+          return;
+        }
+        const hit = verseHitFromEl(el);
+        if (!hit) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        void this.openVerseReference(hit);
+      },
+      true
+    );
     this.app.workspace.onLayoutReady(() => {
       this.activateView();
     });
+  }
+  async openVerseReference(hit) {
+    await this.activateView();
+    const view = this.bibleView;
+    if (!view) {
+      new import_obsidian.Notice("Bible Viewer is not open.");
+      return;
+    }
+    view.navigateToVerse(hit);
   }
   onunload() {
     this.app.workspace.detachLeavesOfType("bible-viewer");
@@ -86,6 +339,7 @@ var BibleView = class extends import_obsidian.ItemView {
     super(leaf);
     this.lastMarkdownLeaf = null;
     this.lastEditorCursor = null;
+    this.pendingNavigation = null;
     this.plugin = plugin;
     this.messageHandler = this.handleMessage.bind(this);
   }
@@ -283,7 +537,8 @@ var BibleView = class extends import_obsidian.ItemView {
     });
     setTimeout(() => {
       if (this.iframe) {
-        this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+        this.iframe.src = this.pendingNavigation || this.plugin.settings.bibleAppUrl + cacheBuster;
+        this.pendingNavigation = null;
         console.log("Bible Viewer: Iframe src set with cache-buster:", cacheBuster);
         let cacheCleared = false;
         this.iframe.onload = () => {
@@ -337,7 +592,8 @@ var BibleView = class extends import_obsidian.ItemView {
       });
       setTimeout(() => {
         if (this.iframe) {
-          this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+          this.iframe.src = this.pendingNavigation || this.plugin.settings.bibleAppUrl + cacheBuster;
+          this.pendingNavigation = null;
           console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
           let cacheCleared = false;
           this.iframe.onload = () => {
@@ -361,6 +617,41 @@ var BibleView = class extends import_obsidian.ItemView {
           };
         }
       }, 10);
+    }
+  }
+  currentTranslation() {
+    var _a;
+    try {
+      if ((_a = this.iframe) == null ? void 0 : _a.src) {
+        const parts = new URL(this.iframe.src).pathname.split("/").filter(Boolean);
+        if (parts[0] && /^[A-Za-z0-9]+$/.test(parts[0])) {
+          return parts[0];
+        }
+      }
+    } catch (e) {
+    }
+    return this.plugin.settings.lastTranslation || "YLT";
+  }
+  rememberTranslation(code) {
+    const translation = String(code || "").trim();
+    if (!translation) {
+      return;
+    }
+    this.plugin.settings.lastTranslation = translation;
+    void this.plugin.saveSettings();
+  }
+  verseAppUrl(hit) {
+    const base = this.plugin.settings.bibleAppUrl.replace(/\/$/, "");
+    const translation = this.currentTranslation();
+    const versePart = hit.endVerse && hit.endVerse !== hit.verse ? `${hit.verse}-${hit.endVerse}` : `${hit.verse}`;
+    return `${base}/${translation}/${hit.bookId}/${hit.chapter}/${versePart}`;
+  }
+  navigateToVerse(hit) {
+    const url = this.verseAppUrl(hit);
+    this.pendingNavigation = url;
+    if (this.iframe) {
+      this.iframe.src = url;
+      this.pendingNavigation = null;
     }
   }
   isAllowedMessageOrigin(origin) {
@@ -500,7 +791,8 @@ var BibleView = class extends import_obsidian.ItemView {
     console.log("Bible Viewer: Full data object received:", JSON.stringify(data, null, 2));
     console.log("Bible Viewer: data.translation value:", data.translation);
     console.log("Bible Viewer: All data keys:", Object.keys(data || {}));
-    const translationCode = (data == null ? void 0 : data.translation) || "BBE";
+    const translationCode = (data == null ? void 0 : data.translation) || this.currentTranslation();
+    this.rememberTranslation(translationCode);
     console.log("Bible Viewer: Using translation code:", translationCode);
     const bookId = data.bookId || 1;
     const chapter = data.chapter || 1;
@@ -554,7 +846,8 @@ ${verseTexts}
       new import_obsidian.Notice("No active note to copy commentary to.");
       return;
     }
-    const translationCode = (data == null ? void 0 : data.translation) || "BBE";
+    const translationCode = (data == null ? void 0 : data.translation) || this.currentTranslation();
+    this.rememberTranslation(translationCode);
     const bookId = data.bookId || 1;
     const chapter = data.chapter || 1;
     const verse = ((_a = sections[0]) == null ? void 0 : _a.verse) || 1;
@@ -573,7 +866,7 @@ ${body}`;
     new import_obsidian.Notice(`Copied commentary to note`);
   }
   copyDictionaryToNote(data) {
-    const definition = String((data == null ? void 0 : data.definition) || "").trim();
+    const definition = String(data.definition || "").trim();
     if (!definition) {
       new import_obsidian.Notice("No dictionary entry to copy.");
       return;
@@ -583,19 +876,23 @@ ${body}`;
       new import_obsidian.Notice("No active note to copy dictionary entry to.");
       return;
     }
-    const translationCode = (data == null ? void 0 : data.translation) || "BBE";
+    const translationCode = (data == null ? void 0 : data.translation) || this.currentTranslation();
+    this.rememberTranslation(translationCode);
     const bookId = data.bookId || 1;
     const chapter = data.chapter || 1;
     const verse = data.verse || 1;
     const dictionaryCode = data.dictionary || "";
     const topic = data.topic || data.query || "";
     const titleBits = [dictionaryCode, topic].filter((bit) => bit && String(bit).trim().length > 0);
-    const title = titleBits.join(" · ") || data.dictionaryName || "Dictionary";
+    const title = titleBits.join(" \xB7 ") || data.dictionaryName || "Dictionary";
     const url = `${this.plugin.settings.bibleAppUrl}/${translationCode}/${bookId}/${chapter}/${verse}`;
     const body = definition.split(/\n+/).filter((line) => line.trim().length > 0).map((line) => `> ${line.trim()}`).join("\n");
     const calloutHeader = `> [!dictionary] [${title}](${url})`;
     const heading = String(data.heading || "").trim();
-    const formattedText = heading ? `${calloutHeader}\n> ${heading}\n${body}` : `${calloutHeader}\n${body}`;
+    const formattedText = heading ? `${calloutHeader}
+> ${heading}
+${body}` : `${calloutHeader}
+${body}`;
     this.insertBlockIntoNote(activeView, formattedText);
     new import_obsidian.Notice("Copied dictionary entry to note");
   }
@@ -619,5 +916,72 @@ var BibleViewerSettingTab = class extends import_obsidian.PluginSettingTab {
         }
       })
     );
+    new import_obsidian.Setting(containerEl).setName("Detect verse references").setDesc("Turn written references like Genesis 3:5 into links that open that verse in Bible Viewer. On by default.").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.detectVerseReferences).onChange(async (value) => {
+        this.plugin.settings.detectVerseReferences = value;
+        await this.plugin.saveSettings();
+      })
+    );
   }
 };
+function createVerseRefExtension(plugin) {
+  return import_view.ViewPlugin.fromClass(
+    class {
+      constructor(view) {
+        this.decorations = this.build(view);
+      }
+      update(update) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view) {
+        const builder = new import_state.RangeSetBuilder();
+        if (!plugin.settings.detectVerseReferences) {
+          return builder.finish();
+        }
+        for (const range of view.visibleRanges) {
+          const text = view.state.doc.sliceString(range.from, range.to);
+          for (const hit of findVerseRefs(text)) {
+            builder.add(
+              range.from + hit.from,
+              range.from + hit.to,
+              import_view.Decoration.mark({
+                class: "bible-verse-ref",
+                attributes: {
+                  "data-book-id": String(hit.bookId),
+                  "data-chapter": String(hit.chapter),
+                  "data-verse": String(hit.verse),
+                  "data-end-verse": hit.endVerse ? String(hit.endVerse) : ""
+                }
+              })
+            );
+          }
+        }
+        return builder.finish();
+      }
+    },
+    {
+      decorations: (value) => value.decorations,
+      eventHandlers: {
+        mousedown(event) {
+          var _a;
+          if (!plugin.settings.detectVerseReferences) {
+            return false;
+          }
+          const target = event.target;
+          const el = (_a = target == null ? void 0 : target.closest) == null ? void 0 : _a.call(target, ".bible-verse-ref");
+          const hit = verseHitFromEl(el);
+          if (!hit) {
+            return false;
+          }
+          event.preventDefault();
+          void plugin.openVerseReference(hit);
+          return true;
+        }
+      }
+    }
+  );
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {});

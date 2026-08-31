@@ -1,9 +1,9 @@
 {
   "id": "bible-viewer",
   "name": "Bible Viewer",
-	"version": "0.3.7",
+	"version": "0.3.8",
 	"minAppVersion": "1.5.0",
-	"description": "Embed Bible app in right pane; copy verses, commentary, and dictionary entries into the active note",
+	"description": "Embed Bible app in right pane; copy verses, commentary, and dictionary entries into the active note. Plain references like Genesis 3:5 open the verse.",
   "author": "saulbravo",
   "isDesktopOnly": false
 }

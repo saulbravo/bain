@@ -11,13 +11,20 @@ import {
 	EditorPosition,
 	TFile,
 } from "obsidian";
+import { RangeSetBuilder } from "@codemirror/state";
+import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from "@codemirror/view";
+import { decorateVerseRefs, findVerseRefs, verseHitFromEl, VerseHit } from "./verse-refs";
 
 interface BibleViewerSettings {
 	bibleAppUrl: string;
+	detectVerseReferences: boolean;
+	lastTranslation: string;
 }
 
 const DEFAULT_SETTINGS: BibleViewerSettings = {
 	bibleAppUrl: "https://bolls.familybravo.com",
+	detectVerseReferences: true,
+	lastTranslation: "",
 };
 
 export default class BibleViewerPlugin extends Plugin {
@@ -50,10 +57,52 @@ export default class BibleViewerPlugin extends Plugin {
 		// Add settings tab
 		this.addSettingTab(new BibleViewerSettingTab(this.app, this));
 
+		this.registerMarkdownPostProcessor((el) => {
+			if (!this.settings.detectVerseReferences) {
+				return;
+			}
+			decorateVerseRefs(el);
+		});
+
+		this.registerEditorExtension(createVerseRefExtension(this));
+
+		this.registerDomEvent(
+			document,
+			"click",
+			(event: MouseEvent) => {
+				if (!this.settings.detectVerseReferences) {
+					return;
+				}
+				const target = event.target as HTMLElement | null;
+				const el = target?.closest?.(".bible-verse-ref");
+				if (!el) {
+					return;
+				}
+				const hit = verseHitFromEl(el);
+				if (!hit) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				void this.openVerseReference(hit);
+			},
+			true
+		);
+
 		// Automatically open the view in the right leaf
 		this.app.workspace.onLayoutReady(() => {
 			this.activateView();
 		});
+	}
+
+	async openVerseReference(hit: VerseHit) {
+		await this.activateView();
+		const view = this.bibleView;
+		if (!view) {
+			new Notice("Bible Viewer is not open.");
+			return;
+		}
+		view.navigateToVerse(hit);
 	}
 
 	onunload() {
@@ -108,6 +157,7 @@ class BibleView extends ItemView {
 	messageHandler: (event: MessageEvent) => void;
 	lastMarkdownLeaf: WorkspaceLeaf | null = null;
 	lastEditorCursor: { path: string; line: number; ch: number } | null = null;
+	pendingNavigation: string | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: BibleViewerPlugin) {
 		super(leaf);
@@ -340,7 +390,8 @@ class BibleView extends ItemView {
 		// Set src after a tiny delay to ensure iframe is ready
 		setTimeout(() => {
 			if (this.iframe) {
-				this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+				this.iframe.src = this.pendingNavigation || (this.plugin.settings.bibleAppUrl + cacheBuster);
+				this.pendingNavigation = null;
 				console.log("Bible Viewer: Iframe src set with cache-buster:", cacheBuster);
 				
 				// When iframe loads, try to clear its cache (only once, not on every load)
@@ -415,7 +466,8 @@ class BibleView extends ItemView {
 			// Set src after a tiny delay to ensure iframe is ready
 			setTimeout(() => {
 				if (this.iframe) {
-					this.iframe.src = this.plugin.settings.bibleAppUrl + cacheBuster;
+					this.iframe.src = this.pendingNavigation || (this.plugin.settings.bibleAppUrl + cacheBuster);
+					this.pendingNavigation = null;
 			console.log("Bible Viewer: Iframe recreated with cache-buster:", cacheBuster);
 					
 					// When iframe loads, try to clear its cache (only once per refresh)
@@ -447,6 +499,48 @@ class BibleView extends ItemView {
 					};
 				}
 			}, 10);
+		}
+	}
+
+	currentTranslation(): string {
+		try {
+			if (this.iframe?.src) {
+				const parts = new URL(this.iframe.src).pathname.split("/").filter(Boolean);
+				if (parts[0] && /^[A-Za-z0-9]+$/.test(parts[0])) {
+					return parts[0];
+				}
+			}
+		} catch {
+			// Ignore a bad iframe URL.
+		}
+		return this.plugin.settings.lastTranslation || "YLT";
+	}
+
+	rememberTranslation(code?: string) {
+		const translation = String(code || "").trim();
+		if (!translation) {
+			return;
+		}
+		this.plugin.settings.lastTranslation = translation;
+		void this.plugin.saveSettings();
+	}
+
+	verseAppUrl(hit: VerseHit): string {
+		const base = this.plugin.settings.bibleAppUrl.replace(/\/$/, "");
+		const translation = this.currentTranslation();
+		const versePart =
+			hit.endVerse && hit.endVerse !== hit.verse
+				? `${hit.verse}-${hit.endVerse}`
+				: `${hit.verse}`;
+		return `${base}/${translation}/${hit.bookId}/${hit.chapter}/${versePart}`;
+	}
+
+	navigateToVerse(hit: VerseHit) {
+		const url = this.verseAppUrl(hit);
+		this.pendingNavigation = url;
+		if (this.iframe) {
+			this.iframe.src = url;
+			this.pendingNavigation = null;
 		}
 	}
 
@@ -626,7 +720,8 @@ class BibleView extends ItemView {
 		console.log("Bible Viewer: data.translation value:", data.translation);
 		console.log("Bible Viewer: All data keys:", Object.keys(data || {}));
 		
-		const translationCode = data?.translation || "BBE";
+		const translationCode = data?.translation || this.currentTranslation();
+		this.rememberTranslation(translationCode);
 		console.log("Bible Viewer: Using translation code:", translationCode);
 		
 		// Build localhost URL
@@ -705,7 +800,8 @@ class BibleView extends ItemView {
 			return;
 		}
 
-		const translationCode = data?.translation || "BBE";
+		const translationCode = data?.translation || this.currentTranslation();
+		this.rememberTranslation(translationCode);
 		const bookId = data.bookId || 1;
 		const chapter = data.chapter || 1;
 		const verse = sections[0]?.verse || 1;
@@ -760,7 +856,8 @@ class BibleView extends ItemView {
 			return;
 		}
 
-		const translationCode = data?.translation || "BBE";
+		const translationCode = data?.translation || this.currentTranslation();
+		this.rememberTranslation(translationCode);
 		const bookId = data.bookId || 1;
 		const chapter = data.chapter || 1;
 		const verse = data.verse || 1;
@@ -820,6 +917,81 @@ class BibleViewerSettingTab extends PluginSettingTab {
 						}
 					})
 			);
+
+		new Setting(containerEl)
+			.setName("Detect verse references")
+			.setDesc("Turn written references like Genesis 3:5 into links that open that verse in Bible Viewer. On by default.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.detectVerseReferences)
+					.onChange(async (value) => {
+						this.plugin.settings.detectVerseReferences = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
+}
+
+function createVerseRefExtension(plugin: BibleViewerPlugin) {
+	return ViewPlugin.fromClass(
+		class {
+			decorations: DecorationSet;
+
+			constructor(view: EditorView) {
+				this.decorations = this.build(view);
+			}
+
+			update(update: ViewUpdate) {
+				if (update.docChanged || update.viewportChanged) {
+					this.decorations = this.build(update.view);
+				}
+			}
+
+			build(view: EditorView) {
+				const builder = new RangeSetBuilder<Decoration>();
+				if (!plugin.settings.detectVerseReferences) {
+					return builder.finish();
+				}
+				for (const range of view.visibleRanges) {
+					const text = view.state.doc.sliceString(range.from, range.to);
+					for (const hit of findVerseRefs(text)) {
+						builder.add(
+							range.from + hit.from,
+							range.from + hit.to,
+							Decoration.mark({
+								class: "bible-verse-ref",
+								attributes: {
+									"data-book-id": String(hit.bookId),
+									"data-chapter": String(hit.chapter),
+									"data-verse": String(hit.verse),
+									"data-end-verse": hit.endVerse ? String(hit.endVerse) : "",
+								},
+							})
+						);
+					}
+				}
+				return builder.finish();
+			}
+		},
+		{
+			decorations: (value) => value.decorations,
+			eventHandlers: {
+				mousedown(event) {
+					if (!plugin.settings.detectVerseReferences) {
+						return false;
+					}
+					const target = event.target as HTMLElement | null;
+					const el = target?.closest?.(".bible-verse-ref");
+					const hit = verseHitFromEl(el);
+					if (!hit) {
+						return false;
+					}
+					event.preventDefault();
+					void plugin.openVerseReference(hit);
+					return true;
+				},
+			},
+		}
+	);
 }
 
