@@ -93,19 +93,6 @@ export def canvasLineDash style\string
 		else
 			return []
 
-def locateTextOffset root, target
-	let remaining = Number(target or 0)
-	if remaining < 0
-		return null
-	let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-	while walker.nextNode!
-		let node = walker.currentNode
-		let len = (node.textContent or '').length
-		if remaining <= len
-			return { node: node, offset: remaining }
-		remaining -= len
-	return null
-
 def highlightWrapElement raw\string, decoration\string = 'fill', underlineStyle\string = 'solid'
 	let parsed = parseHighlightColor(raw)
 	let mode = decoration == 'underline' ? 'underline' : parsed.mode
@@ -126,34 +113,52 @@ def wrapDomTextRange root, h
 	let end = Number(h.end or 0)
 	if !(end > start)
 		return
-	let a = locateTextOffset(root, start)
-	let b = locateTextOffset(root, end)
-	if !a
-		return
-	if !b
-		b = locateTextOffset(root, Math.max(0, end - 1))
-		if b
-			b.offset = (b.node.textContent or '').length
-	if !b
-		return
-	let range = document.createRange()
-	try
-		range.setStart(a.node, a.offset)
-		range.setEnd(b.node, b.offset)
-	catch err
-		return
-	if range.collapsed
-		return
-	let el = highlightWrapElement(h.color or '#F9E2A0', h.decoration or 'fill', h.underlineStyle or 'solid')
-	try
-		let contents = range.extractContents()
-		el.appendChild(contents)
-		range.insertNode(el)
-	catch err
-		try
-			range.surroundContents(el)
-		catch nested
-			pass
+	# Wrap each text node in place. Range.extractContents can pull a <mark>
+	# out of a <p> (or empty the paragraph), which inserts a new block and
+	# shoves the commentary text down on the first highlight after load.
+	let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+	let segments = []
+	let consumed = 0
+	while walker.nextNode!
+		let node = walker.currentNode
+		let parent = node.parentNode
+		let len = (node.textContent or '').length
+		let nodeStart = consumed
+		consumed += len
+		if !parent
+			continue
+		if parent == root and String(node.textContent or '').trim() == ''
+			continue
+		if consumed <= start or nodeStart >= end
+			continue
+		let localStart = Math.max(0, start - nodeStart)
+		let localEnd = Math.min(len, end - nodeStart)
+		if localEnd > localStart
+			segments.push({
+				node: node
+				start: localStart
+				end: localEnd
+			})
+	let idx = segments.length - 1
+	while idx >= 0
+		let seg = segments[idx]
+		let node = seg.node
+		unless node and node.parentNode
+			idx -= 1
+			continue
+		let textLen = (node.textContent or '').length
+		if seg.end < textLen
+			node.splitText(seg.end)
+		let target = node
+		if seg.start > 0
+			target = node.splitText(seg.start)
+		unless target and target.textContent
+			idx -= 1
+			continue
+		let el = highlightWrapElement(h.color or '#F9E2A0', h.decoration or 'fill', h.underlineStyle or 'solid')
+		target.parentNode.insertBefore(el, target)
+		el.appendChild(target)
+		idx -= 1
 
 export def wrapHtmlTextHighlights html, highlights
 	if !html

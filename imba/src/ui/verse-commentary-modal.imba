@@ -167,7 +167,7 @@ tag verse-commentary-modal
 			})
 		chapterCommentaryHighlights = others
 		if !user.username or !window.navigator.onLine
-			imba.commit!
+			imba.commit!.then do applyCommentaryTypography!
 			return
 		try
 			await API.post("/save-freehand-highlights/", {
@@ -178,7 +178,7 @@ tag verse-commentary-modal
 			})
 		catch err
 			pass
-		imba.commit!
+		imba.commit!.then do applyCommentaryTypography!
 
 	def toggleCommentaryFreehand
 		if obsidianMode
@@ -306,7 +306,7 @@ tag verse-commentary-modal
 				saveCommentaryHighlights!
 			else
 				activities.commentaryFreehandCount = commentaryHighlights.length
-				imba.commit!
+				imba.commit!.then do applyCommentaryTypography!
 			return
 		let decoration = activities.patternHighlightMode ? 'underline' : 'fill'
 		let highlight = {
@@ -326,7 +326,7 @@ tag verse-commentary-modal
 			saveCommentaryHighlights!
 		else
 			activities.commentaryFreehandCount = commentaryHighlights.length
-			imba.commit!
+			imba.commit!.then do applyCommentaryTypography!
 
 	def commitCommentaryFreehandFromStroke isFinal = yes
 		return unless commentaryFreehandArmed
@@ -1717,25 +1717,37 @@ tag verse-commentary-modal
 global css
 	.commentary-modal .commentary-text p
 		margin: 0
-		padding-top: var(--cmt-pt, 0.5em)
+		padding-top: 0
 		padding-bottom: var(--cmt-pb, 1.2em)
 
 	.commentary-pane .commentary-text p
 		margin: 0
-		padding-top: var(--cmt-pt, 0.5em)
+		padding-top: 0
 		padding-bottom: var(--cmt-pb, 1.2em)
 
-	.commentary-modal .commentary-text p:first-child
-		padding-top: 0
+	.commentary-modal .commentary-text p + p
+		padding-top: var(--cmt-pt, 0.5em)
 
-	.commentary-pane .commentary-text p:first-child
-		padding-top: 0
+	.commentary-pane .commentary-text p + p
+		padding-top: var(--cmt-pt, 0.5em)
 
-	.commentary-modal .commentary-text p:last-child
+	.commentary-modal .commentary-text p:last-of-type
 		padding-bottom: 0
 
-	.commentary-pane .commentary-text p:last-child
+	.commentary-pane .commentary-text p:last-of-type
 		padding-bottom: 0
+
+	.commentary-modal .commentary-text mark
+		margin: 0
+		padding: 0
+		border: 0
+		line-height: inherit
+
+	.commentary-pane .commentary-text mark
+		margin: 0
+		padding: 0
+		border: 0
+		line-height: inherit
 
 	.commentary-modal .commentary-text [data-block-idx]
 		cursor: pointer
