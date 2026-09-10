@@ -10,6 +10,7 @@ import {
 	Editor,
 	EditorPosition,
 	TFile,
+	addIcon,
 	setIcon,
 } from "obsidian";
 import { RangeSetBuilder } from "@codemirror/state";
@@ -35,7 +36,7 @@ const DEFAULT_SETTINGS: BibleViewerSettings = {
 };
 
 const HALF_WIDTH_ICON_ID = "bible-viewer-half";
-const HALF_WIDTH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M12 7a4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3"/><path fill="currentColor" stroke="currentColor" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3z"/></svg>`;
+const HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M12 7a4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3"/><path fill="currentColor" stroke="currentColor" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3z"/>`;
 
 export default class BibleViewerPlugin extends Plugin {
 	settings: BibleViewerSettings;
@@ -44,7 +45,11 @@ export default class BibleViewerPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
-		this.addIcon(HALF_WIDTH_ICON_ID, HALF_WIDTH_ICON_SVG);
+		try {
+			addIcon(HALF_WIDTH_ICON_ID, HALF_WIDTH_ICON_SVG);
+		} catch {
+			// Custom icon is optional; plugin must still load.
+		}
 
 		// Register the view
 		this.registerView(
@@ -68,10 +73,14 @@ export default class BibleViewerPlugin extends Plugin {
 			},
 		});
 
-		this.ribbonEl = this.addRibbonIcon(this.ribbonIconId(), this.ribbonLabel(), () => {
+		this.ribbonEl = this.addRibbonIcon("book-open", this.ribbonLabel(), () => {
 			void this.handleRibbonClick();
 		});
-		this.syncRibbonIcon();
+		try {
+			this.syncRibbonIcon();
+		} catch {
+			// Keep the default book-open icon if the custom one isn't available.
+		}
 
 		// Add settings tab
 		this.addSettingTab(new BibleViewerSettingTab(this.app, this));
@@ -125,7 +134,13 @@ export default class BibleViewerPlugin extends Plugin {
 		);
 
 		this.registerDomEvent(window, "resize", () => {
-			window.requestAnimationFrame(() => this.applyPaneWidth(this.settings.paneWidthMode));
+			window.requestAnimationFrame(() => {
+				try {
+					this.applyPaneWidth(this.settings.paneWidthMode);
+				} catch {
+					// Ignore resize failures on platforms without a sidedock size API.
+				}
+			});
 		});
 
 		// Automatically open the view in the right leaf and restore last half/full size
@@ -186,11 +201,19 @@ export default class BibleViewerPlugin extends Plugin {
 		if (this.ribbonEl) {
 			this.ribbonEl.setAttribute("aria-label", this.ribbonLabel());
 			this.ribbonEl.setAttribute("title", this.ribbonLabel());
-			setIcon(this.ribbonEl, iconId);
+			try {
+				setIcon(this.ribbonEl, iconId);
+			} catch {
+				setIcon(this.ribbonEl, "book-open");
+			}
 		}
 		const tabIcon = (this.bibleView?.leaf as { tabHeaderInnerIconEl?: HTMLElement } | undefined)?.tabHeaderInnerIconEl;
 		if (tabIcon) {
-			setIcon(tabIcon, iconId);
+			try {
+				setIcon(tabIcon, iconId);
+			} catch {
+				setIcon(tabIcon, "book-open");
+			}
 		}
 	}
 
@@ -211,27 +234,31 @@ export default class BibleViewerPlugin extends Plugin {
 	}
 
 	applyPaneWidth(mode: PaneWidthMode) {
-		const workspace = this.app.workspace as App["workspace"] & {
-			rightSplit?: { collapsed?: boolean; expand?: () => void; setSize?: (size: number) => void; containerEl?: HTMLElement };
-			leftSplit?: { collapsed?: boolean; containerEl?: HTMLElement };
-		};
-		const right = workspace.rightSplit;
-		if (!right) {
-			return;
-		}
-		if (right.collapsed && typeof right.expand === "function") {
-			right.expand();
-		}
-		const total = this.workspaceWidth();
-		const left = this.sideDockSize(workspace.leftSplit || null);
-		const available = Math.max(320, total - left);
-		const size = mode === "full"
-			? Math.max(available - 48, Math.round(available * 0.92))
-			: Math.round(available * 0.5);
-		if (typeof right.setSize === "function") {
-			right.setSize(size);
-		} else if (right.containerEl) {
-			right.containerEl.style.width = `${size}px`;
+		try {
+			const workspace = this.app.workspace as App["workspace"] & {
+				rightSplit?: { collapsed?: boolean; expand?: () => void; setSize?: (size: number) => void; containerEl?: HTMLElement };
+				leftSplit?: { collapsed?: boolean; containerEl?: HTMLElement };
+			};
+			const right = workspace.rightSplit;
+			if (!right) {
+				return;
+			}
+			if (right.collapsed && typeof right.expand === "function") {
+				right.expand();
+			}
+			const total = this.workspaceWidth();
+			const left = this.sideDockSize(workspace.leftSplit || null);
+			const available = Math.max(320, total - left);
+			const size = mode === "full"
+				? Math.max(available - 48, Math.round(available * 0.92))
+				: Math.round(available * 0.5);
+			if (typeof right.setSize === "function") {
+				right.setSize(size);
+			} else if (right.containerEl) {
+				right.containerEl.style.width = `${size}px`;
+			}
+		} catch {
+			// Don't let pane sizing take down the plugin.
 		}
 	}
 
@@ -628,7 +655,11 @@ class BibleView extends ItemView {
 	}
 
 	getIcon() {
-		return this.plugin.ribbonIconId();
+		try {
+			return this.plugin.ribbonIconId();
+		} catch {
+			return "book-open";
+		}
 	}
 
 	async onOpen() {
