@@ -36,13 +36,14 @@ const DEFAULT_SETTINGS: BibleViewerSettings = {
 };
 
 const HALF_WIDTH_ICON_ID = "bible-viewer-half";
-// Same lucide book-open paths Obsidian uses; right page is closed and filled.
-const HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4"/><path fill="currentColor" stroke="currentColor" d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4v11z"/>`;
+// Match Obsidian's lucide book-open (spine + combined pages), with the right page filled.
+const HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M12 7a4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3"/><path fill="currentColor" stroke="currentColor" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3z"/>`;
 
 export default class BibleViewerPlugin extends Plugin {
 	settings: BibleViewerSettings;
 	bibleView: BibleView;
 	ribbonEl: HTMLElement | null = null;
+	paneToggleBusyUntil = 0;
 
 	async onload() {
 		await this.loadSettings();
@@ -185,11 +186,10 @@ export default class BibleViewerPlugin extends Plugin {
 
 	syncRibbonIcon() {
 		const iconId = this.ribbonIconId();
-		const half = this.settings.paneWidthMode === "half";
 		if (this.ribbonEl) {
 			this.ribbonEl.setAttribute("aria-label", this.ribbonLabel());
 			this.ribbonEl.setAttribute("title", this.ribbonLabel());
-			this.ribbonEl.classList.toggle("bible-viewer-half", half);
+			this.ribbonEl.classList.toggle("bible-viewer-half", this.settings.paneWidthMode === "half");
 			try {
 				setIcon(this.ribbonEl, iconId);
 			} catch {
@@ -198,7 +198,6 @@ export default class BibleViewerPlugin extends Plugin {
 		}
 		const tabIcon = (this.bibleView?.leaf as { tabHeaderInnerIconEl?: HTMLElement } | undefined)?.tabHeaderInnerIconEl;
 		if (tabIcon) {
-			tabIcon.classList.toggle("bible-viewer-half", half);
 			try {
 				setIcon(tabIcon, iconId);
 			} catch {
@@ -235,32 +234,11 @@ export default class BibleViewerPlugin extends Plugin {
 			: Math.round(available * 0.5);
 	}
 
-	setSplitWidth(split: {
-		collapsed?: boolean;
-		expand?: () => void;
-		setSize?: (size: number) => void;
-		size?: number;
-		containerEl?: HTMLElement;
-	} | null, size: number) {
-		if (!split) {
-			return;
-		}
-		if (split.collapsed && typeof split.expand === "function") {
-			split.expand();
-		}
-		if (typeof split.setSize === "function") {
-			split.setSize(size);
-		}
-		split.size = size;
-		const el = split.containerEl;
-		if (el) {
-			el.style.width = `${size}px`;
-			el.style.removeProperty("max-width");
-			el.style.removeProperty("flex-basis");
-		}
-	}
-
 	applyPaneWidth(mode: PaneWidthMode) {
+		const app = this.app as App & {
+			disableCssTransition?: () => void;
+			enableCssTransition?: () => void;
+		};
 		const workspace = this.app.workspace as App["workspace"] & {
 			rightSplit?: {
 				collapsed?: boolean;
@@ -271,33 +249,49 @@ export default class BibleViewerPlugin extends Plugin {
 			};
 			requestResize?: () => void;
 		};
-		const size = this.paneWidthPx(mode);
-		this.setSplitWidth(workspace.rightSplit || null, size);
-
-		const rightEl =
-			workspace.rightSplit?.containerEl ||
-			(this.app.workspace.containerEl.querySelector(".workspace-split.mod-right-split") as HTMLElement | null) ||
-			(this.app.workspace.containerEl.querySelector(".workspace-drawer.mod-right") as HTMLElement | null);
-		if (rightEl) {
-			rightEl.style.width = `${size}px`;
-			rightEl.style.removeProperty("max-width");
-			rightEl.style.removeProperty("flex-basis");
+		const right = workspace.rightSplit;
+		if (!right) {
+			return;
 		}
-
+		if (right.collapsed && typeof right.expand === "function") {
+			right.expand();
+		}
+		const size = this.paneWidthPx(mode);
+		app.disableCssTransition?.();
+		if (typeof right.setSize === "function") {
+			right.setSize(size);
+		} else {
+			right.size = size;
+			if (right.containerEl) {
+				right.containerEl.style.width = `${size}px`;
+			}
+		}
 		workspace.requestResize?.();
 		try {
 			void workspace.requestSaveLayout();
 		} catch {
-			// Older Obsidian builds expose this as a debouncer; ignore if it isn't callable.
+			// Ignore if this build's layout saver isn't callable.
 		}
+		app.enableCssTransition?.();
 		this.syncRibbonIcon();
 	}
 
 	async togglePaneWidth() {
-		await this.activateView();
+		const now = Date.now();
+		if (now < this.paneToggleBusyUntil) {
+			return;
+		}
+		this.paneToggleBusyUntil = now + 400;
+
+		const alreadyOpen = this.app.workspace.getLeavesOfType("bible-viewer").length > 0;
+		if (!alreadyOpen) {
+			await this.activateView();
+		}
+
 		this.settings.paneWidthMode = this.settings.paneWidthMode === "full" ? "half" : "full";
-		await this.saveSettings();
 		this.applyPaneWidth(this.settings.paneWidthMode);
+		window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 100);
+		void this.saveSettings();
 	}
 
 	async activateView() {
@@ -675,11 +669,7 @@ class BibleView extends ItemView {
 	}
 
 	getIcon() {
-		try {
-			return this.plugin.ribbonIconId();
-		} catch {
-			return "book-open";
-		}
+		return this.plugin.ribbonIconId();
 	}
 
 	async onOpen() {

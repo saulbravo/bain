@@ -53,10 +53,4 @@
   color: var(--link-color-hover, var(--link-color));
 }
 
-/* Same lucide book-open; fill the right page when the pane is half width. */
-.side-dock-ribbon-action.bible-viewer-half svg path:last-child,
-.workspace-tab-header.bible-viewer-half svg path:last-child {
-  fill: currentColor;
-}
-
 
