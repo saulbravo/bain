@@ -36,7 +36,8 @@ const DEFAULT_SETTINGS: BibleViewerSettings = {
 };
 
 const HALF_WIDTH_ICON_ID = "bible-viewer-half";
-const HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M12 7a4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3"/><path fill="currentColor" stroke="currentColor" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3z"/>`;
+// Same lucide book-open paths Obsidian uses; right page is closed and filled.
+const HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4"/><path fill="currentColor" stroke="currentColor" d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4v11z"/>`;
 
 export default class BibleViewerPlugin extends Plugin {
 	settings: BibleViewerSettings;
@@ -76,11 +77,7 @@ export default class BibleViewerPlugin extends Plugin {
 		this.ribbonEl = this.addRibbonIcon("book-open", this.ribbonLabel(), () => {
 			void this.handleRibbonClick();
 		});
-		try {
-			this.syncRibbonIcon();
-		} catch {
-			// Keep the default book-open icon if the custom one isn't available.
-		}
+		this.syncRibbonIcon();
 
 		// Add settings tab
 		this.addSettingTab(new BibleViewerSettingTab(this.app, this));
@@ -198,9 +195,11 @@ export default class BibleViewerPlugin extends Plugin {
 
 	syncRibbonIcon() {
 		const iconId = this.ribbonIconId();
+		const half = this.settings.paneWidthMode === "half";
 		if (this.ribbonEl) {
 			this.ribbonEl.setAttribute("aria-label", this.ribbonLabel());
 			this.ribbonEl.setAttribute("title", this.ribbonLabel());
+			this.ribbonEl.classList.toggle("bible-viewer-half", half);
 			try {
 				setIcon(this.ribbonEl, iconId);
 			} catch {
@@ -209,6 +208,7 @@ export default class BibleViewerPlugin extends Plugin {
 		}
 		const tabIcon = (this.bibleView?.leaf as { tabHeaderInnerIconEl?: HTMLElement } | undefined)?.tabHeaderInnerIconEl;
 		if (tabIcon) {
+			tabIcon.classList.toggle("bible-viewer-half", half);
 			try {
 				setIcon(tabIcon, iconId);
 			} catch {
@@ -233,47 +233,83 @@ export default class BibleViewerPlugin extends Plugin {
 		return dock.containerEl?.clientWidth || 0;
 	}
 
-	applyPaneWidth(mode: PaneWidthMode) {
-		try {
-			const workspace = this.app.workspace as App["workspace"] & {
-				rightSplit?: { collapsed?: boolean; expand?: () => void; setSize?: (size: number) => void; containerEl?: HTMLElement };
-				leftSplit?: { collapsed?: boolean; containerEl?: HTMLElement };
-			};
-			const right = workspace.rightSplit;
-			if (!right) {
-				return;
-			}
-			if (right.collapsed && typeof right.expand === "function") {
-				right.expand();
-			}
-			const total = this.workspaceWidth();
-			const left = this.sideDockSize(workspace.leftSplit || null);
-			const available = Math.max(320, total - left);
-			const size = mode === "full"
-				? Math.max(available - 48, Math.round(available * 0.92))
-				: Math.round(available * 0.5);
-			if (typeof right.setSize === "function") {
-				right.setSize(size);
-			} else if (right.containerEl) {
-				right.containerEl.style.width = `${size}px`;
-			}
-		} catch {
-			// Don't let pane sizing take down the plugin.
+	paneWidthPx(mode: PaneWidthMode): number {
+		const workspace = this.app.workspace as App["workspace"] & {
+			leftSplit?: { collapsed?: boolean; containerEl?: HTMLElement };
+		};
+		const total = this.workspaceWidth();
+		const left = this.sideDockSize(workspace.leftSplit || null);
+		const available = Math.max(320, total - left);
+		return mode === "full"
+			? Math.max(available - 48, Math.round(available * 0.92))
+			: Math.round(available * 0.5);
+	}
+
+	setSplitWidth(split: {
+		collapsed?: boolean;
+		expand?: () => void;
+		setSize?: (size: number) => void;
+		size?: number;
+		containerEl?: HTMLElement;
+	} | null, size: number) {
+		if (!split) {
+			return;
 		}
+		if (split.collapsed && typeof split.expand === "function") {
+			split.expand();
+		}
+		if (typeof split.setSize === "function") {
+			split.setSize(size);
+		}
+		split.size = size;
+		const el = split.containerEl;
+		if (el) {
+			el.style.setProperty("width", `${size}px`);
+			el.style.setProperty("max-width", `${size}px`);
+			el.style.flexBasis = `${size}px`;
+		}
+	}
+
+	applyPaneWidth(mode: PaneWidthMode) {
+		const workspace = this.app.workspace as App["workspace"] & {
+			rightSplit?: {
+				collapsed?: boolean;
+				expand?: () => void;
+				setSize?: (size: number) => void;
+				size?: number;
+				containerEl?: HTMLElement;
+			};
+			requestResize?: () => void;
+		};
+		const size = this.paneWidthPx(mode);
+		this.setSplitWidth(workspace.rightSplit || null, size);
+
+		const rightEl =
+			workspace.rightSplit?.containerEl ||
+			(this.app.workspace.containerEl.querySelector(".workspace-split.mod-right-split") as HTMLElement | null) ||
+			(this.app.workspace.containerEl.querySelector(".workspace-drawer.mod-right") as HTMLElement | null);
+		if (rightEl) {
+			rightEl.style.setProperty("width", `${size}px`);
+			rightEl.style.setProperty("max-width", `${size}px`);
+			rightEl.style.flexBasis = `${size}px`;
+		}
+
+		workspace.requestResize?.();
+		try {
+			void workspace.requestSaveLayout();
+		} catch {
+			// Older Obsidian builds expose this as a debouncer; ignore if it isn't callable.
+		}
+		this.syncRibbonIcon();
 	}
 
 	async togglePaneWidth() {
 		await this.activateView(false);
 		this.settings.paneWidthMode = this.settings.paneWidthMode === "full" ? "half" : "full";
 		await this.saveSettings();
-		window.requestAnimationFrame(() => {
-			this.applyPaneWidth(this.settings.paneWidthMode);
-			this.syncRibbonIcon();
-		});
-		window.setTimeout(() => {
-			this.applyPaneWidth(this.settings.paneWidthMode);
-			this.syncRibbonIcon();
-		}, 50);
+		this.applyPaneWidth(this.settings.paneWidthMode);
+		window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
+		window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 200);
 	}
 
 	async activateView(applyWidth = true) {

@@ -336,7 +336,7 @@ var DEFAULT_SETTINGS = {
   paneWidthMode: "half"
 };
 var HALF_WIDTH_ICON_ID = "bible-viewer-half";
-var HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M12 7a4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3"/><path fill="currentColor" stroke="currentColor" d="M12 7a4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3z"/>`;
+var HALF_WIDTH_ICON_SVG = `<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4"/><path fill="currentColor" stroke="currentColor" d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4v11z"/>`;
 var BibleViewerPlugin = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
@@ -369,10 +369,7 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     this.ribbonEl = this.addRibbonIcon("book-open", this.ribbonLabel(), () => {
       void this.handleRibbonClick();
     });
-    try {
-      this.syncRibbonIcon();
-    } catch (e) {
-    }
+    this.syncRibbonIcon();
     this.addSettingTab(new BibleViewerSettingTab(this.app, this));
     this.registerMarkdownPostProcessor((el) => {
       if (!this.settings.detectVerseReferences) {
@@ -470,9 +467,11 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
   syncRibbonIcon() {
     var _a, _b;
     const iconId = this.ribbonIconId();
+    const half = this.settings.paneWidthMode === "half";
     if (this.ribbonEl) {
       this.ribbonEl.setAttribute("aria-label", this.ribbonLabel());
       this.ribbonEl.setAttribute("title", this.ribbonLabel());
+      this.ribbonEl.classList.toggle("bible-viewer-half", half);
       try {
         (0, import_obsidian.setIcon)(this.ribbonEl, iconId);
       } catch (e) {
@@ -481,6 +480,7 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     }
     const tabIcon = (_b = (_a = this.bibleView) == null ? void 0 : _a.leaf) == null ? void 0 : _b.tabHeaderInnerIconEl;
     if (tabIcon) {
+      tabIcon.classList.toggle("bible-viewer-half", half);
       try {
         (0, import_obsidian.setIcon)(tabIcon, iconId);
       } catch (e) {
@@ -502,40 +502,56 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     }
     return ((_a = dock.containerEl) == null ? void 0 : _a.clientWidth) || 0;
   }
+  paneWidthPx(mode) {
+    const workspace = this.app.workspace;
+    const total = this.workspaceWidth();
+    const left = this.sideDockSize(workspace.leftSplit || null);
+    const available = Math.max(320, total - left);
+    return mode === "full" ? Math.max(available - 48, Math.round(available * 0.92)) : Math.round(available * 0.5);
+  }
+  setSplitWidth(split, size) {
+    if (!split) {
+      return;
+    }
+    if (split.collapsed && typeof split.expand === "function") {
+      split.expand();
+    }
+    if (typeof split.setSize === "function") {
+      split.setSize(size);
+    }
+    split.size = size;
+    const el = split.containerEl;
+    if (el) {
+      el.style.setProperty("width", `${size}px`);
+      el.style.setProperty("max-width", `${size}px`);
+      el.style.flexBasis = `${size}px`;
+    }
+  }
   applyPaneWidth(mode) {
+    var _a, _b;
+    const workspace = this.app.workspace;
+    const size = this.paneWidthPx(mode);
+    this.setSplitWidth(workspace.rightSplit || null, size);
+    const rightEl = ((_a = workspace.rightSplit) == null ? void 0 : _a.containerEl) || this.app.workspace.containerEl.querySelector(".workspace-split.mod-right-split") || this.app.workspace.containerEl.querySelector(".workspace-drawer.mod-right");
+    if (rightEl) {
+      rightEl.style.setProperty("width", `${size}px`);
+      rightEl.style.setProperty("max-width", `${size}px`);
+      rightEl.style.flexBasis = `${size}px`;
+    }
+    (_b = workspace.requestResize) == null ? void 0 : _b.call(workspace);
     try {
-      const workspace = this.app.workspace;
-      const right = workspace.rightSplit;
-      if (!right) {
-        return;
-      }
-      if (right.collapsed && typeof right.expand === "function") {
-        right.expand();
-      }
-      const total = this.workspaceWidth();
-      const left = this.sideDockSize(workspace.leftSplit || null);
-      const available = Math.max(320, total - left);
-      const size = mode === "full" ? Math.max(available - 48, Math.round(available * 0.92)) : Math.round(available * 0.5);
-      if (typeof right.setSize === "function") {
-        right.setSize(size);
-      } else if (right.containerEl) {
-        right.containerEl.style.width = `${size}px`;
-      }
+      void workspace.requestSaveLayout();
     } catch (e) {
     }
+    this.syncRibbonIcon();
   }
   async togglePaneWidth() {
     await this.activateView(false);
     this.settings.paneWidthMode = this.settings.paneWidthMode === "full" ? "half" : "full";
     await this.saveSettings();
-    window.requestAnimationFrame(() => {
-      this.applyPaneWidth(this.settings.paneWidthMode);
-      this.syncRibbonIcon();
-    });
-    window.setTimeout(() => {
-      this.applyPaneWidth(this.settings.paneWidthMode);
-      this.syncRibbonIcon();
-    }, 50);
+    this.applyPaneWidth(this.settings.paneWidthMode);
+    window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
+    window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 200);
   }
   async activateView(applyWidth = true) {
     const { workspace } = this.app;
