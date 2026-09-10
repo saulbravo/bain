@@ -335,14 +335,22 @@ class BibleView extends ItemView {
 		return /background/i.test(style) || /text-decoration/i.test(style);
 	}
 
+	cssStyleProperty(style: string, prop: string): string {
+		const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const match = String(style || "").match(new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, "i"));
+		return match ? match[1].trim().toLowerCase() : "";
+	}
+
 	highlightStyleKey(el: Element): string {
-		const style = (el.getAttribute("style") || "")
-			.replace(/color\s*:[^;]*;?/gi, "")
-			.replace(/-webkit-text-fill-color\s*:[^;]*;?/gi, "")
-			.replace(/\s+/g, " ")
-			.replace(/^;+|;+$/g, "")
-			.trim();
-		return `${el.tagName.toLowerCase()}|${style}`;
+		const style = el.getAttribute("style") || "";
+		const fill =
+			this.cssStyleProperty(style, "background-color") ||
+			this.cssStyleProperty(style, "background") ||
+			this.cssStyleProperty(style, "background-image");
+		const decoLine = this.cssStyleProperty(style, "text-decoration-line");
+		const decoStyle = this.cssStyleProperty(style, "text-decoration-style");
+		const decoColor = this.cssStyleProperty(style, "text-decoration-color");
+		return [el.tagName.toLowerCase(), fill, decoLine, decoStyle, decoColor].join("|");
 	}
 
 	stripEmptyHighlightTags(html: string): string {

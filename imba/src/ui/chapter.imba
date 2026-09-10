@@ -1712,6 +1712,36 @@ tag chapter < section
 		)
 		return out
 
+	def collapseHighlightStack covering
+		let fills = []
+		let underlines = []
+		for h in covering
+			unless h
+				continue
+			if (h.decoration or 'fill') == 'underline'
+				underlines.push(h)
+			else
+				fills.push(h)
+		fills.sort(do |a, b|
+			if a.start != b.start
+				return b.start - a.start
+			return a.end - b.end
+		)
+		underlines.sort(do |a, b|
+			if a.start != b.start
+				return a.start - b.start
+			return b.end - a.end
+		)
+		let out = []
+		if fills.length
+			out.push(fills[0])
+		for u in underlines
+			out.push(u)
+		return out
+
+	def desiredHighlightsAt highlights, pos
+		return collapseHighlightStack(coveringHighlights(highlights, pos))
+
 	def syncHighlightStack result, active, desired, selected = no
 		if sameHighlightStack(active, desired)
 			return result
@@ -1762,11 +1792,7 @@ tag chapter < section
 						if h.start > currentChar and h.start < currentChar + baseLen
 							unless desired.includes(h)
 								desired.push(h)
-					desired.sort(do |a, b|
-						if a.start != b.start
-							return a.start - b.start
-						return b.end - a.end
-					)
+					desired = collapseHighlightStack(desired)
 					result = syncHighlightStack(result, activeHighlights, desired, selected)
 					activeHighlights = desired
 					result += part.content
@@ -1775,7 +1801,7 @@ tag chapter < section
 				if lower.indexOf('</ruby') == 0
 					result += part.content
 					insideRuby = no
-					let desired = coveringHighlights(highlights, currentChar)
+					let desired = desiredHighlightsAt(highlights, currentChar)
 					result = syncHighlightStack(result, activeHighlights, desired, selected)
 					activeHighlights = desired
 					continue
@@ -1795,7 +1821,7 @@ tag chapter < section
 
 			while textPos < text.length
 				unless insideRuby
-					let desired = coveringHighlights(highlights, currentChar)
+					let desired = desiredHighlightsAt(highlights, currentChar)
 					result = syncHighlightStack(result, activeHighlights, desired, selected)
 					activeHighlights = desired
 				result += text[textPos]
@@ -1803,7 +1829,7 @@ tag chapter < section
 				currentChar++
 
 			unless insideRuby
-				let desired = coveringHighlights(highlights, currentChar)
+				let desired = desiredHighlightsAt(highlights, currentChar)
 				result = syncHighlightStack(result, activeHighlights, desired, selected)
 				activeHighlights = desired
 
