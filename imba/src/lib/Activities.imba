@@ -712,6 +712,10 @@ class Activities
 	def neededLiftForScroller scroller
 		unless scroller
 			return 0
+		# Only lift at the true scroll end. Mid-chapter, selecting a verse must
+		# not translate the article or the whole text jumps.
+		unless isScrollerAtBottom(scroller)
+			return 0
 		const toolbarH = toolbarTargetVisibleHeight!
 		unless toolbarH > 0
 			return 0
@@ -719,9 +723,6 @@ class Activities
 		unless visualBottom > 0
 			return 0
 		const viewBottom = visibleViewBottom!
-		unless visualBottom <= viewBottom + 40
-			unless isScrollerAtBottom(scroller)
-				return 0
 		const article = scroller.querySelector('article')
 		const layoutBottom = visualBottom - articleTranslateY(article)
 		const gap = (freehandHighlightMode or penToolMode) ? 28 : 12
