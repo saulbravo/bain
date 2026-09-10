@@ -29,6 +29,7 @@ class GenericReader
 	highlightUndoLock = no
 	freehandSaveInFlight = no
 	freehandPendingSaveRequest = null
+	freehandSaveGeneration = 0
 	show_verse_picker\boolean = no
 	verse\number|string = 0
 	_verseNavToken = 0
@@ -441,9 +442,12 @@ class GenericReader
 		loadLocalFreehandHighlights!
 		if !user.username or !window.navigator.onLine
 			return
-
+		let gen = freehandSaveGeneration
 		try
-			freehandHighlights = await API.getJson("/get-freehand-highlights/" + translation + '/' + book + '/' + chapter + '/', 'freehandHighlights')
+			let remote = await API.getJson("/get-freehand-highlights/" + translation + '/' + book + '/' + chapter + '/', 'freehandHighlights')
+			if gen != freehandSaveGeneration
+				return
+			freehandHighlights = remote
 			saveLocalFreehandHighlights!
 			if activities and activities.cacheChapterState
 				activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
@@ -501,6 +505,7 @@ class GenericReader
 		imba.commit!
 
 	def saveFreehandHighlights
+		freehandSaveGeneration += 1
 		const now = Date.now()
 		freehandHighlights = (freehandHighlights or []).map(do |item|
 			return {
@@ -521,13 +526,11 @@ class GenericReader
 		if !user.username or !window.navigator.onLine
 			imba.commit!
 			return
-
-		# Keep only the newest pending payload; this prevents out-of-order API writes
-		# from dropping recently drawn strokes when users draw quickly.
 		freehandPendingSaveRequest = {
 			translation: translation
 			book: book
 			chapter: chapter
+			generation: freehandSaveGeneration
 			highlights: freehandHighlights.map(do |item|
 				return {
 					startVerse: item.startVerse
@@ -541,7 +544,7 @@ class GenericReader
 				}
 			)
 		}
-		flushFreehandSaveQueue!
+		return flushFreehandSaveQueue!
 
 	def flushFreehandSaveQueue
 		if freehandSaveInFlight or !freehandPendingSaveRequest
@@ -556,13 +559,13 @@ class GenericReader
 				chapter: request.chapter
 				highlights: request.highlights
 			})
-			# So Highlights and Bookmarks modal refreshes and shows new freehand
+			if request.generation != freehandSaveGeneration
+				return
 			window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		catch error
 			console.log "Error saving freehand highlights:", error
 		finally
 			freehandSaveInFlight = no
-			# If new strokes arrived while save was in flight, persist latest snapshot now.
 			if freehandPendingSaveRequest
 				flushFreehandSaveQueue!
 
@@ -704,32 +707,59 @@ class GenericReader
 				notifications.push('error')
 
 	def clearAllChapterHighlights
-		# Update local state first so UI (verse icons + modal list) updates instantly
 		captureHighlightUndo!
 		highlightUndoLock = no
-		let pks = bookmarks.map(do |b| b.verse)
+		freehandSaveGeneration += 1
+		freehandPendingSaveRequest = null
+		let toDelete = []
+		let toSave = []
 		const deletedColors = new Set<string>()
-		for b in bookmarks
-			if b.color
-				deletedColors.add(b.color)
+		for existing in (bookmarks or []).slice()
+			unless existing
+				continue
+			let color = existing.color and String(existing.color).trim()
+			if color
+				deletedColors.add(color)
+			if color
+				if isExplicitBookmarkEntry(existing)
+					existing.color = ''
+					existing.date = Date.now()
+					toSave.push(existing)
+				else
+					toDelete.push(existing.verse)
+			elif !isExplicitBookmarkEntry(existing)
+				toDelete.push(existing.verse)
+		for pk in toDelete
+			let existing = bookmarks.find(do |bookmark| return Number(bookmark.verse) == Number(pk))
+			if existing
+				bookmarks.splice(bookmarks.indexOf(existing), 1)
+		bookmarks = bookmarks.slice()
 		freehandHighlights = []
-		bookmarks = []
-		deleteValue(freehandLocalStorageKey!)
+		saveLocalFreehandHighlights!
 		if activities and activities.cacheChapterState
 			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
 		for color in deletedColors
-			user.deleteBookmarkFromUserMap translation, book, chapter, color
+			unless bookmarks.find(do |bookmark| return bookmark.color == color)
+				user.deleteBookmarkFromUserMap translation, book, chapter, color
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		window.dispatchEvent(new CustomEvent('highlights-cache-clear'))
-		activities.cleanUp!
 		imba.commit!
-
-		# Sync to API/vault in background (like add: UI first, then persist)
-		if pks.length > 0
-			if typeof console != 'undefined' and console.log
-				console.log('[HIGHLIGHTS] clearAllChapterHighlights: removing', { pks })
-			requestDeleteBookmark(pks)
-		saveFreehandHighlights!
+		await saveFreehandHighlights!
+		if toDelete.length
+			await requestDeleteBookmark(toDelete)
+		if window.navigator.onLine
+			try
+				for item in toSave
+					await API.post("/save-bookmarks/", {
+						verses: [item.verse]
+						color: item.color or ''
+						date: item.date or Date.now()
+						collections: item.collection or ''
+						note: item.note or ''
+					})
+			catch err
+				notifications.push('error')
+		activities.cleanUp!
 
 	@computed get selectionHasBookmark
 		for verse in activities.selectedVersesPKs

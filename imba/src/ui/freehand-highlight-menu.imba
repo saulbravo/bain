@@ -39,7 +39,7 @@ tag freehand-highlight-menu
 			reader.clearPenSketchesForCurrentChapter!
 			if parallelReader.enabled
 				parallelReader.clearPenSketchesForCurrentChapter!
-		elif hasTouchEvents or window.confirm("Clear all highlights in this chapter?")
+		else
 			reader.clearAllChapterHighlights!
 			if parallelReader.enabled
 				parallelReader.clearAllChapterHighlights!

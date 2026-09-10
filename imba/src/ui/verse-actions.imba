@@ -17,7 +17,7 @@ import Plus from 'lucide-static/icons/plus.svg'
 import X from 'lucide-static/icons/x.svg'
 
 import * as ICONS from 'imba-phosphor-icons'
-import { hasTouchEvents } from '../constants'
+
 import reader from '../lib/Reader'
 import parallelReader from '../lib/ParallelReader'
 
@@ -115,11 +115,7 @@ tag verse-actions < section
 			e.preventDefault()
 		if e and e.stopPropagation
 			e.stopPropagation()
-		if hasTouchEvents or window.confirm("Clear all highlights in this chapter?")
-			if activities.selectedParallel == 'main'
-				reader.clearAllChapterHighlights!
-			else
-				parallelReader.clearAllChapterHighlights!
+		actionReader!.clearAllChapterHighlights!
 
 	def showAddNewCategory
 		activities.show_add_bookmark = yes
