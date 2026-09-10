@@ -53,4 +53,23 @@
   color: var(--link-color-hover, var(--link-color));
 }
 
+/* Keep the original book-open glyph; fill the right page in half-width mode. */
+.side-dock-ribbon-action.bible-viewer-half,
+.workspace-tab-header.bible-viewer-half .workspace-tab-header-inner-icon {
+	position: relative;
+}
+.side-dock-ribbon-action.bible-viewer-half::after,
+.workspace-tab-header.bible-viewer-half .workspace-tab-header-inner-icon::after {
+	content: "";
+	position: absolute;
+	top: 22%;
+	right: 20%;
+	width: 30%;
+	height: 50%;
+	background: currentColor;
+	border-radius: 0 2px 2px 0;
+	pointer-events: none;
+	opacity: 0.9;
+}
+
 
