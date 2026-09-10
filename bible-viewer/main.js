@@ -543,7 +543,7 @@ var BibleView = class extends import_obsidian.ItemView {
     }
     const black = "color: #000; -webkit-text-fill-color: #000;";
     return html.replace(/<(mark|span)(\s[^>]*?)?>/gi, (tag, name, attrs = "") => {
-      const isMark = String(name).toLowerCase() === "mark";
+      const isMark = name.toLowerCase() === "mark";
       const hasFill = /background(-color)?\s*:/i.test(attrs);
       if (!isMark && !hasFill) {
         return tag;
@@ -575,6 +575,120 @@ var BibleView = class extends import_obsidian.ItemView {
   }
   stripStrongNumbersFromVerseHtml(text) {
     return String(text || "").replace(/<[sS]>\d+<\/[sS]>/g, "").replace(/<rt class="strong-nums">[\s\S]*?<\/rt>/gi, "").replace(/<span class="strong-num"[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<span class="strong-gap"[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<\/?ruby[^>]*>/gi, "").replace(/<\/?span class="strong-word"[^>]*>/gi, "");
+  }
+  isHighlightElement(el) {
+    const tag = el.tagName.toLowerCase();
+    if (tag !== "mark" && tag !== "span") {
+      return false;
+    }
+    const style = el.getAttribute("style") || "";
+    return /background/i.test(style) || /text-decoration/i.test(style);
+  }
+  highlightStyleKey(el) {
+    const style = (el.getAttribute("style") || "").replace(/color\s*:[^;]*;?/gi, "").replace(/-webkit-text-fill-color\s*:[^;]*;?/gi, "").replace(/\s+/g, " ").replace(/^;+|;+$/g, "").trim();
+    return `${el.tagName.toLowerCase()}|${style}`;
+  }
+  stripEmptyHighlightTags(html) {
+    let text = String(html || "").replace(/\s*\n\s*/g, " ");
+    let prev = "";
+    while (prev !== text) {
+      prev = text;
+      text = text.replace(/<mark\b[^>]*>\s*<\/mark>/gi, "");
+      text = text.replace(/<span\b[^>]*>\s*<\/span>/gi, "");
+    }
+    return text.trim();
+  }
+  normalizeHighlightTree(root) {
+    const unwrapNested = () => {
+      let changed = false;
+      for (const el of Array.from(root.querySelectorAll("mark, span"))) {
+        const parent = el.parentElement;
+        if (!parent || !this.isHighlightElement(el) || !this.isHighlightElement(parent)) {
+          continue;
+        }
+        if (this.highlightStyleKey(parent) === this.highlightStyleKey(el)) {
+          while (el.firstChild) {
+            parent.insertBefore(el.firstChild, el);
+          }
+          el.remove();
+          changed = true;
+        }
+      }
+      return changed;
+    };
+    const stripEmpty = () => {
+      let changed = false;
+      for (const el of Array.from(root.querySelectorAll("mark, span"))) {
+        if (!this.isHighlightElement(el)) {
+          continue;
+        }
+        if (!(el.textContent || "").length) {
+          el.remove();
+          changed = true;
+        }
+      }
+      return changed;
+    };
+    const mergeAdjacent = (parent) => {
+      var _a;
+      let changed = false;
+      for (const child of Array.from(parent.children)) {
+        if (mergeAdjacent(child)) {
+          changed = true;
+        }
+      }
+      let node = parent.firstChild;
+      while (node) {
+        if (node.nodeType !== 1 || !this.isHighlightElement(node)) {
+          node = node.nextSibling;
+          continue;
+        }
+        let other = node.nextSibling;
+        let space = null;
+        if (other && other.nodeType === 3 && /^\s+$/.test(other.textContent || "")) {
+          space = other;
+          other = other.nextSibling;
+        }
+        if (other && other.nodeType === 1 && this.isHighlightElement(other) && this.highlightStyleKey(node) === this.highlightStyleKey(other)) {
+          if (space) {
+            node.appendChild(space);
+          }
+          while (other.firstChild) {
+            node.appendChild(other.firstChild);
+          }
+          (_a = other.parentNode) == null ? void 0 : _a.removeChild(other);
+          changed = true;
+          continue;
+        }
+        node = node.nextSibling;
+      }
+      return changed;
+    };
+    let guard = 0;
+    while (guard < 20) {
+      guard += 1;
+      const changed = unwrapNested() || stripEmpty() || mergeAdjacent(root);
+      if (!changed) {
+        break;
+      }
+    }
+  }
+  cleanVerseHighlightHtml(html) {
+    const text = this.stripEmptyHighlightTags(html);
+    if (!text || typeof DOMParser === "undefined") {
+      return text;
+    }
+    try {
+      const doc = new DOMParser().parseFromString(`<div>${text}</div>`, "text/html");
+      const root = doc.body.firstElementChild;
+      if (!root) {
+        return text;
+      }
+      this.normalizeHighlightTree(root);
+      return this.stripEmptyHighlightTags(root.innerHTML);
+    } catch (e) {
+      return text;
+    }
   }
   isInterlinearTranslation(code, fullName) {
     const abbr = String(code || "").toUpperCase();
@@ -939,10 +1053,11 @@ var BibleView = class extends import_obsidian.ItemView {
     const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
     const interlinear = Boolean(data.interlinear) || this.isInterlinearTranslation(translationCode, data.translationFullName);
     const verseTexts = verses.map((v) => {
-      let text = this.stripStrongNumbersFromVerseHtml(v.text);
+      let text = this.cleanVerseHighlightHtml(this.stripStrongNumbersFromVerseHtml(v.text));
       if (interlinear) {
         text = this.styleInterlinearVerseHtml(text);
       }
+      text = this.cleanVerseHighlightHtml(text);
       return `> ${v.verse}. ${text}`;
     }).join("\n");
     const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());

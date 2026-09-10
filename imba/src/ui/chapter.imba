@@ -1647,6 +1647,87 @@ tag chapter < section
 			i += 1
 		return length
 
+	def mergeHighlightRanges highlights
+		let groups = {}
+		for h in highlights
+			unless h
+				continue
+			let start = Number(h.start or 0)
+			let end = Number(h.end or 0)
+			if !(end > start)
+				continue
+			let key = "{h.color or ''}|{h.decoration or 'fill'}|{h.underlineStyle or 'solid'}"
+			unless groups[key]
+				groups[key] = []
+			groups[key].push({
+				start: start
+				end: end
+				color: h.color
+				decoration: h.decoration or 'fill'
+				underlineStyle: h.underlineStyle or 'solid'
+			})
+		let merged = []
+		for own key, items of groups
+			items.sort(do |a, b|
+				if a.start != b.start
+					return a.start - b.start
+				return a.end - b.end
+			)
+			let run = null
+			for item in items
+				if run == null
+					run = item
+				elif item.start <= run.end
+					if item.end > run.end
+						run.end = item.end
+				else
+					merged.push(run)
+					run = item
+			if run
+				merged.push(run)
+		merged.sort(do |a, b|
+			if a.start != b.start
+				return a.start - b.start
+			return b.end - a.end
+		)
+		return merged
+
+	def sameHighlightStack a, b
+		if a.length != b.length
+			return no
+		for i in [0 ... a.length]
+			if a[i] != b[i]
+				return no
+		return yes
+
+	def coveringHighlights highlights, pos
+		let out = []
+		for h in highlights
+			if h.start <= pos and h.end > pos
+				out.push(h)
+		out.sort(do |a, b|
+			if a.start != b.start
+				return a.start - b.start
+			return b.end - a.end
+		)
+		return out
+
+	def syncHighlightStack result, active, desired, selected = no
+		if sameHighlightStack(active, desired)
+			return result
+		let common = 0
+		while common < active.length and common < desired.length and active[common] == desired[common]
+			common += 1
+		let i = active.length - 1
+		while i >= common
+			result += freehandWrapClose(active[i].color, active[i].decoration or 'fill')
+			i -= 1
+		let j = common
+		while j < desired.length
+			result += openSelectedHighlightWrap(desired[j], selected)
+			j += 1
+		return result
+
 	def applyHighlightsToHtml html, highlights, selected = no
 		# Parse the HTML into a list of "parts": either a tag or a text node
 		let parts = []
@@ -1663,12 +1744,10 @@ tag chapter < section
 			parts.push({ type: 'text', content: content })
 			i += content.length
 
-		# Sort highlights by start offset ascending
-		highlights.sort(do |a, b| return a.start - b.start)
+		highlights = mergeHighlightRanges(highlights)
 
 		let result = ""
 		let currentChar = 0
-		let highlightIndex = 0
 		let activeHighlights = []
 		let insideStrongNums = no
 		let insideRuby = no
@@ -1678,23 +1757,27 @@ tag chapter < section
 				let lower = part.content.toLowerCase()
 				if lower.indexOf('<ruby') == 0
 					let baseLen = rubyBaseLengthFromParts(parts, partIndex)
-					while highlightIndex < highlights.length and highlights[highlightIndex].start >= currentChar and highlights[highlightIndex].start < currentChar + baseLen
-						let h = highlights[highlightIndex]
-						result += openSelectedHighlightWrap(h, selected)
-						activeHighlights.push(h)
-						highlightIndex++
+					let desired = coveringHighlights(highlights, currentChar)
+					for h in highlights
+						if h.start > currentChar and h.start < currentChar + baseLen
+							unless desired.includes(h)
+								desired.push(h)
+					desired.sort(do |a, b|
+						if a.start != b.start
+							return a.start - b.start
+						return b.end - a.end
+					)
+					result = syncHighlightStack(result, activeHighlights, desired, selected)
+					activeHighlights = desired
 					result += part.content
 					insideRuby = yes
 					continue
 				if lower.indexOf('</ruby') == 0
 					result += part.content
 					insideRuby = no
-					let highlightsEnding = activeHighlights.filter(do |h| return h.end <= currentChar)
-					if highlightsEnding.length > 0
-						for j in [0 ... highlightsEnding.length]
-							let h = highlightsEnding[j]
-							result += freehandWrapClose(h.color, h.decoration or 'fill')
-						activeHighlights = activeHighlights.filter(do |h| return h.end > currentChar)
+					let desired = coveringHighlights(highlights, currentChar)
+					result = syncHighlightStack(result, activeHighlights, desired, selected)
+					activeHighlights = desired
 					continue
 				if lower.indexOf('<rt') == 0
 					insideStrongNums = yes
@@ -1711,44 +1794,21 @@ tag chapter < section
 			let textPos = 0
 
 			while textPos < text.length
-				# Check for highlights starting here
-				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
-					let h = highlights[highlightIndex]
-					result += openSelectedHighlightWrap(h, selected)
-					activeHighlights.push(h)
-					highlightIndex++
-
-				# Check for highlights ending here
-				let highlightsEnding = activeHighlights.filter(do |h| return h.end == currentChar)
-				if highlightsEnding.length > 0
-					unless insideRuby
-						for j in [0 ... highlightsEnding.length]
-							let h = highlightsEnding[j]
-							result += freehandWrapClose(h.color, h.decoration or 'fill')
-						activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
-					
-					# Re-check for new highlights starting exactly here
-					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
-						let h = highlights[highlightIndex]
-						result += openSelectedHighlightWrap(h, selected)
-						activeHighlights.push(h)
-						highlightIndex++
-
+				unless insideRuby
+					let desired = coveringHighlights(highlights, currentChar)
+					result = syncHighlightStack(result, activeHighlights, desired, selected)
+					activeHighlights = desired
 				result += text[textPos]
 				textPos++
 				currentChar++
-			
-			# Check for highlights ending at the very end of a text node
-			unless insideRuby
-				let highlightsEndingAtEnd = activeHighlights.filter(do |h| return h.end == currentChar)
-				if highlightsEndingAtEnd.length > 0
-					for j in [0 ... highlightsEndingAtEnd.length]
-						let h = highlightsEndingAtEnd[j]
-						result += freehandWrapClose(h.color, h.decoration or 'fill')
-					activeHighlights = activeHighlights.filter(do |h| return h.end != currentChar)
 
-		for h in activeHighlights
-			result += freehandWrapClose(h.color, h.decoration or 'fill')
+			unless insideRuby
+				let desired = coveringHighlights(highlights, currentChar)
+				result = syncHighlightStack(result, activeHighlights, desired, selected)
+				activeHighlights = desired
+
+		if activeHighlights.length
+			result = syncHighlightStack(result, activeHighlights, [], selected)
 
 		return result
 
@@ -1857,10 +1917,8 @@ tag chapter < section
 			return yes
 		return yes
 
-	def getVerseText verse, annotate = no
-		let verseText = annotate ? annotateStrongNumbers(verse.text) : verse.text
+	def highlightsForVerse verse
 		let relevantHighlights = []
-		
 		for h in me.freehandHighlights
 			let entry = {
 				start: h.startOffset
@@ -1881,10 +1939,13 @@ tag chapter < section
 				entry.start = 0
 				entry.end = 999999
 				relevantHighlights.push(entry)
-		
+		return relevantHighlights
+
+	def getVerseText verse, annotate = no
+		let verseText = annotate ? annotateStrongNumbers(verse.text) : verse.text
+		let relevantHighlights = highlightsForVerse(verse)
 		if relevantHighlights.length > 0
 			verseText = self.applyHighlightsToHtml(verseText, relevantHighlights, annotate and isVerseSelected(verse.pk))
-		
 		return verseText
 
 	def stripStrongNumbersFromExport html
@@ -1933,14 +1994,33 @@ tag chapter < section
 				i += chunk.length
 		return out
 
+	def stripEmptyHighlightMarkup html
+		unless html
+			return ''
+		let text = String(html).replace(/\s*\n\s*/g, ' ')
+		let prev = ''
+		while prev != text
+			prev = text
+			text = text.replace(/<mark\b[^>]*>\s*<\/mark>/gi, '')
+			text = text.replace(/<span\b[^>]*>\s*<\/span>/gi, '')
+		return text
+
 	def getVerseTextForObsidianExport verse
-		let text = getVerseText(verse)
-		# Freehand / inline marks are already embedded in getVerseText output.
-		if text.indexOf('<mark') < 0
-			let bookmark = me.getBookmark(verse.pk)
-			let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
-			if color != ''
-				text = "<mark style=\"background: {color}; color: #000; -webkit-text-fill-color: #000;\">{text}</mark>"
+		let text = verse.text
+		let relevantHighlights = highlightsForVerse(verse)
+		let bookmark = me.getBookmark(verse.pk)
+		let color = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
+		if color != ''
+			relevantHighlights.push({
+				start: 0
+				end: 999999
+				color: color
+				decoration: 'fill'
+				underlineStyle: 'solid'
+			})
+		if relevantHighlights.length > 0
+			text = self.applyHighlightsToHtml(text, relevantHighlights, no)
+		text = stripEmptyHighlightMarkup(text)
 		text = stripStrongNumbersFromExport(text)
 		if isInterlinearTranslation(me.translation)
 			text = styleInterlinearForObsidian(text)

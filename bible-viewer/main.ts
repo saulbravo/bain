@@ -326,6 +326,137 @@ class BibleView extends ItemView {
 			.replace(/<\/?span class="strong-word"[^>]*>/gi, "");
 	}
 
+	isHighlightElement(el: Element): boolean {
+		const tag = el.tagName.toLowerCase();
+		if (tag !== "mark" && tag !== "span") {
+			return false;
+		}
+		const style = el.getAttribute("style") || "";
+		return /background/i.test(style) || /text-decoration/i.test(style);
+	}
+
+	highlightStyleKey(el: Element): string {
+		const style = (el.getAttribute("style") || "")
+			.replace(/color\s*:[^;]*;?/gi, "")
+			.replace(/-webkit-text-fill-color\s*:[^;]*;?/gi, "")
+			.replace(/\s+/g, " ")
+			.replace(/^;+|;+$/g, "")
+			.trim();
+		return `${el.tagName.toLowerCase()}|${style}`;
+	}
+
+	stripEmptyHighlightTags(html: string): string {
+		let text = String(html || "").replace(/\s*\n\s*/g, " ");
+		let prev = "";
+		while (prev !== text) {
+			prev = text;
+			text = text.replace(/<mark\b[^>]*>\s*<\/mark>/gi, "");
+			text = text.replace(/<span\b[^>]*>\s*<\/span>/gi, "");
+		}
+		return text.trim();
+	}
+
+	normalizeHighlightTree(root: Element): void {
+		const unwrapNested = (): boolean => {
+			let changed = false;
+			for (const el of Array.from(root.querySelectorAll("mark, span"))) {
+				const parent = el.parentElement;
+				if (!parent || !this.isHighlightElement(el) || !this.isHighlightElement(parent)) {
+					continue;
+				}
+				if (this.highlightStyleKey(parent) === this.highlightStyleKey(el)) {
+					while (el.firstChild) {
+						parent.insertBefore(el.firstChild, el);
+					}
+					el.remove();
+					changed = true;
+				}
+			}
+			return changed;
+		};
+
+		const stripEmpty = (): boolean => {
+			let changed = false;
+			for (const el of Array.from(root.querySelectorAll("mark, span"))) {
+				if (!this.isHighlightElement(el)) {
+					continue;
+				}
+				if (!(el.textContent || "").length) {
+					el.remove();
+					changed = true;
+				}
+			}
+			return changed;
+		};
+
+		const mergeAdjacent = (parent: Element): boolean => {
+			let changed = false;
+			for (const child of Array.from(parent.children)) {
+				if (mergeAdjacent(child)) {
+					changed = true;
+				}
+			}
+			let node = parent.firstChild;
+			while (node) {
+				if (node.nodeType !== 1 || !this.isHighlightElement(node as Element)) {
+					node = node.nextSibling;
+					continue;
+				}
+				let other = node.nextSibling;
+				let space: ChildNode | null = null;
+				if (other && other.nodeType === 3 && /^\s+$/.test(other.textContent || "")) {
+					space = other;
+					other = other.nextSibling;
+				}
+				if (
+					other &&
+					other.nodeType === 1 &&
+					this.isHighlightElement(other as Element) &&
+					this.highlightStyleKey(node as Element) === this.highlightStyleKey(other as Element)
+				) {
+					if (space) {
+						node.appendChild(space);
+					}
+					while (other.firstChild) {
+						node.appendChild(other.firstChild);
+					}
+					other.parentNode?.removeChild(other);
+					changed = true;
+					continue;
+				}
+				node = node.nextSibling;
+			}
+			return changed;
+		};
+
+		let guard = 0;
+		while (guard < 20) {
+			guard += 1;
+			const changed = unwrapNested() || stripEmpty() || mergeAdjacent(root);
+			if (!changed) {
+				break;
+			}
+		}
+	}
+
+	cleanVerseHighlightHtml(html: string): string {
+		const text = this.stripEmptyHighlightTags(html);
+		if (!text || typeof DOMParser === "undefined") {
+			return text;
+		}
+		try {
+			const doc = new DOMParser().parseFromString(`<div>${text}</div>`, "text/html");
+			const root = doc.body.firstElementChild;
+			if (!root) {
+				return text;
+			}
+			this.normalizeHighlightTree(root);
+			return this.stripEmptyHighlightTags(root.innerHTML);
+		} catch {
+			return text;
+		}
+	}
+
 	isInterlinearTranslation(code?: string, fullName?: string): boolean {
 		const abbr = String(code || "").toUpperCase();
 		if (abbr === "INTES") {
@@ -788,10 +919,11 @@ class BibleView extends ItemView {
 		const calloutHeader = `> [!bible] [${referenceText} - ${translationCode}](${url})`;
 		const interlinear = Boolean(data.interlinear) || this.isInterlinearTranslation(translationCode, data.translationFullName);
 		const verseTexts = verses.map((v) => {
-			let text = this.stripStrongNumbersFromVerseHtml(v.text);
+			let text = this.cleanVerseHighlightHtml(this.stripStrongNumbersFromVerseHtml(v.text));
 			if (interlinear) {
 				text = this.styleInterlinearVerseHtml(text);
 			}
+			text = this.cleanVerseHighlightHtml(text);
 			return `> ${v.verse}. ${text}`;
 		}).join("\n");
 		const blockId = this.sanitizeBlockId(data.blockId || this.newBlockId());
