@@ -25,6 +25,8 @@ class GenericReader
 	loading\boolean = no
 	@observable bookmarks\Bookmark[] = []
 	@observable freehandHighlights = []
+	highlightUndoStack = []
+	highlightUndoLock = no
 	freehandSaveInFlight = no
 	freehandPendingSaveRequest = null
 	show_verse_picker\boolean = no
@@ -241,8 +243,7 @@ class GenericReader
 		activities.openVerseNoteLinks(translation, book, chapter, verseNumber)
 
 	def getHighlight pk\number
-		# Don't return background for selected verses - they use text color instead
-		let highlight = bookmarks.find(do |element| return element.verse == pk)
+		let highlight = bookmarks.find(do |element| return Number(element.verse) == Number(pk))
 		# Bookmark-only (no color) = no background; only highlighted verses get a background
 		if highlight and highlight.color and String(highlight.color).trim() != ''
 			return  "linear-gradient({highlight.color} 0px, {highlight.color} 100%)"
@@ -263,6 +264,8 @@ class GenericReader
 		
 		if !pks or pks.length == 0
 			return
+
+		captureHighlightUndo!
 		
 		for pk in pks
 			# Merge highlight preview into existing entry so bookmark state is preserved.
@@ -563,8 +566,147 @@ class GenericReader
 			if freehandPendingSaveRequest
 				flushFreehandSaveQueue!
 
+	def cloneHighlightState
+		return {
+			bookmarks: JSON.parse(JSON.stringify(bookmarks or []))
+			freehandHighlights: JSON.parse(JSON.stringify(freehandHighlights or []))
+		}
+
+	def captureHighlightUndo
+		if highlightUndoLock
+			return
+		highlightUndoStack.push(cloneHighlightState!)
+		if highlightUndoStack.length > 20
+			highlightUndoStack.shift()
+		highlightUndoLock = yes
+
+	def releaseHighlightUndoLock
+		highlightUndoLock = no
+
+	get canUndoHighlight
+		return highlightUndoStack and highlightUndoStack.length > 0
+
+	def undoHighlightChange
+		unless canUndoHighlight
+			return
+		let snap = highlightUndoStack.pop()
+		unless snap
+			return
+		let previousPks = []
+		for item in (bookmarks or [])
+			previousPks.push(item.verse)
+		bookmarks = snap.bookmarks or []
+		freehandHighlights = snap.freehandHighlights or []
+		highlightUndoLock = no
+		let restoredPks = []
+		for item in bookmarks
+			restoredPks.push(item.verse)
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		saveFreehandHighlights!
+		imba.commit!
+		let removed = []
+		for pk in previousPks
+			unless restoredPks.includes(pk)
+				removed.push(pk)
+		if removed.length
+			requestDeleteBookmark(removed)
+		if window.navigator.onLine
+			try
+				for item in bookmarks
+					await API.post("/save-bookmarks/", {
+						verses: [item.verse]
+						color: item.color or ''
+						date: item.date or Date.now()
+						collections: item.collection or ''
+						note: item.note or ''
+					})
+				notifications.push('saved')
+			catch err
+				notifications.push('error')
+		else
+			if vault.available
+				for item in bookmarks
+					vault.saveBookmarksToStorageUntilOnline({
+						verses: [item.verse]
+						color: item.color or ''
+						date: item.date or Date.now()
+						collections: item.collection or ''
+						note: item.note or ''
+					})
+
+	def verseNumbersForPks pks
+		let nums = []
+		for pk in (pks or [])
+			let want = Number(pk)
+			for item in (verses or [])
+				if Number(item.pk) == want
+					nums.push(Number(item.verse))
+					break
+		return nums
+
+	def clearSelectedVerseHighlights pks\number[]
+		unless user.requireAccount!
+			return
+		if !pks or pks.length == 0
+			return
+		captureHighlightUndo!
+		highlightUndoLock = no
+		let verseNums = verseNumbersForPks(pks)
+		let toDelete = []
+		let toSave = []
+		for pk in pks
+			let existing = bookmarks.find(do |bookmark| return Number(bookmark.verse) == Number(pk))
+			unless existing
+				continue
+			unless existing.color and String(existing.color).trim() != ''
+				continue
+			if isExplicitBookmarkEntry(existing)
+				existing.color = ''
+				existing.date = Date.now()
+				toSave.push(existing)
+			else
+				toDelete.push(pk)
+		for pk in toDelete
+			let existing = bookmarks.find(do |bookmark| return Number(bookmark.verse) == Number(pk))
+			if existing
+				bookmarks.splice(bookmarks.indexOf(existing), 1)
+		bookmarks = bookmarks.slice()
+		let kept = []
+		for h in (freehandHighlights or [])
+			let overlaps = no
+			for n in verseNums
+				if Number(h.startVerse) <= n and Number(h.endVerse) >= n
+					overlaps = yes
+					break
+			unless overlaps
+				kept.push(h)
+		freehandHighlights = kept
+		if activities and activities.cacheChapterState
+			activities.cacheChapterState(translation, book, chapter, verses, bookmarks, freehandHighlights)
+		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
+		saveFreehandHighlights!
+		imba.commit!
+		if toDelete.length
+			requestDeleteBookmark(toDelete)
+		if window.navigator.onLine
+			try
+				for item in toSave
+					await API.post("/save-bookmarks/", {
+						verses: [item.verse]
+						color: item.color or ''
+						date: item.date or Date.now()
+						collections: item.collection or ''
+						note: item.note or ''
+					})
+			catch err
+				notifications.push('error')
+
 	def clearAllChapterHighlights
 		# Update local state first so UI (verse icons + modal list) updates instantly
+		captureHighlightUndo!
+		highlightUndoLock = no
 		let pks = bookmarks.map(do |b| b.verse)
 		const deletedColors = new Set<string>()
 		for b in bookmarks
@@ -905,6 +1047,7 @@ class GenericReader
 
 	def saveBookmark bookmarkOnly\boolean = no
 		unless user.requireAccount!
+			releaseHighlightUndoLock!
 			return
 
 		if activities.note == '<br>'
@@ -969,6 +1112,7 @@ class GenericReader
 		window.dispatchEvent(new CustomEvent('bookmarks-updated'))
 		imba.commit!
 		activities.cleanUp!
+		releaseHighlightUndoLock!
 
 		# Persist per-verse to DB so highlight actions don't accidentally mark all selected verses as bookmarks.
 		if typeof console != 'undefined' and console.log

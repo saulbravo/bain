@@ -4,6 +4,7 @@ import Link from 'lucide-static/icons/link.svg'
 import ChevronDown from 'lucide-static/icons/chevron-down.svg'
 import ChevronUp from 'lucide-static/icons/chevron-up.svg'
 import Dices from 'lucide-static/icons/dices.svg'
+import Undo2 from 'lucide-static/icons/undo-2.svg'
 import Share from 'lucide-static/icons/share.svg'
 import Split from 'lucide-static/icons/split.svg'
 import NotebookPen from 'lucide-static/icons/notebook-pen.svg'
@@ -124,6 +125,59 @@ tag verse-actions < section
 		activities.show_add_bookmark = yes
 		imba.commit!.then do $newcategoryinput.focus()
 
+	def actionReader
+		if activities.selectedParallel == 'main'
+			return reader
+		if activities.selectedParallel and activities.selectedParallel != 'main'
+			return parallelReader
+		if activities.selectedVersesPKs and activities.selectedVersesPKs.length
+			let pks = activities.selectedVersesPKs
+			let hasMain = reader.verses and reader.verses.some(do |v| return pks.includes(v.pk))
+			if hasMain
+				return reader
+			if parallelReader.enabled
+				return parallelReader
+		return reader
+
+	get toolbarHighlightColors
+		let colors = activities.highlightColors or []
+		if colors.length > 4
+			return colors.slice(0, 4)
+		return colors
+
+	get canUndoHighlights
+		if reader.canUndoHighlight
+			return yes
+		if parallelReader.enabled and parallelReader.canUndoHighlight
+			return yes
+		return no
+
+	def undoHighlights e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		unless canUndoHighlights
+			return
+		let target = actionReader!
+		if target and target.canUndoHighlight
+			target.undoHighlightChange!
+			return
+		if reader.canUndoHighlight
+			reader.undoHighlightChange!
+			return
+		if parallelReader.enabled and parallelReader.canUndoHighlight
+			parallelReader.undoHighlightChange!
+
+	def clearSelectedHighlights e
+		if e and e.preventDefault
+			e.preventDefault()
+		if e and e.stopPropagation
+			e.stopPropagation()
+		if !activities.selectedVersesPKs or activities.selectedVersesPKs.length == 0
+			return
+		actionReader!.clearSelectedVerseHighlights(activities.selectedVersesPKs)
+
 	<self [y:{activities.isVerseActionsMinimized ? (window.innerWidth < 1024 ? 'calc(100% - 2.75rem)' : '100%') : #dy + 'px'} @off:100% o@off:0 transition-duration:{transitionDuration}] ease
 		.is-minimized=activities.isVerseActionsMinimized
 		@touch.fit(self)=touchHandler
@@ -147,6 +201,11 @@ tag verse-actions < section
 
 		<ul.color-options>
 			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
+				<svg src=Undo2 width="2rem" height="2rem" role="button" aria-label="Undo" title="Undo"
+					[o:{canUndoHighlights ? 1 : 0.35} cursor:{canUndoHighlights ? 'pointer' : 'default'}]
+					@click.stop.prevent=undoHighlights>
+
+			<li[d:inline-flex ai:center jc:center cursor:pointer c@hover:$acc m:0 0.25rem]>
 				<svg src=Dices width="2rem" height="2rem" role="button" aria-label=t.random
 				@click=(do
 					let randomColor = activities.randomColor
@@ -169,10 +228,13 @@ tag verse-actions < section
 			<li.color-option[scale:unset]>
 				<color-picker[w:100%] color=activities.highlight_color @change=activities.setHighlightColor>
 
-			for color in activities.highlightColors
+			for color in toolbarHighlightColors
 				<li.color-option [background:{color}] title=color role="button" aria-label=color
 					.selected=(activities.highlight_color == color)
 					@click.stop.prevent=activities.changeHighlightColor(color)>
+
+			<li.color-option.clear-highlight title="Remove highlight" role="button" aria-label="Remove highlight"
+				@click.stop.prevent=clearSelectedHighlights>
 
 
 		<menu>
@@ -393,6 +455,14 @@ tag verse-actions < section
 			scale@hover: 1.2
 			&.selected
 				border: 3px solid $acc
+
+		.color-option.clear-highlight
+			bgc: #1a1a1a
+			bd: 2px solid $c
+			box-sizing: border-box
+			background-image: linear-gradient(135deg, transparent calc(50% - 1px), $c calc(50% - 1px), $c calc(50% + 1px), transparent calc(50% + 1px))
+			background-origin: border-box
+			background-clip: padding-box
 
 		menu
 			d:hcc

@@ -1,6 +1,6 @@
 import GenericReader from '../lib/GenericReader'
 import activities from '../lib/Activities'
-import { canvasLineDash, freehandWrapClose, freehandWrapOpen } from '../lib/highlightStyles'
+import { canvasLineDash, freehandWrapClose, freehandWrapOpen, parseHighlightColor, selectionTextColorForHighlight } from '../lib/highlightStyles'
 
 import ChevronLeft from 'lucide-static/icons/chevron-left.svg'
 import Bookmark from 'lucide-static/icons/bookmark.svg'
@@ -41,6 +41,28 @@ tag chapter < section
 		if versePrefix == 'p'
 			return !!id.match(/^p\d+$/)
 		return !!id.match(/^\d+$/)
+
+	def isVerseSelected pk
+		unless activities.selectedVersesPKs
+			return no
+		let want = Number(pk)
+		for selected in activities.selectedVersesPKs
+			if Number(selected) == want
+				return yes
+		return no
+
+	def selectedTextColorForFill raw
+		let parsed = parseHighlightColor(raw)
+		let color = parsed.color or raw
+		unless color
+			return null
+		return selectionTextColorForHighlight(color)
+
+	def openSelectedHighlightWrap h, selected
+		let textColor = '#000'
+		if selected
+			textColor = selectedTextColorForFill(h.color) or '#000'
+		return freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid', textColor, selected)
 
 	def calculateTopVerse e\Event
 		if activities.scrollLockTimeout != null
@@ -1625,7 +1647,7 @@ tag chapter < section
 			i += 1
 		return length
 
-	def applyHighlightsToHtml html, highlights
+	def applyHighlightsToHtml html, highlights, selected = no
 		# Parse the HTML into a list of "parts": either a tag or a text node
 		let parts = []
 		let i = 0
@@ -1658,7 +1680,7 @@ tag chapter < section
 					let baseLen = rubyBaseLengthFromParts(parts, partIndex)
 					while highlightIndex < highlights.length and highlights[highlightIndex].start >= currentChar and highlights[highlightIndex].start < currentChar + baseLen
 						let h = highlights[highlightIndex]
-						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+						result += openSelectedHighlightWrap(h, selected)
 						activeHighlights.push(h)
 						highlightIndex++
 					result += part.content
@@ -1692,7 +1714,7 @@ tag chapter < section
 				# Check for highlights starting here
 				while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 					let h = highlights[highlightIndex]
-					result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+					result += openSelectedHighlightWrap(h, selected)
 					activeHighlights.push(h)
 					highlightIndex++
 
@@ -1708,7 +1730,7 @@ tag chapter < section
 					# Re-check for new highlights starting exactly here
 					while highlightIndex < highlights.length and highlights[highlightIndex].start == currentChar
 						let h = highlights[highlightIndex]
-						result += freehandWrapOpen(h.color, h.decoration or 'fill', h.underlineStyle or 'solid')
+						result += openSelectedHighlightWrap(h, selected)
 						activeHighlights.push(h)
 						highlightIndex++
 
@@ -1847,21 +1869,21 @@ tag chapter < section
 				decoration: h.decoration or 'fill'
 				underlineStyle: h.underlineStyle or 'solid'
 			}
-			if h.startVerse == verse.verse and h.endVerse == verse.verse
+			if Number(h.startVerse) == Number(verse.verse) and Number(h.endVerse) == Number(verse.verse)
 				relevantHighlights.push(entry)
-			elif h.startVerse == verse.verse
+			elif Number(h.startVerse) == Number(verse.verse)
 				entry.end = 999999
 				relevantHighlights.push(entry)
-			elif h.endVerse == verse.verse
+			elif Number(h.endVerse) == Number(verse.verse)
 				entry.start = 0
 				relevantHighlights.push(entry)
-			elif h.startVerse < verse.verse and h.endVerse > verse.verse
+			elif Number(h.startVerse) < Number(verse.verse) and Number(h.endVerse) > Number(verse.verse)
 				entry.start = 0
 				entry.end = 999999
 				relevantHighlights.push(entry)
 		
 		if relevantHighlights.length > 0
-			verseText = self.applyHighlightsToHtml(verseText, relevantHighlights)
+			verseText = self.applyHighlightsToHtml(verseText, relevantHighlights, annotate and isVerseSelected(verse.pk))
 		
 		return verseText
 
@@ -2142,12 +2164,23 @@ tag chapter < section
 						let showBookmarkNote = bookmark and (displayCollection or bookmark.note) and not me.nextVerseHasTheSameBookmark(verse_index)
 						let superStyle = "scroll-margin-top:1.4rem;"
 						let verseText = getVerseText(verse, yes)
+						let selected = isVerseSelected(verse.pk)
+						let highlightFill = bookmark and bookmark.color ? String(bookmark.color).trim() : ''
+						let selectedFillColor = (selected and highlightFill) ? selectedTextColorForFill(highlightFill) : null
+						let idleFillColor = selected ? null : me.getHighlightTextColor(verse.pk)
+						let fillBg = highlightFill
+						if selected and highlightFill
+							fillBg = "color-mix(in srgb, {highlightFill} 78%, #000000)"
+						let verseStyle = fillBg ? "background-image:linear-gradient({fillBg} 0px, {fillBg} 100%)" : ''
+						if selectedFillColor
+							verseStyle = "{verseStyle};color:{selectedFillColor}!important;-webkit-text-fill-color:{selectedFillColor}!important"
+						elif idleFillColor
+							verseStyle = "{verseStyle};color:{idleFillColor};-webkit-text-fill-color:{idleFillColor}"
 
 						<>
-							<span 
-								.selected-verse=(activities.selectedVersesPKs.includes(verse.pk)) 
-								[background-image: {me.getHighlight(verse.pk)}]
-								[color: {activities.selectedVersesPKs.includes(verse.pk) ? null : me.getHighlightTextColor(verse.pk)}]>
+							<span
+								.selected-verse=selected
+								style=verseStyle>
 								
 								if settings.verse_number
 									unless settings.verse_break
@@ -2458,14 +2491,12 @@ tag chapter < section
 
 		.selected-verse
 			c@important: $acc
-			background: none
-			background-image: none
-			background-color: transparent
-		
+			-webkit-text-fill-color@important: $acc
+
 		span.selected-verse::selection,
 		span.selected-verse::-moz-selection
 			background-color: transparent
-			color: $acc
+			color: inherit
 
 		# Verse selection overlay box (matches Obsidian plugin style)
 		.verse-selection-box

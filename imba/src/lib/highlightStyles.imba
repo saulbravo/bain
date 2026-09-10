@@ -23,6 +23,105 @@ export def normalizeColorToHex color\string
 def expandShortHex hex\string
 	return "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
 
+export def cssColorToRgb color\string
+	let value = color and String(color).trim() or ''
+	if value == ''
+		return null
+	let hex = normalizeColorToHex(value)
+	if hex and hex[0] == '#'
+		if hex.length == 4
+			hex = expandShortHex(hex)
+		if hex.length >= 7
+			let r = Number.parseInt(hex.slice(1, 3), 16)
+			let g = Number.parseInt(hex.slice(3, 5), 16)
+			let b = Number.parseInt(hex.slice(5, 7), 16)
+			if r == r and g == g and b == b
+				return { r: r, g: g, b: b }
+	if typeof document == 'undefined'
+		return null
+	let probe = document.createElement('span')
+	probe.style.color = value
+	document.documentElement.appendChild(probe)
+	let computed = window.getComputedStyle(probe).color
+	probe.parentNode.removeChild(probe)
+	let match = String(computed or '').match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/)
+	if !match
+		return null
+	return {
+		r: Math.round(Number(match[1]))
+		g: Math.round(Number(match[2]))
+		b: Math.round(Number(match[3]))
+	}
+
+def relativeLuminance rgb
+	unless rgb
+		return 0
+	def channel n
+		let c = n / 255
+		if c <= 0.03928
+			return c / 12.92
+		return Math.pow((c + 0.055) / 1.055, 2.4)
+	return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b)
+
+export def contrastRatio a, b
+	let l1 = relativeLuminance(a)
+	let l2 = relativeLuminance(b)
+	let hi = Math.max(l1, l2)
+	let lo = Math.min(l1, l2)
+	return (hi + 0.05) / (lo + 0.05)
+
+export def contrastTextForColor raw\string
+	let rgb = cssColorToRgb(raw)
+	if !rgb
+		return '#000000'
+	if relativeLuminance(rgb) < 0.45
+		return '#ffffff'
+	return '#000000'
+
+def mixRgb a, b, t
+	return {
+		r: Math.round(a.r + (b.r - a.r) * t)
+		g: Math.round(a.g + (b.g - a.g) * t)
+		b: Math.round(a.b + (b.b - a.b) * t)
+	}
+
+def rgbToHex rgb
+	def hex n
+		let v = Math.max(0, Math.min(255, Math.round(n)))
+		return v.toString(16).padStart(2, '0')
+	return "#{hex(rgb.r)}{hex(rgb.g)}{hex(rgb.b)}"
+
+export def accentSelectColor
+	if typeof document == 'undefined'
+		return ''
+	return String(window.getComputedStyle(document.documentElement).getPropertyValue('--acc') or '').trim()
+
+export def selectionTextColorForHighlight highlightColor\string
+	let accent = accentSelectColor!
+	let bg = cssColorToRgb(highlightColor)
+	let acc = cssColorToRgb(accent)
+	unless bg
+		return accent or '#ffffff'
+	unless acc
+		return contrastTextForColor(highlightColor)
+	if contrastRatio(acc, bg) >= 4.5
+		return accent
+	# Keep the select color family, but push it toward black or white until
+	# it is readable on this highlight (gold-on-yellow becomes dark gold).
+	let black = { r: 0, g: 0, b: 0 }
+	let white = { r: 255, g: 255, b: 255 }
+	let step = 1
+	while step <= 12
+		let t = step / 12
+		let darker = mixRgb(acc, black, t)
+		if contrastRatio(darker, bg) >= 4.5
+			return rgbToHex(darker)
+		let lighter = mixRgb(acc, white, t)
+		if contrastRatio(lighter, bg) >= 4.5
+			return rgbToHex(lighter)
+		step++
+	return contrastTextForColor(highlightColor)
+
 export def parseHighlightColor raw\string
 	let value = raw and String(raw).trim() or ''
 	if value == ''
@@ -64,7 +163,7 @@ export def highlightStyleCss raw\string, decoration\string = '', underlineStyle\
 		return "background-image: linear-gradient({color} 0px, {color} 100%); color: #000; -webkit-text-fill-color: #000;"
 	return ''
 
-export def freehandWrapOpen raw\string, decoration\string = 'fill', underlineStyle\string = 'solid'
+export def freehandWrapOpen raw\string, decoration\string = 'fill', underlineStyle\string = 'solid', textColor\string = '#000', selected = no
 	let parsed = parseHighlightColor(raw)
 	let mode = decoration == 'underline' ? 'underline' : parsed.mode
 	let style = mode == 'underline' ? (underlineStyle or parsed.style or 'solid') : parsed.style
@@ -72,7 +171,12 @@ export def freehandWrapOpen raw\string, decoration\string = 'fill', underlineSty
 	if mode == 'underline' and color
 		return "<span style=\"{underlineCss(style, color)}\">"
 	if color
-		return "<mark style=\"background-color:{color}; color: #000; -webkit-text-fill-color: #000;\">"
+		let fillText = textColor or '#000'
+		let fillBg = color
+		if selected
+			fillBg = "color-mix(in srgb, {color} 78%, #000000)"
+		let important = selected ? ' !important' : ''
+		return "<mark style=\"background-color:{fillBg}; color: {fillText}{important}; -webkit-text-fill-color: {fillText}{important};\">"
 	return '<span>'
 
 export def freehandWrapClose raw\string, decoration\string = 'fill'

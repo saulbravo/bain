@@ -580,6 +580,10 @@ class Activities
 		selectedVersesPKs = []
 		selectedParallel = undefined
 		selectedCategories = []
+		if reader.releaseHighlightUndoLock
+			reader.releaseHighlightUndoLock!
+		if parallelReader.releaseHighlightUndoLock
+			parallelReader.releaseHighlightUndoLock!
 		copySelectedVersesPKs = []
 		copySelectStartPK = 0
 		copySelectEndPK = 0
