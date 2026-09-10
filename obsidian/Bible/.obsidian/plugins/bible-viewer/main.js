@@ -417,16 +417,8 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
       },
       true
     );
-    this.registerDomEvent(window, "resize", () => {
-      window.requestAnimationFrame(() => {
-        try {
-          this.applyPaneWidth(this.settings.paneWidthMode);
-        } catch (e) {
-        }
-      });
-    });
     this.app.workspace.onLayoutReady(() => {
-      void this.activateView(true);
+      void this.activateView();
     });
   }
   async openVerseReference(hit) {
@@ -522,9 +514,9 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     split.size = size;
     const el = split.containerEl;
     if (el) {
-      el.style.setProperty("width", `${size}px`);
-      el.style.setProperty("max-width", `${size}px`);
-      el.style.flexBasis = `${size}px`;
+      el.style.width = `${size}px`;
+      el.style.removeProperty("max-width");
+      el.style.removeProperty("flex-basis");
     }
   }
   applyPaneWidth(mode) {
@@ -534,9 +526,9 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     this.setSplitWidth(workspace.rightSplit || null, size);
     const rightEl = ((_a = workspace.rightSplit) == null ? void 0 : _a.containerEl) || this.app.workspace.containerEl.querySelector(".workspace-split.mod-right-split") || this.app.workspace.containerEl.querySelector(".workspace-drawer.mod-right");
     if (rightEl) {
-      rightEl.style.setProperty("width", `${size}px`);
-      rightEl.style.setProperty("max-width", `${size}px`);
-      rightEl.style.flexBasis = `${size}px`;
+      rightEl.style.width = `${size}px`;
+      rightEl.style.removeProperty("max-width");
+      rightEl.style.removeProperty("flex-basis");
     }
     (_b = workspace.requestResize) == null ? void 0 : _b.call(workspace);
     try {
@@ -546,14 +538,12 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
     this.syncRibbonIcon();
   }
   async togglePaneWidth() {
-    await this.activateView(false);
+    await this.activateView();
     this.settings.paneWidthMode = this.settings.paneWidthMode === "full" ? "half" : "full";
     await this.saveSettings();
     this.applyPaneWidth(this.settings.paneWidthMode);
-    window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
-    window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 200);
   }
-  async activateView(applyWidth = true) {
+  async activateView() {
     const { workspace } = this.app;
     let leaf = null;
     const leaves = workspace.getLeavesOfType("bible-viewer");
@@ -570,10 +560,6 @@ var BibleViewerPlugin = class extends import_obsidian.Plugin {
       });
     }
     workspace.revealLeaf(leaf);
-    if (applyWidth) {
-      window.requestAnimationFrame(() => this.applyPaneWidth(this.settings.paneWidthMode));
-      window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
-    }
   }
 };
 var BibleView = class extends import_obsidian.ItemView {

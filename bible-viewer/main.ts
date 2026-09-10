@@ -130,19 +130,9 @@ export default class BibleViewerPlugin extends Plugin {
 			true
 		);
 
-		this.registerDomEvent(window, "resize", () => {
-			window.requestAnimationFrame(() => {
-				try {
-					this.applyPaneWidth(this.settings.paneWidthMode);
-				} catch {
-					// Ignore resize failures on platforms without a sidedock size API.
-				}
-			});
-		});
-
-		// Automatically open the view in the right leaf and restore last half/full size
+		// Open the view in the right leaf, but do not force a pane size.
 		this.app.workspace.onLayoutReady(() => {
-			void this.activateView(true);
+			void this.activateView();
 		});
 	}
 
@@ -264,9 +254,9 @@ export default class BibleViewerPlugin extends Plugin {
 		split.size = size;
 		const el = split.containerEl;
 		if (el) {
-			el.style.setProperty("width", `${size}px`);
-			el.style.setProperty("max-width", `${size}px`);
-			el.style.flexBasis = `${size}px`;
+			el.style.width = `${size}px`;
+			el.style.removeProperty("max-width");
+			el.style.removeProperty("flex-basis");
 		}
 	}
 
@@ -289,9 +279,9 @@ export default class BibleViewerPlugin extends Plugin {
 			(this.app.workspace.containerEl.querySelector(".workspace-split.mod-right-split") as HTMLElement | null) ||
 			(this.app.workspace.containerEl.querySelector(".workspace-drawer.mod-right") as HTMLElement | null);
 		if (rightEl) {
-			rightEl.style.setProperty("width", `${size}px`);
-			rightEl.style.setProperty("max-width", `${size}px`);
-			rightEl.style.flexBasis = `${size}px`;
+			rightEl.style.width = `${size}px`;
+			rightEl.style.removeProperty("max-width");
+			rightEl.style.removeProperty("flex-basis");
 		}
 
 		workspace.requestResize?.();
@@ -304,15 +294,13 @@ export default class BibleViewerPlugin extends Plugin {
 	}
 
 	async togglePaneWidth() {
-		await this.activateView(false);
+		await this.activateView();
 		this.settings.paneWidthMode = this.settings.paneWidthMode === "full" ? "half" : "full";
 		await this.saveSettings();
 		this.applyPaneWidth(this.settings.paneWidthMode);
-		window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
-		window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 200);
 	}
 
-	async activateView(applyWidth = true) {
+	async activateView() {
 		const { workspace } = this.app;
 
 		let leaf: WorkspaceLeaf | null = null;
@@ -332,10 +320,6 @@ export default class BibleViewerPlugin extends Plugin {
 		}
 
 		workspace.revealLeaf(leaf);
-		if (applyWidth) {
-			window.requestAnimationFrame(() => this.applyPaneWidth(this.settings.paneWidthMode));
-			window.setTimeout(() => this.applyPaneWidth(this.settings.paneWidthMode), 50);
-		}
 	}
 }
 
